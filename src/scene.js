@@ -63,7 +63,13 @@ export function computePhase(t, tl) {
   }
   // прогресс «удержания» для плавного увеличения (0 → 1 от появления до ухода)
   const grow = clamp01((local - D) / Math.max(E + H + F, 1e-4));
-  return { name, draw, reveal, outline, grow, local, cycle };
+  // огибающая кругов/света: из пустоты в начале цикла, обратно в пустоту к паузе
+  const RI = Math.max(0.05, tl.ringsIntro ?? 2.4);
+  const introE = smooth(0, RI, local);
+  const outroStart = D + E + H;
+  const outroE = local < outroStart ? 1 : 1 - smooth(0, Math.max(F, 1e-4), local - outroStart);
+  const rings = introE * outroE;
+  return { name, draw, reveal, outline, grow, local, cycle, rings };
 }
 
 export class LogoScene {
@@ -262,10 +268,13 @@ export class LogoScene {
     this.logo.updateOutline(ph.draw, ph.outline, cfg);
 
     // кольца, свет из углов
-    const cpos = this.corners.update(t, cfg, this.halfW, this.halfH);
+    const env = ph.rings;
+    const cpos = this.corners.update(t, cfg, this.halfW, this.halfH, env);
     const tilt = THREE.MathUtils.degToRad(cfg.rings.tilt);
-    this.particles.update(t, cfg, this.halfW, this.halfH, this.pixelRatio, this.viewportH, this.fovRad, cpos, cfg.rings.radius, tilt);
+    this.particles.update(t, cfg, this.halfW, this.halfH, this.pixelRatio, this.viewportH, this.fovRad, cpos, cfg.rings.radius, tilt, env);
     this.background.update(t, cfg);
+    this.background.uniforms.uEnvL.value = env;
+    this.background.uniforms.uEnvR.value = env;
 
     // фон: координаты кругов в NDC-подобных единицах
     const bgU = this.background.uniforms;

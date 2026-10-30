@@ -13,6 +13,7 @@ export const DEFAULTS = {
     fadeDuration: 2.3,     // уходит обратно в тень
     restDuration: 1.2,     // пауза в тени перед следующим кругом
     startDelay: 0.6,       // задержка перед первым появлением
+    ringsIntro: 2.4,       // появление кругов и света из пустого экрана (в начале каждого цикла)
     speed: 1.0,            // общая скорость (1 = реальное время)
   },
   logo: {
@@ -112,6 +113,7 @@ export const SCHEMA = [
       { key: "fadeDuration", label: "Уход в тень", type: "range", min: 0.5, max: 8, step: 0.05 },
       { key: "restDuration", label: "Пауза в тени", type: "range", min: 0, max: 6, step: 0.05 },
       { key: "startDelay", label: "Задержка старта", type: "range", min: 0, max: 5, step: 0.05 },
+      { key: "ringsIntro", label: "Появление кругов", type: "range", min: 0.1, max: 6, step: 0.05 },
       { key: "speed", label: "Скорость", type: "range", min: 0.1, max: 3, step: 0.01 },
     ]
   },

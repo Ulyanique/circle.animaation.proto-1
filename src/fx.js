@@ -26,6 +26,8 @@ const bgFS = /* glsl */ `
   uniform float uGrain;
   uniform float uVig;
   uniform float uGrid;
+  uniform float uEnvL;
+  uniform float uEnvR;
 
   float hash(vec2 p){ p = fract(p*vec2(443.897, 441.423)); p += dot(p, p.yx+19.19); return fract((p.x+p.y)*p.x); }
   float noise(vec2 p){
@@ -56,8 +58,8 @@ const bgFS = /* glsl */ `
     // концентрические волны, расходящиеся от кругов
     float wavesL = 0.5 + 0.5*sin(dl*16.0 - t*1.1);
     float wavesR = 0.5 + 0.5*sin(dr*16.0 - t*1.1 + 1.3);
-    float fL = exp(-dl*k) * (0.72 + 0.28*wavesL*uShimmer);
-    float fR = exp(-dr*k) * (0.72 + 0.28*wavesR*uShimmer);
+    float fL = exp(-dl*k) * (0.72 + 0.28*wavesL*uShimmer) * uEnvL;
+    float fR = exp(-dr*k) * (0.72 + 0.28*wavesR*uShimmer) * uEnvR;
     // «переливание»: медленное изменение яркости по шуму
     float flowL = 0.75 + 0.5*fbm(w*1.6 + vec2(t*0.08, 0.0));
     float flowR = 0.75 + 0.5*fbm(w*1.6 - vec2(t*0.07, 0.0) + 7.0);
@@ -66,8 +68,8 @@ const bgFS = /* glsl */ `
     col += uCL * fL * flowL * uIntensity;
     col += uCR * fR * flowR * uIntensity;
     // дополнительный тонкий ореол вокруг самих кругов
-    col += uCL * exp(-dl*dl*18.0) * 0.35 * uIntensity;
-    col += uCR * exp(-dr*dr*18.0) * 0.35 * uIntensity;
+    col += uCL * exp(-dl*dl*18.0) * 0.35 * uIntensity * uEnvL;
+    col += uCR * exp(-dr*dr*18.0) * 0.35 * uIntensity * uEnvR;
 
     // архитектурная сетка (чертёжная), подсвечивается светом
     vec2 gp = w * 6.0;
@@ -103,6 +105,8 @@ export class Background {
       uGrain: { value: 0.035 },
       uVig: { value: 0.55 },
       uGrid: { value: 0.05 },
+      uEnvL: { value: 1 },
+      uEnvR: { value: 1 },
     };
     this.material = new THREE.ShaderMaterial({
       uniforms: this.uniforms,
@@ -234,7 +238,7 @@ export class Corners {
   /**
    * @param {number} halfW, halfH — полуразмеры видимой области на z=0
    */
-  update(t, cfg, halfW, halfH) {
+  update(t, cfg, halfW, halfH, env = 1) {
     this.rebuild(cfg);
     this.group.visible = cfg.rings.enabled;
     const sides = {
@@ -247,7 +251,10 @@ export class Corners {
       const s = this.sides[name];
       const c = sides[name];
       s.group.position.set(c.x, c.y, 0);
-      s.group.visible = cfg.rings.enabled;
+      s.group.visible = cfg.rings.enabled && env > 0.0005;
+      // круг растёт из центра и вращается сильнее в момент появления
+      const grow = 0.02 + 0.98 * env;
+      s.group.scale.setScalar(grow);
       s.layers.forEach((l) => {
         l.group.rotation.set(tilt + l.idx * 0.22 * c.dir, l.idx * 0.45, 0);
         l.group.rotation.z = t * sp * (1.0 + l.idx * 0.4) * l.dir * c.dir;
@@ -262,14 +269,14 @@ export class Corners {
 
       const flick = 1 + cfg.rings.flicker * (Math.sin(t * 7.3 + (name === "left" ? 0 : 2.1)) * 0.5 + Math.sin(t * 2.9 + 4.0) * 0.5);
       const lightCol = name === "left" ? cfg.colors.lightLeft : cfg.colors.lightRight;
-      const intensity = cfg.rings.lightStrength * flick * 6 * cfg.lights.exposure;
+      const intensity = cfg.rings.lightStrength * flick * 6 * cfg.lights.exposure * env;
       const light = this.lights[name];
       light.color.set(lightCol);
       light.intensity = intensity;
       light.distance = 10 + cfg.background.lightSpread * 4;
       const sprite = this.sprites[name];
       sprite.material.color.set(lightCol);
-      sprite.material.opacity = Math.min(1, 0.45 * cfg.rings.glowIntensity * flick);
+      sprite.material.opacity = Math.min(1, 0.45 * cfg.rings.glowIntensity * flick) * env;
       sprite.scale.setScalar(cfg.rings.radius * 4.2 * cfg.background.lightSpread);
     }
     return { left: this.sides.left.group.position, right: this.sides.right.group.position };
@@ -402,7 +409,7 @@ export class Particles {
     }
   }
 
-  update(t, cfg, halfW, halfH, pixelRatio, viewportH, fovRad, ringPos, ringRadius, tilt) {
+  update(t, cfg, halfW, halfH, pixelRatio, viewportH, fovRad, ringPos, ringRadius, tilt, env = 1) {
     this.rebuild(cfg);
     this.group.visible = cfg.particles.enabled;
     const pixel = (viewportH * pixelRatio) / (2 * Math.tan(fovRad / 2)) * 0.012;
@@ -421,7 +428,7 @@ export class Particles {
       u.uRadius.value = ringRadius * 1.25;
       u.uTilt.value = tilt;
       u.uPixel.value = pixel;
-      u.uBright.value = cfg.particles.brightness;
+      u.uBright.value = cfg.particles.brightness * env;
       u.uCenter.value.copy(ringPos[sides[i]]);
       u.uColA.value.copy(colA);
       u.uColB.value.copy(colB);
@@ -432,7 +439,7 @@ export class Particles {
       u.uSpeed.value = cfg.particles.speed;
       u.uSize.value = cfg.particles.size * 0.7;
       u.uPixel.value = pixel;
-      u.uBright.value = cfg.particles.brightness * 0.8;
+      u.uBright.value = cfg.particles.brightness * 0.8 * env;
       u.uBox.value.set(halfW, halfH);
       u.uColA.value.copy(colA);
       u.uColB.value.copy(colB);
