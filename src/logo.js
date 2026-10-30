@@ -207,6 +207,8 @@ export class Logo {
     });
     const N = segs.length;
     this.outlineSegCount = N;
+    // опорные точки контура — отсюда рождаются искры
+    this.outlineAnchors = new Float32Array(segs.flatMap((s) => [s[0], s[1]]));
     const pos = new Float32Array(N * 12), other = new Float32Array(N * 12);
     const side = new Float32Array(N * 4), tt = new Float32Array(N * 4);
     const index = new Uint32Array(N * 6);

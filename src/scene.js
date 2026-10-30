@@ -15,6 +15,7 @@ import {
 import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
 import { Logo, revealUniforms } from "./logo.js";
 import { Background, Corners, Particles } from "./fx.js";
+import { Sparks, AnamorphicFlare } from "./sparks.js";
 
 const FOV = 30;
 const CAM_Z = 9;
@@ -40,7 +41,7 @@ export function computePhase(t, tl) {
   let local = (t - tl.startDelay) % cycle;
   if (local < 0) local += cycle;
 
-  let draw = 0, reveal = 0, outline = 0, fill = 0, glint = -1, name = "rest";
+  let draw = 0, reveal = 0, outline = 0, fill = 0, glint = -1, emergeT = -1, name = "rest";
   if (local < D) {
     name = "draw";
     draw = easeInOutCubic(clamp01(local / Math.max(D, 1e-4)));
@@ -72,7 +73,9 @@ export function computePhase(t, tl) {
   const outroStart = D + E + H;
   const outroE = local < outroStart ? 1 : 1 - smooth(0, Math.max(F, 1e-4), local - outroStart);
   const rings = introE * outroE;
-  return { name, draw, reveal, outline, fill, glint, grow, local, cycle, rings };
+  // секунды от начала появления (для искр); -1 — вне интервала
+  if (local >= D && local < D + E + H + F) emergeT = local - D;
+  return { name, draw, reveal, outline, fill, glint, emergeT, grow, local, cycle, rings };
 }
 
 export class LogoScene {
@@ -142,6 +145,9 @@ export class LogoScene {
     this.corners = new Corners();
     this.scene.add(this.corners.group);
     this.particles = new Particles();
+    this.sparks = new Sparks(this.logo);
+    this.flare = new AnamorphicFlare();
+    this.scene.add(this.flare.mesh);
     this.scene.add(this.particles.group);
 
     this._msaaSig = String(cfg.post.msaaSamples);
@@ -219,6 +225,7 @@ export class LogoScene {
     this.logo.rebuildIfNeeded(cfg);
     this.corners.rebuild(cfg);
     this.particles.rebuild(cfg);
+    this.sparks.rebuild(cfg);
   }
 
   update(t, dt) {
@@ -289,6 +296,13 @@ export class LogoScene {
     bgU.uRes.value.set(this.renderer.domElement.width, this.renderer.domElement.height);
     bgU.uL.value.set(cpos.left.x / this.halfH, cpos.left.y / this.halfH);
     bgU.uR.value.set(cpos.right.x / this.halfH, cpos.right.y / this.halfH);
+    // пыль, подсвеченная лучами от кругов
+    if (this.particles.dust) {
+      const du = this.particles.dust.material.uniforms;
+      du.uCornL.value.copy(bgU.uL.value);
+      du.uCornR.value.copy(bgU.uR.value);
+      du.uRayLift.value = cfg.particles.rayLift * env;
+    }
 
     // ключевой свет и тени
     const a = THREE.MathUtils.degToRad(cfg.lights.keyAngle);
@@ -300,11 +314,20 @@ export class LogoScene {
     // блик скользит слева направо за время удержания и гаснет по краям
     if (ph.glint >= 0 && ph.glint <= 1) {
       const g = ph.glint;
-      this.glintLight.position.set(THREE.MathUtils.lerp(-3.0, 3.0, g), 1.1, 2.2);
-      this.glintLight.intensity = cfg.logo.glint * 40 * Math.sin(Math.PI * g) * exposure;
+      const gx = THREE.MathUtils.lerp(-3.0, 3.0, g);
+      const env = Math.sin(Math.PI * g);
+      this.glintLight.position.set(gx, 1.1, 2.2);
+      this.glintLight.intensity = cfg.logo.glint * 40 * env * exposure;
+      // анаморфный блик вдоль блика
+      this.flare.set(gx, cfg.post.anamorphic * env * cfg.logo.glint, cfg.colors.goldHighlight);
     } else {
       this.glintLight.intensity = 0;
+      this.flare.set(0, 0, cfg.colors.goldHighlight);
     }
+
+    // искры при проявлении
+    const pixel = (this.viewportH * this.pixelRatio) / (2 * Math.tan(this.fovRad / 2)) * 0.012;
+    this.sparks.update(ph.emergeT, cfg, pixel, cfg.timeline.emergeDuration * 0.8);
 
     // постобработка
     this._applyPost(ph, cfg, t);

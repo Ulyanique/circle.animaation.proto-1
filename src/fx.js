@@ -315,6 +315,9 @@ const ptVS = /* glsl */ `
   uniform vec2 uBox;        // полуразмеры области для пыли
   uniform vec3 uColA;
   uniform vec3 uColB;
+  uniform vec2 uCornL;
+  uniform vec2 uCornR;
+  uniform float uRayLift;
   varying float vA;
   varying vec3 vC;
   void main(){
@@ -338,6 +341,11 @@ const ptVS = /* glsl */ `
     float tw = 0.55 + 0.45 * sin(uTime * (1.2 + aSeed.x * 3.5) + aSeed.y * 30.0);
     vA = tw * uBright * (0.3 + 0.7 * aSeed.z);
     vC = mix(uColA, uColB, aSeed.y);
+    if (uMode > 0.5) {
+      // пыль, подсвеченная световыми лучами от кругов
+      vec2 q = p.xy / uBox.y;
+      vA *= 1.0 + uRayLift * 2.0 * (exp(-length(q - uCornL) * 1.1) + exp(-length(q - uCornR) * 1.1));
+    }
   }
 `;
 
@@ -387,6 +395,7 @@ export class Particles {
         uRadius: { value: 1.6 }, uTilt: { value: 1 }, uPixel: { value: 60 }, uBright: { value: 1 },
         uMode: { value: mode }, uCenter: { value: new THREE.Vector3() }, uBox: { value: new THREE.Vector2(3, 2) },
         uColA: { value: new THREE.Color() }, uColB: { value: new THREE.Color() },
+        uCornL: { value: new THREE.Vector2() }, uCornR: { value: new THREE.Vector2() }, uRayLift: { value: 0 },
       },
     });
     this.mats.push(m);

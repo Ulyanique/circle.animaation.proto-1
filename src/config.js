@@ -63,6 +63,14 @@ export const DEFAULTS = {
     lightStrength: 3.2,    // сила света, которым кольца освещают сцену
     flicker: 0.12,
   },
+  sparks: {
+    enabled: true,
+    count: 160,            // искры при проявлении логотипа
+    speed: 1.0,
+    size: 1.0,
+    intensity: 1.0,
+    life: 1.0,
+  },
   particles: {
     enabled: true,
     count: 1400,           // на каждый круг
@@ -71,6 +79,7 @@ export const DEFAULTS = {
     spread: 1.0,           // разброс вокруг колец
     brightness: 1.0,
     dust: 260,             // пыль по всей сцене
+    rayLift: 1.0,          // насколько пыль подсвечивается световыми лучами
   },
   background: {
     lightSpread: 0.7,     // насколько далеко расходится свет от кругов
@@ -101,6 +110,7 @@ export const DEFAULTS = {
     dofFocusDistance: 0.0, // сдвиг фокуса от плоскости логотипа
     dofStartBlur: 3.0,     // размытие в начале фазы появления
     chromaticAberration: 0.0005,
+    anamorphic: 0.6,       // анаморфный блик вдоль блика по золоту
   },
   playback: {
     paused: false,
@@ -183,6 +193,17 @@ export const SCHEMA = [
       { key: "spread", label: "Разброс", type: "range", min: 0.2, max: 3, step: 0.01 },
       { key: "brightness", label: "Яркость", type: "range", min: 0, max: 3, step: 0.01 },
       { key: "dust", label: "Пыль на фоне", type: "range", min: 0, max: 1500, step: 10 },
+      { key: "rayLift", label: "Пыль в лучах", type: "range", min: 0, max: 3, step: 0.01 },
+    ]
+  },
+  {
+    id: "sparks", title: "Искры", fields: [
+      { key: "enabled", label: "Включены", type: "bool" },
+      { key: "count", label: "Количество", type: "range", min: 0, max: 600, step: 5 },
+      { key: "speed", label: "Скорость", type: "range", min: 0.2, max: 3, step: 0.01 },
+      { key: "size", label: "Размер", type: "range", min: 0.2, max: 4, step: 0.05 },
+      { key: "intensity", label: "Яркость", type: "range", min: 0, max: 3, step: 0.01 },
+      { key: "life", label: "Длительность жизни", type: "range", min: 0.2, max: 3, step: 0.01 },
     ]
   },
   {
@@ -219,6 +240,7 @@ export const SCHEMA = [
       { key: "dofFocusDistance", label: "Фокус (сдвиг)", type: "range", min: -4, max: 4, step: 0.01 },
       { key: "dofStartBlur", label: "Размытие на старте", type: "range", min: 0, max: 8, step: 0.05 },
       { key: "chromaticAberration", label: "Хроматическая аберрация", type: "range", min: 0, max: 0.004, step: 0.0001 },
+      { key: "anamorphic", label: "Анаморфный блик", type: "range", min: 0, max: 2, step: 0.01 },
     ]
   },
 ];
