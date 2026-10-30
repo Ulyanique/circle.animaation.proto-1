@@ -17,7 +17,7 @@ export const DEFAULTS = {
     speed: 1.0,            // общая скорость (1 = реальное время)
   },
   logo: {
-    scale: 1.0,
+    scale: 0.8,            // размер логотипа в кадре (~30% ширины)
     depth: 0.42,           // толщина экструзии (в единицах логотипа)
     bevel: 0.07,           // скос кромок — ловит блики
     metalness: 1.0,
@@ -25,7 +25,7 @@ export const DEFAULTS = {
     clearcoat: 0.6,
     envIntensity: 1.25,
     holdScaleFrom: 1.0,    // плавное увеличение во время удержания
-    holdScaleTo: 1.06,
+    holdScaleTo: 1.04,
     pulseAmount: 0.018,    // амплитуда «дыхания»
     pulseSpeed: 0.55,
     swayAmount: 0.05,      // лёгкое покачивание (рад)
