@@ -36,6 +36,8 @@ export const DEFAULTS = {
     outlineEnabled: true,
     outlineColor: "#ffd98a",
     outlineOpacity: 0.95,
+    outlineWidthPx: 2.4,   // толщина контура в пикселях (1920×1080)
+    outlineGlow: 0.35,     // сила свечения контура
   },
   colors: {
     gold: "#c8962e",       // основной металл
@@ -138,6 +140,8 @@ export const SCHEMA = [
       { key: "outlineEnabled", label: "Прорисовка контура", type: "bool" },
       { key: "outlineColor", label: "Цвет контура", type: "color" },
       { key: "outlineOpacity", label: "Прозрачность контура", type: "range", min: 0, max: 1, step: 0.01 },
+      { key: "outlineWidthPx", label: "Толщина контура (px)", type: "range", min: 0.5, max: 12, step: 0.1 },
+      { key: "outlineGlow", label: "Свечение контура", type: "range", min: 0, max: 1, step: 0.01 },
     ]
   },
   {

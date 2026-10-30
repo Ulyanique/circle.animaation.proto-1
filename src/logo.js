@@ -180,13 +180,16 @@ export class Logo {
     if (this.outline) this.outline.position.z = this.frontZ + 0.6 / K;
   }
 
-  /** Контур: все подконтуры → отрезки; у каждого отрезка порог появления по времени. */
+  /**
+   * Контур: ленты (quad-полоски) с шириной в пикселях.
+   * Каждый отрезок — 4 вершины; толщина считается в экранном пространстве шейдером,
+   * поэтому линия одинаково толстая на любом разрешении. Прорисовка управляется uniform uDraw.
+   */
   buildOutline() {
     const { subPaths, cx, cy, W } = this.parsed;
-    const positions = [];
-    const thresholds = [];
     const STAGGER = 0.3; // подконтуры начинают рисоваться со сдвигом
     const n = Math.max(1, subPaths.length);
+    const segs = []; // [ax,ay,bx,by,t0,t1]
     subPaths.forEach((sp, i) => {
       const len = sp.getLength();
       const divs = Math.max(8, Math.ceil(len / (W / 500)));
@@ -195,91 +198,147 @@ export class Logo {
       for (let k = 0; k < pts.length - 1; k++) {
         const a = pts[k], b = pts[k + 1];
         // без инверсии Y: отражение уже делает масштаб тела (body.scale.y = -K)
-        positions.push(a.x - cx, a.y - cy, 0, b.x - cx, b.y - cy, 0);
-        thresholds.push(
+        segs.push([
+          a.x - cx, a.y - cy, b.x - cx, b.y - cy,
           start + (k / (pts.length - 1)) * (1 - STAGGER),
-          start + ((k + 1) / (pts.length - 1)) * (1 - STAGGER)
-        );
+          start + ((k + 1) / (pts.length - 1)) * (1 - STAGGER),
+        ]);
       }
     });
-    this.outlineThresholds = new Float32Array(thresholds);
-    this.outlinePositions = new Float32Array(positions);
-    this.outlineSegCount = positions.length / 6;
-    this.outlineColors = new Float32Array(positions.length); // чёрный = невидим при аддитивном
-
-    const colorAttr = new THREE.BufferAttribute(this.outlineColors, 3);
-    colorAttr.setUsage(THREE.DynamicDrawUsage);
-    this.outlineColorAttr = colorAttr;
-
-    this.outlineMat = new THREE.LineBasicMaterial({
-      vertexColors: true,
-      transparent: true,
-      opacity: 1,
-      blending: THREE.AdditiveBlending,
-      depthWrite: false,
+    const N = segs.length;
+    this.outlineSegCount = N;
+    const pos = new Float32Array(N * 12), other = new Float32Array(N * 12);
+    const side = new Float32Array(N * 4), tt = new Float32Array(N * 4);
+    const index = new Uint32Array(N * 6);
+    segs.forEach(([ax, ay, bx, by, t0, t1], s) => {
+      const v = s * 4;
+      // v0: A(-1) v1: A(+1) v2: B(-1) v3: B(+1)
+      const ends = [[ax, ay, bx, by, -1, t0], [ax, ay, bx, by, 1, t0], [bx, by, ax, ay, -1, t1], [bx, by, ax, ay, 1, t1]];
+      ends.forEach(([px, py, ox, oy, sd, t], k) => {
+        pos.set([px, py, 0], (v + k) * 3);
+        other.set([ox, oy, 0], (v + k) * 3);
+        side[v + k] = sd;
+        tt[v + k] = t;
+      });
+      index.set([v, v + 1, v + 2, v + 1, v + 3, v + 2], s * 6);
     });
-    // несколько смещённых копий дают «толщину» линии (нативные линии WebGL = 1px)
+    this.outlineGeo = new THREE.BufferGeometry();
+    this.outlineGeo.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+    this.outlineGeo.setAttribute("aOther", new THREE.BufferAttribute(other, 3));
+    this.outlineGeo.setAttribute("aSide", new THREE.BufferAttribute(side, 1));
+    this.outlineGeo.setAttribute("aT", new THREE.BufferAttribute(tt, 1));
+    this.outlineGeo.setIndex(new THREE.BufferAttribute(index, 1));
+    this.outlineGeo.boundingSphere = new THREE.Sphere(new THREE.Vector3(), 1e6);
+
+    this.outlineU = {
+      uRes: { value: new THREE.Vector2(1920, 1080) },
+      uDraw: { value: 0 },
+    };
+    this.outlineMat = makeRibbonMaterial(this.outlineU, 1.1, 1);
+    this.outlineGlowMat = makeRibbonMaterial(this.outlineU, 4.5, 0.3);
+
     this.outline = new THREE.Group();
-    this.outlineCopies = [];
-    const OFF = 5.0; // в единицах SVG
-    const offsets = [[0, 0], [OFF, 0], [-OFF, 0], [0, OFF], [0, -OFF]];
-    for (const [ox, oy] of offsets) {
-      const geo = new THREE.BufferGeometry();
-      const pos = new Float32Array(positions.length);
-      for (let k = 0; k < positions.length; k += 3) {
-        pos[k] = positions[k] + ox;
-        pos[k + 1] = positions[k + 1] + oy;
-        pos[k + 2] = positions[k + 2];
-      }
-      geo.setAttribute("position", new THREE.BufferAttribute(pos, 3));
-      geo.setAttribute("color", colorAttr);
-      const seg = new THREE.LineSegments(geo, this.outlineMat);
-      seg.frustumCulled = false;
-      this.outline.add(seg);
-      this.outlineCopies.push(seg);
-    }
+    const glow = new THREE.Mesh(this.outlineGeo, this.outlineGlowMat);
+    const core = new THREE.Mesh(this.outlineGeo, this.outlineMat);
+    glow.frustumCulled = core.frustumCulled = false;
+    glow.renderOrder = core.renderOrder = 5;
+    this.outline.add(glow, core);
     this.body.add(this.outline);
   }
 
-  setResolution() {}
+  setResolution(w, h) {
+    this.outlineU?.uRes.value.set(w, h);
+  }
 
   /**
-   * Обновляет состояние контура.
-   * draw: 0..1 — сколько контура нарисовано; opacity — общая прозрачность.
+   * draw: 0..1 — сколько контура нарисовано;
+   * opacity: видимость контура; fill: 0..1 — stroke-to-fill (контур сужается и уходит в золотую заливку).
    */
-  updateOutline(draw, opacity, cfg) {
+  updateOutline(draw, opacity, cfg, fill = 0) {
     this.outline.visible = cfg.logo.outlineEnabled && opacity > 0.001;
     if (!this.outline.visible) return;
-    const arr = this.outlineColors;
-    const th = this.outlineThresholds;
-    this._base = this._base || new THREE.Color();
-    const base = this._base.set(cfg.logo.outlineColor);
-    const head = HEAD_COLOR;
-    const bR = base.r * 0.9, bG = base.g * 0.9, bB = base.b * 0.9;
-    const HEAD_W = 0.025;
-    for (let s = 0; s < this.outlineSegCount; s++) {
-      const t0 = th[s * 2], t1 = th[s * 2 + 1];
-      const v0 = Math.min(1, Math.max(0, (draw - t0) / 0.012));
-      const v1 = Math.min(1, Math.max(0, (draw - t1) / 0.012));
-      const h0 = Math.exp(-Math.pow((draw - t0) / HEAD_W, 2));
-      const h1 = Math.exp(-Math.pow((draw - t1) / HEAD_W, 2));
-      const o = s * 6;
-      arr[o + 0] = bR * v0 + head.r * h0 * v0;
-      arr[o + 1] = bG * v0 + head.g * h0 * v0;
-      arr[o + 2] = bB * v0 + head.b * h0 * v0;
-      arr[o + 3] = bR * v1 + head.r * h1 * v1;
-      arr[o + 4] = bG * v1 + head.g * h1 * v1;
-      arr[o + 5] = bB * v1 + head.b * h1 * v1;
-    }
-    this.outlineColorAttr.needsUpdate = true;
-    this.outlineMat.opacity = cfg.logo.outlineOpacity * opacity;
+    const u = this.outlineU;
+    u.uDraw.value = draw;
+    const colCore = this._colCore = this._colCore || new THREE.Color();
+    colCore.set(cfg.logo.outlineColor).lerp(new THREE.Color(cfg.colors.goldHighlight), fill * 0.6);
+    const half = (cfg.logo.outlineWidthPx ?? 2.2) * 0.5 * (1 - 0.85 * fill);
+    const core = this.outlineMat.uniforms;
+    core.uWidth.value = half;
+    core.uOpacity.value = cfg.logo.outlineOpacity * opacity * (1 - fill * 0.9);
+    core.uColor.value.copy(colCore);
+    const glow = this.outlineGlowMat.uniforms;
+    glow.uWidth.value = half * 4.2;
+    glow.uOpacity.value = (cfg.logo.outlineGlow ?? 0.35) * opacity * (1 - fill);
+    glow.uColor.value.copy(colCore);
   }
 
   dispose() {
-    for (const c of this.outlineCopies) c.geometry.dispose();
-    this.mesh?.geometry.dispose();
+    this.outlineGeo?.dispose();
     this.outlineMat?.dispose();
+    this.outlineGlowMat?.dispose();
+    this.mesh?.geometry.dispose();
     this.material.dispose();
     this.depthMaterial.dispose();
   }
+}
+
+const RIBBON_VS = /* glsl */ `
+  attribute vec3 aOther;
+  attribute float aSide;
+  attribute float aT;
+  uniform vec2 uRes;
+  uniform float uWidth;   // половина ширины в пикселях
+  uniform float uDraw;
+  varying float vSide;
+  varying float vVis;
+  varying float vHead;
+  void main(){
+    vec4 cA = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+    vec4 cB = projectionMatrix * modelViewMatrix * vec4(aOther, 1.0);
+    vec2 pA = cA.xy / cA.w * uRes * 0.5;
+    vec2 pB = cB.xy / cB.w * uRes * 0.5;
+    vec2 d = pB - pA;
+    float len = length(d);
+    vec2 dir = len > 1e-4 ? d / len : vec2(1.0, 0.0);
+    vec2 n = vec2(-dir.y, dir.x);
+    vec2 offClip = n * aSide * uWidth / (uRes * 0.5) * cA.w;
+    gl_Position = vec4(cA.xy + offClip, cA.z, cA.w);
+    vSide = aSide;
+    float dv = uDraw - aT;
+    vVis = clamp(dv / 0.012, 0.0, 1.0);
+    vHead = exp(-dv * dv / (0.025 * 0.025));
+  }
+`;
+
+const RIBBON_FS = /* glsl */ `
+  uniform vec3 uColor;
+  uniform vec3 uHeadColor;
+  uniform float uOpacity;
+  varying float vSide;
+  varying float vVis;
+  varying float vHead;
+  void main(){
+    float edge = 1.0 - smoothstep(0.5, 1.0, abs(vSide));
+    float a = edge * vVis * uOpacity;
+    vec3 col = uColor * vVis + uHeadColor * vHead * vVis * 1.6;
+    gl_FragColor = vec4(col, a);
+  }
+`;
+
+function makeRibbonMaterial(shared, widthMul, alphaMul) {
+  return new THREE.ShaderMaterial({
+    vertexShader: RIBBON_VS,
+    fragmentShader: RIBBON_FS,
+    transparent: true,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+    uniforms: {
+      uRes: shared.uRes,
+      uDraw: shared.uDraw,
+      uWidth: { value: 1 * widthMul },
+      uOpacity: { value: alphaMul },
+      uColor: { value: new THREE.Color(0xffd98a) },
+      uHeadColor: { value: new THREE.Color(1, 0.97, 0.85) },
+    },
+  });
 }

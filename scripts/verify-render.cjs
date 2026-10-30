@@ -40,7 +40,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     const state = (t) => {
       s.update(t, 0.016);
       const r = s.logo.root;
-      return [r.scale.x, r.position.z, r.rotation.x, r.rotation.y, s.logo.outlineMat.opacity];
+      return [r.scale.x, r.position.z, r.rotation.x, r.rotation.y, s.logo.outlineMat.uniforms.uOpacity.value];
     };
     return [3, 8.5, 11].every((t) => {
       const a = state(t), b = state(t + cycle);

@@ -40,7 +40,7 @@ export function computePhase(t, tl) {
   let local = (t - tl.startDelay) % cycle;
   if (local < 0) local += cycle;
 
-  let draw = 0, reveal = 0, outline = 0, name = "rest";
+  let draw = 0, reveal = 0, outline = 0, fill = 0, name = "rest";
   if (local < D) {
     name = "draw";
     draw = easeInOutCubic(clamp01(local / Math.max(D, 1e-4)));
@@ -51,10 +51,12 @@ export function computePhase(t, tl) {
     draw = 1;
     reveal = easeInOutCubic(p);
     outline = 1 - smooth(0.25, 1.0, p);
+    fill = easeInOutCubic(p);
   } else if (local < D + E + H) {
     name = "hold";
     draw = 1;
     reveal = 1;
+    fill = 1;
   } else if (local < D + E + H + F) {
     name = "fade";
     const p = (local - D - E - H) / Math.max(F, 1e-4);
@@ -69,7 +71,7 @@ export function computePhase(t, tl) {
   const outroStart = D + E + H;
   const outroE = local < outroStart ? 1 : 1 - smooth(0, Math.max(F, 1e-4), local - outroStart);
   const rings = introE * outroE;
-  return { name, draw, reveal, outline, grow, local, cycle, rings };
+  return { name, draw, reveal, outline, fill, grow, local, cycle, rings };
 }
 
 export class LogoScene {
@@ -265,7 +267,7 @@ export class LogoScene {
       Math.sin(TAUt * quant(cfg.logo.swaySpeed) * t) * cfg.logo.swayAmount,
       0
     );
-    this.logo.updateOutline(ph.draw, ph.outline, cfg);
+    this.logo.updateOutline(ph.draw, ph.outline, cfg, ph.fill);
 
     // кольца, свет из углов
     const env = ph.rings;
