@@ -176,7 +176,7 @@ export class AnamorphicFlare {
         blending: THREE.AdditiveBlending,
       })
     );
-    this.mesh.scale.set(9, 0.9, 1);
+    this.mesh.scale.set(5.5, 0.6, 1);
     this.mesh.visible = false;
     this.mesh.renderOrder = 7;
   }

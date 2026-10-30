@@ -166,9 +166,9 @@ export class LogoScene {
 
     this.dof = new DepthOfFieldEffect(this.camera, {
       focusDistance: CAM_Z,
-      focusRange: 3.0,
+      focusRange: 5.0,
       bokehScale: 2.0,
-      resolutionScale: 0.75,
+      resolutionScale: 1.0,
     });
     this.bloom = new BloomEffect({
       intensity: 1.0,

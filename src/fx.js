@@ -29,8 +29,10 @@ const bgFS = /* glsl */ `
   uniform float uEnvL;
   uniform float uEnvR;
   uniform float uRays;
+  uniform float uFog;
 
-  float hash(vec2 p){ p = fract(p*vec2(443.897, 441.423)); p += dot(p, p.yx+19.19); return fract((p.x+p.y)*p.x); }
+  // хеш без синусов и без разводов (Dave Hoskins) — чистое зерно без полос
+  float hash(vec2 p){ vec3 p3 = fract(vec3(p.xyx) * 0.1031); p3 += dot(p3, p3.yzx + 33.33); return fract((p3.x + p3.y) * p3.z); }
   float noise(vec2 p){
     vec2 i = floor(p), f = fract(p);
     vec2 u = f*f*(3.0-2.0*f);
@@ -71,6 +73,13 @@ const bgFS = /* glsl */ `
     // дополнительный тонкий ореол вокруг самих кругов
     col += uCL * exp(-dl*dl*18.0) * 0.35 * uIntensity * uEnvL;
     col += uCR * exp(-dr*dr*18.0) * 0.35 * uIntensity * uEnvR;
+
+    // объёмный туман: низкочастотный, подсвечивается кругами (без зерна)
+    float fogN = fbm(w * 0.7 + vec2(t * 0.02, -t * 0.013));
+    float fogMask = smoothstep(0.3, 0.85, fogN);
+    float lightL = exp(-dl * 0.85) * uEnvL;
+    float lightR = exp(-dr * 0.85) * uEnvR;
+    col += (uCL * lightL + uCR * lightR) * fogMask * uFog * uIntensity;
 
     // световые лучи: радиальные полосы от каждого круга, медленно переливаются
     float angL = atan(w.y - uL.y, w.x - uL.x);
@@ -117,6 +126,7 @@ export class Background {
       uEnvL: { value: 1 },
       uEnvR: { value: 1 },
       uRays: { value: 0.35 },
+      uFog: { value: 0.6 },
     };
     this.material = new THREE.ShaderMaterial({
       uniforms: this.uniforms,
@@ -142,6 +152,7 @@ export class Background {
     u.uVig.value = cfg.background.vignette;
     u.uGrid.value = cfg.background.gridOpacity ?? 0.05;
     u.uRays.value = cfg.background.godRays ?? 0.35;
+    u.uFog.value = cfg.background.fog ?? 0.6;
   }
 }
 

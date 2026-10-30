@@ -86,9 +86,10 @@ export const DEFAULTS = {
     lightIntensity: 0.42,  // яркость отражённого света на фоне
     shimmer: 0.55,         // переливание (шум)
     godRays: 0.35,         // световые лучи от кругов
-    grain: 0.035,          // зерно плёнки
+    fog: 0.6,              // объёмный туман, подсвеченный кругами
+    grain: 0.012,          // зерно плёнки (тонкое)
     vignette: 0.55,
-    gridOpacity: 0.05,     // чертёжная сетка на фоне
+    gridOpacity: 0.02,     // чертёжная сетка на фоне (тонкая)
   },
   lights: {
     keyIntensity: 14,      // ключевой свет спереди-сверху (тени)
@@ -106,11 +107,11 @@ export const DEFAULTS = {
     bloomThreshold: 0.85,
     bloomRadius: 0.8,
     dofEnabled: true,      // «софт-блюр»: логотип проявляется из размытия
-    dofBokeh: 1.2,
+    dofBokeh: 0.5,
     dofFocusDistance: 0.0, // сдвиг фокуса от плоскости логотипа
-    dofStartBlur: 3.0,     // размытие в начале фазы появления
-    chromaticAberration: 0.0005,
-    anamorphic: 0.6,       // анаморфный блик вдоль блика по золоту
+    dofStartBlur: 2.0,     // размытие в начале фазы появления
+    chromaticAberration: 0.0001,
+    anamorphic: 0.2,       // анаморфный блик вдоль блика по золоту
   },
   playback: {
     paused: false,
@@ -212,6 +213,7 @@ export const SCHEMA = [
       { key: "lightIntensity", label: "Яркость света на фоне", type: "range", min: 0, max: 3, step: 0.01 },
       { key: "shimmer", label: "Переливание", type: "range", min: 0, max: 2, step: 0.01 },
       { key: "godRays", label: "Световые лучи", type: "range", min: 0, max: 1.5, step: 0.01 },
+      { key: "fog", label: "Объёмный туман", type: "range", min: 0, max: 2, step: 0.01 },
       { key: "grain", label: "Зерно", type: "range", min: 0, max: 0.2, step: 0.001 },
       { key: "vignette", label: "Виньетка", type: "range", min: 0, max: 1, step: 0.01 },
       { key: "gridOpacity", label: "Чертёжная сетка", type: "range", min: 0, max: 0.3, step: 0.005 },
