@@ -38,6 +38,7 @@ export const DEFAULTS = {
     outlineOpacity: 0.95,
     outlineWidthPx: 2.4,   // толщина контура в пикселях (1920×1080)
     outlineGlow: 0.35,     // сила свечения контура
+    glint: 1.0,            // блик, скользящий по золоту во время удержания
   },
   colors: {
     gold: "#c8962e",       // основной металл
@@ -75,6 +76,7 @@ export const DEFAULTS = {
     lightSpread: 0.7,     // насколько далеко расходится свет от кругов
     lightIntensity: 0.42,  // яркость отражённого света на фоне
     shimmer: 0.55,         // переливание (шум)
+    godRays: 0.35,         // световые лучи от кругов
     grain: 0.035,          // зерно плёнки
     vignette: 0.55,
     gridOpacity: 0.05,     // чертёжная сетка на фоне
@@ -142,6 +144,7 @@ export const SCHEMA = [
       { key: "outlineOpacity", label: "Прозрачность контура", type: "range", min: 0, max: 1, step: 0.01 },
       { key: "outlineWidthPx", label: "Толщина контура (px)", type: "range", min: 0.5, max: 12, step: 0.1 },
       { key: "outlineGlow", label: "Свечение контура", type: "range", min: 0, max: 1, step: 0.01 },
+      { key: "glint", label: "Блик по золоту", type: "range", min: 0, max: 3, step: 0.01 },
     ]
   },
   {
@@ -187,6 +190,7 @@ export const SCHEMA = [
       { key: "lightSpread", label: "Расход света", type: "range", min: 0.2, max: 3, step: 0.01 },
       { key: "lightIntensity", label: "Яркость света на фоне", type: "range", min: 0, max: 3, step: 0.01 },
       { key: "shimmer", label: "Переливание", type: "range", min: 0, max: 2, step: 0.01 },
+      { key: "godRays", label: "Световые лучи", type: "range", min: 0, max: 1.5, step: 0.01 },
       { key: "grain", label: "Зерно", type: "range", min: 0, max: 0.2, step: 0.001 },
       { key: "vignette", label: "Виньетка", type: "range", min: 0, max: 1, step: 0.01 },
       { key: "gridOpacity", label: "Чертёжная сетка", type: "range", min: 0, max: 0.3, step: 0.005 },

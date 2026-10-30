@@ -28,6 +28,7 @@ const bgFS = /* glsl */ `
   uniform float uGrid;
   uniform float uEnvL;
   uniform float uEnvR;
+  uniform float uRays;
 
   float hash(vec2 p){ p = fract(p*vec2(443.897, 441.423)); p += dot(p, p.yx+19.19); return fract((p.x+p.y)*p.x); }
   float noise(vec2 p){
@@ -71,6 +72,14 @@ const bgFS = /* glsl */ `
     col += uCL * exp(-dl*dl*18.0) * 0.35 * uIntensity * uEnvL;
     col += uCR * exp(-dr*dr*18.0) * 0.35 * uIntensity * uEnvR;
 
+    // световые лучи: радиальные полосы от каждого круга, медленно переливаются
+    float angL = atan(w.y - uL.y, w.x - uL.x);
+    float angR = atan(w.y - uR.y, w.x - uR.x);
+    float raysL = pow(noise(vec2(angL * 9.0, t * 0.12)) * 0.7 + noise(vec2(angL * 23.0, t * 0.2)) * 0.3, 3.0);
+    float raysR = pow(noise(vec2(angR * 9.0 + 4.0, t * 0.1)) * 0.7 + noise(vec2(angR * 23.0, t * 0.17)) * 0.3, 3.0);
+    col += uCL * raysL * exp(-dl * 1.1) * uRays * uEnvL * uIntensity;
+    col += uCR * raysR * exp(-dr * 1.1) * uRays * uEnvR * uIntensity;
+
     // архитектурная сетка (чертёжная), подсвечивается светом
     vec2 gp = w * 6.0;
     vec2 gg = abs(fract(gp - 0.5) - 0.5) / max(fwidth(gp), vec2(1e-4));
@@ -107,6 +116,7 @@ export class Background {
       uGrid: { value: 0.05 },
       uEnvL: { value: 1 },
       uEnvR: { value: 1 },
+      uRays: { value: 0.35 },
     };
     this.material = new THREE.ShaderMaterial({
       uniforms: this.uniforms,
@@ -131,6 +141,7 @@ export class Background {
     u.uGrain.value = cfg.background.grain;
     u.uVig.value = cfg.background.vignette;
     u.uGrid.value = cfg.background.gridOpacity ?? 0.05;
+    u.uRays.value = cfg.background.godRays ?? 0.35;
   }
 }
 

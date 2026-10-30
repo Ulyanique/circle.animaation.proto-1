@@ -40,7 +40,7 @@ export function computePhase(t, tl) {
   let local = (t - tl.startDelay) % cycle;
   if (local < 0) local += cycle;
 
-  let draw = 0, reveal = 0, outline = 0, fill = 0, name = "rest";
+  let draw = 0, reveal = 0, outline = 0, fill = 0, glint = -1, name = "rest";
   if (local < D) {
     name = "draw";
     draw = easeInOutCubic(clamp01(local / Math.max(D, 1e-4)));
@@ -57,6 +57,7 @@ export function computePhase(t, tl) {
     draw = 1;
     reveal = 1;
     fill = 1;
+    glint = (local - D - E) / Math.max(H, 1e-4);
   } else if (local < D + E + H + F) {
     name = "fade";
     const p = (local - D - E - H) / Math.max(F, 1e-4);
@@ -71,7 +72,7 @@ export function computePhase(t, tl) {
   const outroStart = D + E + H;
   const outroE = local < outroStart ? 1 : 1 - smooth(0, Math.max(F, 1e-4), local - outroStart);
   const rings = introE * outroE;
-  return { name, draw, reveal, outline, fill, grow, local, cycle, rings };
+  return { name, draw, reveal, outline, fill, glint, grow, local, cycle, rings };
 }
 
 export class LogoScene {
@@ -122,6 +123,11 @@ export class LogoScene {
     this.keyLight.shadow.camera.near = 2;
     this.keyLight.shadow.camera.far = 30;
     this.scene.add(this.keyLight, this.keyLight.target);
+
+    // блик: точечный свет, который скользит по золоту во время удержания
+    this.glintLight = new THREE.PointLight(0xfff0c8, 0, 0, 2);
+    this.glintLight.position.set(0, 1, 2.2);
+    this.scene.add(this.glintLight);
 
     this.fillLight = new THREE.DirectionalLight(0xffe2b0, 0.4);
     this.fillLight.position.set(4, 2, 6);
@@ -291,6 +297,14 @@ export class LogoScene {
     this.keyLight.shadow.radius = cfg.lights.shadowSoftness;
     this.shadowPlane.material.opacity = cfg.lights.shadowOpacity;
     this.fillLight.intensity = cfg.lights.fillIntensity * exposure;
+    // блик скользит слева направо за время удержания и гаснет по краям
+    if (ph.glint >= 0 && ph.glint <= 1) {
+      const g = ph.glint;
+      this.glintLight.position.set(THREE.MathUtils.lerp(-3.0, 3.0, g), 1.1, 2.2);
+      this.glintLight.intensity = cfg.logo.glint * 40 * Math.sin(Math.PI * g) * exposure;
+    } else {
+      this.glintLight.intensity = 0;
+    }
 
     // постобработка
     this._applyPost(ph, cfg, t);
