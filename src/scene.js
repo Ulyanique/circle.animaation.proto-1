@@ -241,14 +241,16 @@ export class LogoScene {
 
     // движение: пульсация + покачивание + плавное увеличение во время удержания
     const scaleGrow = THREE.MathUtils.lerp(cfg.logo.holdScaleFrom, cfg.logo.holdScaleTo, easeOutCubic(ph.grow));
-    const pulse = 1 + cfg.logo.pulseAmount * Math.sin(TAUt * cfg.logo.pulseSpeed * t);
+    // частоты пульсации/покачивания кратны циклу → состояние логотипа периодично, шов бесшовный
+    const quant = (f) => (f <= 0 ? 0 : Math.max(1, Math.round(f * ph.cycle)) / ph.cycle);
+    const pulse = 1 + cfg.logo.pulseAmount * Math.sin(TAUt * quant(cfg.logo.pulseSpeed) * t);
     const z = -cfg.logo.shadowDepth * (1 - ph.reveal) * (1 - ph.reveal);
     const root = this.logo.root;
-    root.position.set(0, Math.sin(TAUt * cfg.logo.swaySpeed * 0.5 * t) * 0.02, z);
+    root.position.set(0, Math.sin(TAUt * quant(cfg.logo.swaySpeed * 0.5) * t) * 0.02, z);
     root.scale.setScalar(cfg.logo.scale * scaleGrow * pulse * (0.9 + 0.1 * ph.reveal));
     root.rotation.set(
-      Math.cos(TAUt * cfg.logo.swaySpeed * t * 0.7 + 1.0) * cfg.logo.swayAmount * 0.6,
-      Math.sin(TAUt * cfg.logo.swaySpeed * t) * cfg.logo.swayAmount,
+      Math.cos(TAUt * quant(cfg.logo.swaySpeed * 0.7) * t + 1.0) * cfg.logo.swayAmount * 0.6,
+      Math.sin(TAUt * quant(cfg.logo.swaySpeed) * t) * cfg.logo.swayAmount,
       0
     );
     this.logo.updateOutline(ph.draw, ph.outline, cfg);
