@@ -194,7 +194,8 @@ export class Logo {
       const start = (i / n) * STAGGER;
       for (let k = 0; k < pts.length - 1; k++) {
         const a = pts[k], b = pts[k + 1];
-        positions.push(a.x - cx, -(a.y - cy), 0, b.x - cx, -(b.y - cy), 0);
+        // без инверсии Y: отражение уже делает масштаб тела (body.scale.y = -K)
+        positions.push(a.x - cx, a.y - cy, 0, b.x - cx, b.y - cy, 0);
         thresholds.push(
           start + (k / (pts.length - 1)) * (1 - STAGGER),
           start + ((k + 1) / (pts.length - 1)) * (1 - STAGGER)

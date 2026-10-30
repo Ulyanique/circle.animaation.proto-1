@@ -49,10 +49,10 @@ body.ui-on, body.ui-on * { cursor: auto; }
   border: 1px solid var(--gold-soft);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
-  display: none; /* показывается только при открытой панели (клавиша S) */
+  cursor: pointer;
+  opacity: 0.5;
 }
-body.ui-on .cfg-toggle { display: grid; }
-.cfg-toggle.active { border-color: var(--gold); }
+.cfg-toggle.active, body.ui-on .cfg-toggle { border-color: var(--gold); opacity: 1; }
 
 /* ── панель ── */
 .cfg-panel {

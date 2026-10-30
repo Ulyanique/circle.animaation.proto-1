@@ -168,26 +168,26 @@ export class LogoScene {
   }
 
   resize() {
-    // фиксированный кадр 16:9 (letterbox), композиция одинакова на любом экране
-    const ASPECT = 16 / 9;
+    // внутренний рендер фиксирован 1920×1080 (pixelRatio = 1); на экран кадр масштабируется с letterbox
+    const RW = 1920, RH = 1080, ASPECT = RW / RH;
     const W = window.innerWidth, H = window.innerHeight;
-    let w = W, h = W / ASPECT;
-    if (h > H) { h = H; w = H * ASPECT; }
-    w = Math.round(w); h = Math.round(h);
-    this._w = w;
-    this._h = h;
-    this.renderer.setSize(w, h, false);
-    this.renderer.domElement.style.width = w + "px";
-    this.renderer.domElement.style.height = h + "px";
-    const pr = this.renderer.getPixelRatio();
-    this.composer.setSize(w, h);
+    let cw = W, ch = W / ASPECT;
+    if (ch > H) { ch = H; cw = H * ASPECT; }
+    this.renderer.domElement.style.width = Math.round(cw) + "px";
+    this.renderer.domElement.style.height = Math.round(ch) + "px";
+    this._w = RW;
+    this._h = RH;
+    this.renderer.setPixelRatio(1);
+    this.renderer.setSize(RW, RH, false);
+    const pr = 1;
+    this.composer.setSize(RW, RH);
     this.camera.aspect = ASPECT;
     this.camera.updateProjectionMatrix();
 
     // полуразмеры видимой области на z=0
     this.halfH = Math.tan(THREE.MathUtils.degToRad(FOV / 2)) * CAM_Z;
     this.halfW = this.halfH * this.camera.aspect;
-    this.viewportH = h;
+    this.viewportH = RH;
     this.fovRad = THREE.MathUtils.degToRad(FOV);
     this.pixelRatio = pr;
 
@@ -196,8 +196,7 @@ export class LogoScene {
     const bgH = 2 * Math.tan(this.fovRad / 2) * dz;
     this.background.mesh.scale.set((bgH * this.camera.aspect) / 2, bgH / 2, 1);
     this.background.mesh.position.z = -3.5;
-    this.logo.setResolution(w * pr, h * pr);
-    this.smaaSize = [w, h];
+    this.logo.setResolution(RW * pr, RH * pr);
   }
 
   /** Статичные вещи, которые не меняются каждый кадр (но могут меняться от настроек). */

@@ -13,7 +13,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   const browser = await puppeteer.launch({
     executablePath: await chromium.executablePath(),
     args: [...chromium.args, "--use-gl=angle", "--use-angle=swiftshader", "--enable-unsafe-swiftshader", "--ignore-gpu-blocklist"],
-    defaultViewport: { width: 960, height: 540 },
+    defaultViewport: { width: 1920, height: 1080 },
     headless: "shell",
   });
   const page = await browser.newPage();
