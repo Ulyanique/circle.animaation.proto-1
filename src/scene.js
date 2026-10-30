@@ -157,7 +157,7 @@ export class LogoScene {
       blending: THREE.AdditiveBlending, opacity: 0,
     }));
     this.topGlow.position.set(0, 1.5, -0.6);
-    this.topGlow.scale.setScalar(7);
+    this.topGlow.scale.setScalar(9);
     this.scene.add(this.topGlow);
     this.scene.add(this.particles.group);
 
@@ -339,7 +339,7 @@ export class LogoScene {
 
     // верхнее свечение: появляется вместе с логотипом
     this.topLight.intensity = cfg.lights.topGlow * ph.reveal * exposure;
-    this.topGlow.material.opacity = Math.min(1, 0.55 * ph.reveal * cfg.lights.topGlow / 40);
+    this.topGlow.material.opacity = Math.min(1, 0.6 * ph.reveal * cfg.lights.topGlow / 40);
 
     // искры при проявлении
     const pixel = (this.viewportH * this.pixelRatio) / (2 * Math.tan(this.fovRad / 2)) * 0.012;
