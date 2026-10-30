@@ -168,13 +168,20 @@ export class LogoScene {
   }
 
   resize() {
-    const w = window.innerWidth, h = window.innerHeight;
+    // фиксированный кадр 16:9 (letterbox), композиция одинакова на любом экране
+    const ASPECT = 16 / 9;
+    const W = window.innerWidth, H = window.innerHeight;
+    let w = W, h = W / ASPECT;
+    if (h > H) { h = H; w = H * ASPECT; }
+    w = Math.round(w); h = Math.round(h);
     this._w = w;
     this._h = h;
     this.renderer.setSize(w, h, false);
+    this.renderer.domElement.style.width = w + "px";
+    this.renderer.domElement.style.height = h + "px";
     const pr = this.renderer.getPixelRatio();
     this.composer.setSize(w, h);
-    this.camera.aspect = w / h;
+    this.camera.aspect = ASPECT;
     this.camera.updateProjectionMatrix();
 
     // полуразмеры видимой области на z=0

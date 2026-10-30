@@ -12,7 +12,7 @@
 html, body {
   margin: 0;
   height: 100%;
-  background: #050403;
+  background: #000;
   overflow: hidden;
   font-family: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
   -webkit-font-smoothing: antialiased;
@@ -20,13 +20,17 @@ html, body {
 
 #stage {
   position: fixed;
-  inset: 0;
-  width: 100vw;
-  height: 100vh;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
   display: block;
   outline: none;
+  pointer-events: none; /* никакой реакции на мышь */
 }
 
+/* курсор скрыт до открытия настроек */
+body { cursor: none; }
+body.ui-on, body.ui-on * { cursor: auto; }
 /* ── кнопка настроек ── */
 .cfg-toggle {
   position: fixed;
@@ -45,11 +49,10 @@ html, body {
   border: 1px solid var(--gold-soft);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
-  opacity: 0.55;
-  transition: opacity .25s, transform .25s, border-color .25s;
+  display: none; /* показывается только при открытой панели (клавиша S) */
 }
-.cfg-toggle:hover, .cfg-toggle.active { opacity: 1; border-color: var(--gold); }
-.cfg-toggle:hover { transform: rotate(35deg); }
+body.ui-on .cfg-toggle { display: grid; }
+.cfg-toggle.active { border-color: var(--gold); }
 
 /* ── панель ── */
 .cfg-panel {

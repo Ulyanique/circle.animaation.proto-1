@@ -130,11 +130,13 @@ export function createSettingsUI(cfg, { onChange, onPauseToggle, onToast }) {
   }
 
   function open() {
+    document.body.classList.add("ui-on");
     panel.classList.add("open");
     panel.setAttribute("aria-hidden", "false");
     btn.classList.add("active");
   }
   function close() {
+    document.body.classList.remove("ui-on");
     panel.classList.remove("open");
     panel.setAttribute("aria-hidden", "true");
     btn.classList.remove("active");

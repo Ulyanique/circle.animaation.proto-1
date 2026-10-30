@@ -28,6 +28,14 @@ createSettingsUI(cfg, {
 
 window.addEventListener("resize", () => scene.resize());
 
+// презентация: F — полный экран
+window.addEventListener("keydown", (e) => {
+  if (e.code === "KeyF" && !(e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement)) {
+    if (document.fullscreenElement) document.exitFullscreen?.();
+    else document.documentElement.requestFullscreen?.();
+  }
+});
+
 let t = 0;
 let last = performance.now();
 function frame(now) {
