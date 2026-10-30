@@ -30,6 +30,7 @@ const bgFS = /* glsl */ `
   uniform float uEnvR;
   uniform float uRays;
   uniform float uFog;
+  uniform float uBrushed;
 
   // хеш без синусов и без разводов (Dave Hoskins) — чистое зерно без полос
   float hash(vec2 p){ vec3 p3 = fract(vec3(p.xyx) * 0.1031); p3 += dot(p3, p3.yzx + 33.33); return fract((p3.x + p3.y) * p3.z); }
@@ -100,6 +101,10 @@ const bgFS = /* glsl */ `
     float vig = 1.0 - uVig * dot(p*0.45, p*0.45);
     col *= clamp(vig, 0.0, 1.0);
 
+    // тонкая диагональная текстура (как в референсе), видна там, где есть свет
+    float brush = sin((gl_FragCoord.x * 0.7 - gl_FragCoord.y) * 0.55);
+    col *= 1.0 + uBrushed * 0.05 * brush * (0.3 + fL + fR);
+
     // зерно плёнки
     col += (hash(vUv*uRes + fract(t)*117.0) - 0.5) * uGrain;
 
@@ -127,6 +132,7 @@ export class Background {
       uEnvR: { value: 1 },
       uRays: { value: 0.35 },
       uFog: { value: 0.6 },
+      uBrushed: { value: 0.35 },
     };
     this.material = new THREE.ShaderMaterial({
       uniforms: this.uniforms,
@@ -153,6 +159,7 @@ export class Background {
     u.uGrid.value = cfg.background.gridOpacity ?? 0.05;
     u.uRays.value = cfg.background.godRays ?? 0.35;
     u.uFog.value = cfg.background.fog ?? 0.6;
+    u.uBrushed.value = cfg.background.brushed ?? 0.35;
   }
 }
 

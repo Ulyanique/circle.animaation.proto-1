@@ -17,7 +17,7 @@ export const DEFAULTS = {
     speed: 1.0,            // общая скорость (1 = реальное время)
   },
   logo: {
-    scale: 0.8,            // размер логотипа в кадре (~30% ширины)
+    scale: 0.85,           // размер логотипа в кадре (~32% ширины)
     depth: 0.42,           // толщина экструзии (в единицах логотипа)
     bevel: 0.07,           // скос кромок — ловит блики
     metalness: 1.0,
@@ -83,16 +83,18 @@ export const DEFAULTS = {
   },
   background: {
     lightSpread: 0.7,     // насколько далеко расходится свет от кругов
-    lightIntensity: 0.42,  // яркость отражённого света на фоне
+    lightIntensity: 0.55,  // яркость отражённого света на фоне
     shimmer: 0.55,         // переливание (шум)
     godRays: 0.35,         // световые лучи от кругов
-    fog: 0.6,              // объёмный туман, подсвеченный кругами
+    fog: 0.9,              // объёмный туман, подсвеченный кругами
+    brushed: 0.35,         // тонкая диагональная текстура
     grain: 0.012,          // зерно плёнки (тонкое)
     vignette: 0.55,
     gridOpacity: 0.02,     // чертёжная сетка на фоне (тонкая)
   },
   lights: {
     keyIntensity: 14,      // ключевой свет спереди-сверху (тени)
+    topGlow: 40,           // свечение сверху за логотипом
     keyAngle: 35,
     fillIntensity: 0.35,
     shadowSoftness: 6,
@@ -103,7 +105,7 @@ export const DEFAULTS = {
   post: {
     smaa: true,            // антиалиасинг
     msaaSamples: 4,
-    bloomIntensity: 0.6,
+    bloomIntensity: 0.9,
     bloomThreshold: 0.85,
     bloomRadius: 0.8,
     dofEnabled: true,      // «софт-блюр»: логотип проявляется из размытия
@@ -111,7 +113,7 @@ export const DEFAULTS = {
     dofFocusDistance: 0.0, // сдвиг фокуса от плоскости логотипа
     dofStartBlur: 2.0,     // размытие в начале фазы появления
     chromaticAberration: 0.0001,
-    anamorphic: 0.2,       // анаморфный блик вдоль блика по золоту
+    anamorphic: 0.45,       // анаморфный блик вдоль блика по золоту
   },
   playback: {
     paused: false,
@@ -214,6 +216,7 @@ export const SCHEMA = [
       { key: "shimmer", label: "Переливание", type: "range", min: 0, max: 2, step: 0.01 },
       { key: "godRays", label: "Световые лучи", type: "range", min: 0, max: 1.5, step: 0.01 },
       { key: "fog", label: "Объёмный туман", type: "range", min: 0, max: 2, step: 0.01 },
+      { key: "brushed", label: "Диагональная текстура", type: "range", min: 0, max: 1, step: 0.01 },
       { key: "grain", label: "Зерно", type: "range", min: 0, max: 0.2, step: 0.001 },
       { key: "vignette", label: "Виньетка", type: "range", min: 0, max: 1, step: 0.01 },
       { key: "gridOpacity", label: "Чертёжная сетка", type: "range", min: 0, max: 0.3, step: 0.005 },
@@ -222,6 +225,7 @@ export const SCHEMA = [
   {
     id: "lights", title: "Свет и тени", fields: [
       { key: "keyIntensity", label: "Ключевой свет", type: "range", min: 0, max: 40, step: 0.1 },
+      { key: "topGlow", label: "Свечение сверху", type: "range", min: 0, max: 120, step: 0.5 },
       { key: "keyAngle", label: "Угол ключевого света", type: "range", min: 0, max: 80, step: 1 },
       { key: "fillIntensity", label: "Заливка", type: "range", min: 0, max: 3, step: 0.01 },
       { key: "shadowSoftness", label: "Мягкость теней", type: "range", min: 1, max: 20, step: 0.5 },

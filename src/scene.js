@@ -148,6 +148,17 @@ export class LogoScene {
     this.sparks = new Sparks(this.logo);
     this.flare = new AnamorphicFlare();
     this.scene.add(this.flare.mesh);
+    // свечение сверху за логотипом (как в референсе)
+    this.topLight = new THREE.PointLight(0xffe2a6, 0, 0, 2);
+    this.topLight.position.set(0, 2.4, -0.8);
+    this.scene.add(this.topLight);
+    this.topGlow = new THREE.Sprite(new THREE.SpriteMaterial({
+      map: this.corners.glowTex, color: 0xffd98a, transparent: true, depthWrite: false,
+      blending: THREE.AdditiveBlending, opacity: 0,
+    }));
+    this.topGlow.position.set(0, 1.5, -0.6);
+    this.topGlow.scale.setScalar(7);
+    this.scene.add(this.topGlow);
     this.scene.add(this.particles.group);
 
     this._msaaSig = String(cfg.post.msaaSamples);
@@ -319,11 +330,16 @@ export class LogoScene {
       this.glintLight.position.set(gx, 1.1, 2.2);
       this.glintLight.intensity = cfg.logo.glint * 40 * env * exposure;
       // анаморфный блик вдоль блика
-      this.flare.set(gx, cfg.post.anamorphic * env * cfg.logo.glint, cfg.colors.goldHighlight);
+      this.flare.set(gx, cfg.post.anamorphic * env * cfg.logo.glint, cfg.colors.goldHighlight, 1.1, 5.5);
     } else {
       this.glintLight.intensity = 0;
-      this.flare.set(0, 0, cfg.colors.goldHighlight);
+      // постоянная горизонтальная полоса на уровне верхнего кольца (как в референсе)
+      this.flare.set(0, cfg.post.anamorphic * 0.9 * ph.reveal, cfg.colors.goldHighlight, 1.3, 16);
     }
+
+    // верхнее свечение: появляется вместе с логотипом
+    this.topLight.intensity = cfg.lights.topGlow * ph.reveal * exposure;
+    this.topGlow.material.opacity = Math.min(1, 0.55 * ph.reveal * cfg.lights.topGlow / 40);
 
     // искры при проявлении
     const pixel = (this.viewportH * this.pixelRatio) / (2 * Math.tan(this.fovRad / 2)) * 0.012;

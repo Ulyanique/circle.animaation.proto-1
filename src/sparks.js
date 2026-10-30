@@ -181,10 +181,11 @@ export class AnamorphicFlare {
     this.mesh.renderOrder = 7;
   }
 
-  set(x, intensity, color) {
+  set(x, intensity, color, y = 1.1, width = 5.5) {
     this.mesh.visible = intensity > 0.001;
     if (!this.mesh.visible) return;
-    this.mesh.position.set(x, 1.1, 1.4);
+    this.mesh.scale.set(width, 0.6, 1);
+    this.mesh.position.set(x, y, 1.4);
     this.uniforms.uI.value = intensity;
     this.uniforms.uColor.value.set(color);
   }
