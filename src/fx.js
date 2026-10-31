@@ -71,7 +71,10 @@ const bgFS = /* glsl */ `
     // концентрические волны, расходящиеся от кругов
     float wavesL = 0.5 + 0.5*sin(dl*16.0 - t*1.1);
     float wavesR = 0.5 + 0.5*sin(dr*16.0 - t*1.1 + 1.3);
-    float causL = caustic(w - uL, t), causR = caustic(w - uR, t + 3.0);
+    // рябь только у света: смещение узора каустик, круги и сетка не затрагиваются
+    vec2 rip = vec2(sin(w.y * 11.0 + t * 0.9 + sin(w.x * 5.0 - t * 0.4)),
+                    sin(w.x * 9.0 - t * 0.7 + sin(w.y * 6.0))) * 0.035;
+    float causL = caustic(w - uL + rip, t), causR = caustic(w - uR + rip, t + 3.0);
     float fL = exp(-dl*k) * (0.72 + 0.28*wavesL*uShimmer) * (0.3 + 1.2*causL) * uEnvL;
     float fR = exp(-dr*k) * (0.72 + 0.28*wavesR*uShimmer) * (0.3 + 1.2*causR) * uEnvR;
     // «переливание»: медленное изменение яркости по шуму
