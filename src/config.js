@@ -96,7 +96,7 @@ export const DEFAULTS = {
   },
   lights: {
     keyIntensity: 14,      // ключевой свет спереди-сверху (тени)
-    topGlow: 55,           // свечение сверху за логотипом (тише, центр не пересвечен)
+    topGlow: 38,           // свечение сверху за логотипом (тише, центр не пересвечен)
     keyAngle: 35,
     fillIntensity: 0.35,
     shadowSoftness: 6,
@@ -107,14 +107,14 @@ export const DEFAULTS = {
   post: {
     smaa: true,            // антиалиасинг
     msaaSamples: 4,
-    bloomIntensity: 0.9,
+    bloomIntensity: 0.55,
     bloomThreshold: 0.85,
     bloomRadius: 0.8,
-    dofEnabled: true,      // «софт-блюр»: логотип проявляется из размытия
+    dofEnabled: false,     // ДОФ выключен: кадр чёткий, без мыла
     dofBokeh: 0.5,
     dofFocusDistance: 0.0, // сдвиг фокуса от плоскости логотипа
     dofStartBlur: 0,     // размытие в начале фазы появления
-    chromaticAberration: 0.0008,   // радиальная: сильнее у краёв кадра
+    chromaticAberration: 0.0003,   // радиальная: сильнее у краёв кадра
     anamorphic: 0.45,       // анаморфный блик вдоль блика по золоту
   },
   playback: {
