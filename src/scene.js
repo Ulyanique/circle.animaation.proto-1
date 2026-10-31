@@ -14,7 +14,7 @@ import {
 } from "postprocessing";
 import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
 import { Logo, revealUniforms } from "./logo.js";
-import { Background, Corners, Particles } from "./fx.js";
+import { Background, Corners, Particles, EdgeRippleEffect } from "./fx.js";
 import { Sparks, AnamorphicFlare } from "./sparks.js";
 
 const FOV = 30;
@@ -174,6 +174,8 @@ export class LogoScene {
       frameBufferType: THREE.HalfFloatType,
     });
     this.composer.addPass(new RenderPass(this.scene, this.camera));
+    this.ripple = new EdgeRippleEffect();
+    this.composer.addPass(new EffectPass(this.camera, this.ripple));
 
     this.dof = new DepthOfFieldEffect(this.camera, {
       focusDistance: CAM_Z,
@@ -359,6 +361,8 @@ export class LogoScene {
     const p = cfg.post;
     this.smaa.blendMode.opacity.value = p.smaa ? 1 : 0;
     this.dof.blendMode.opacity.value = p.dofEnabled ? 1 : 0;
+    this.ripple.uniforms.get("uTime").value = t;
+    this.ripple.uniforms.get("uAmount").value = p.rippleEdges ?? 0;
     // размытие уходит в ноль, пока проявляется логотип (контур в начале остаётся чётким)
     this.dof.bokehScale = p.dofBokeh + p.dofStartBlur * 0.35 * (1 - ph.reveal);
     this.dof.circleOfConfusionMaterial.focusDistance = CAM_Z + p.dofFocusDistance;

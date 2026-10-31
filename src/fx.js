@@ -1,4 +1,26 @@
 import * as THREE from "three";
+import { Effect } from "postprocessing";
+
+// рябь воды по краям кадра: смещение UV синусами, только у краёв (без мыши)
+const rippleFrag = /* glsl */ `
+  uniform float uTime;
+  uniform float uAmount;
+  void mainUv(inout vec2 uv) {
+    vec2 p = uv - 0.5;
+    float edge = smoothstep(0.22, 0.7, length(p * vec2(1.0, 1.35)));
+    float w = sin(uv.x * 38.0 + uTime * 0.9 + sin(uv.y * 21.0 - uTime * 0.5) * 1.6)
+            * sin(uv.y * 29.0 - uTime * 0.7 + sin(uv.x * 17.0) * 1.3);
+    uv += vec2(w, w * 0.7) * uAmount * edge;
+  }
+`;
+
+export class EdgeRippleEffect extends Effect {
+  constructor() {
+    super("EdgeRippleEffect", rippleFrag, {
+      uniforms: new Map([["uTime", new THREE.Uniform(0)], ["uAmount", new THREE.Uniform(0)]]),
+    });
+  }
+}
 
 /* ─────────────────────────── Фон: свет из углов ─────────────────────────── */
 
