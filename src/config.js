@@ -100,7 +100,7 @@ export const DEFAULTS = {
     keyAngle: 35,
     fillIntensity: 0.35,
     shadowSoftness: 6,
-    shadowOpacity: 0.7,
+    shadowOpacity: 0,      // тень за логотипом выключена
     envEnabled: true,
     exposure: 1.0,         // множитель всех источников света
   },
@@ -113,7 +113,7 @@ export const DEFAULTS = {
     dofEnabled: true,      // «софт-блюр»: логотип проявляется из размытия
     dofBokeh: 0.5,
     dofFocusDistance: 0.0, // сдвиг фокуса от плоскости логотипа
-    dofStartBlur: 2.0,     // размытие в начале фазы появления
+    dofStartBlur: 0,     // размытие в начале фазы появления
     chromaticAberration: 0.0001,
     anamorphic: 0.45,       // анаморфный блик вдоль блика по золоту
   },

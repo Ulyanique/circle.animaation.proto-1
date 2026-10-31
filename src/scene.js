@@ -225,7 +225,8 @@ export class LogoScene {
     // фон на z = -3.5 покрывает экран
     const dz = CAM_Z + 3.5;
     const bgH = 2 * Math.tan(this.fovRad / 2) * dz;
-    this.background.mesh.scale.set((bgH * this.camera.aspect) / 2, bgH / 2, 1);
+    // запас по краям: камера слегка смещается при появлении
+    this.background.mesh.scale.set((bgH * this.camera.aspect) / 2 * 1.3, bgH / 2 * 1.3, 1);
     this.background.mesh.position.z = -3.5;
     this.logo.setResolution(RW * pr, RH * pr);
   }
@@ -330,12 +331,17 @@ export class LogoScene {
       this.glintLight.position.set(gx, 1.1, 2.2);
       this.glintLight.intensity = cfg.logo.glint * 40 * env * exposure;
       // анаморфный блик вдоль блика
-      this.flare.set(gx, cfg.post.anamorphic * env * cfg.logo.glint, cfg.colors.goldHighlight, 1.1, 5.5);
+      this.flare.set(gx, cfg.post.anamorphic * env * cfg.logo.glint * 0.5, cfg.colors.goldHighlight, 1.1, 1.6);
     } else {
       this.glintLight.intensity = 0;
       // постоянная горизонтальная полоса на уровне верхнего кольца (как в референсе)
-      this.flare.set(0, cfg.post.anamorphic * 0.9 * ph.reveal, cfg.colors.goldHighlight, 1.3, 16);
+      this.flare.set(0, 0, cfg.colors.goldHighlight, 1.3, 16);
     }
+
+    // камера слегка смещена при появлении и возвращается в фронтальный вид
+    const camK = (1 - ph.reveal) * 0.6;
+    this.camera.position.set(-0.6 * camK, 0.35 * camK, CAM_Z);
+    this.camera.lookAt(0, 0, 0);
 
     // верхнее свечение: появляется вместе с логотипом
     this.topLight.intensity = cfg.lights.topGlow * ph.reveal * exposure;

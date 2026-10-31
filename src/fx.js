@@ -47,6 +47,14 @@ const bgFS = /* glsl */ `
     return v;
   }
 
+  // отблески воды: сетка каустик, переливается медленно
+  float caustic(vec2 w, float t){
+    vec2 c = w * vec2(3.2, 4.4);
+    float a = sin(c.x + 1.3*sin(c.y*0.9 + t*0.35) + t*0.4);
+    float b = sin(c.y*1.1 - 1.1*sin(c.x*0.8 - t*0.3) - t*0.25);
+    return pow(0.5 + 0.5*a*b, 3.0);
+  }
+
   void main(){
     vec2 asp = vec2(uRes.x/uRes.y, 1.0);
     vec2 p = (vUv - 0.5) * 2.0 * asp;           // p.y ∈ [-1,1]
@@ -63,8 +71,9 @@ const bgFS = /* glsl */ `
     // концентрические волны, расходящиеся от кругов
     float wavesL = 0.5 + 0.5*sin(dl*16.0 - t*1.1);
     float wavesR = 0.5 + 0.5*sin(dr*16.0 - t*1.1 + 1.3);
-    float fL = exp(-dl*k) * (0.72 + 0.28*wavesL*uShimmer) * uEnvL;
-    float fR = exp(-dr*k) * (0.72 + 0.28*wavesR*uShimmer) * uEnvR;
+    float causL = caustic(w - uL, t), causR = caustic(w - uR, t + 3.0);
+    float fL = exp(-dl*k) * (0.72 + 0.28*wavesL*uShimmer) * (0.3 + 1.2*causL) * uEnvL;
+    float fR = exp(-dr*k) * (0.72 + 0.28*wavesR*uShimmer) * (0.3 + 1.2*causR) * uEnvR;
     // «переливание»: медленное изменение яркости по шуму
     float flowL = 0.75 + 0.5*fbm(w*1.6 + vec2(t*0.08, 0.0));
     float flowR = 0.75 + 0.5*fbm(w*1.6 - vec2(t*0.07, 0.0) + 7.0);
@@ -97,6 +106,10 @@ const bgFS = /* glsl */ `
     float line = 1.0 - clamp(min(gg.x, gg.y), 0.0, 1.0);
     float lit = clamp(fL + fR, 0.0, 1.0);
     col += mix(uBg, uCL, 0.5) * line * uGrid * (0.15 + lit);
+
+    // центр темнее, свет остаётся по краям кадра
+    float edge = smoothstep(0.2, 1.0, length(p * vec2(0.62, 0.95)));
+    col = mix(col * 0.45, col, edge);
 
     // виньетка
     float vig = 1.0 - uVig * dot(p*0.45, p*0.45);
@@ -390,11 +403,11 @@ const ptVS = /* glsl */ `
       float a = aSeed.x * 6.28318 + uTime * uSpeed * (0.12 + aSeed.z * 0.55) * dir;
       float r = uRadius * (1.0 + (aSeed.y - 0.5) * 0.9 * uSpread);
       float wob = sin(uTime * 0.9 + aSeed.x * 40.0) * 0.07 * uSpread;
-      p = vec3(cos(a) * r, sin(a) * r * cos(uTilt), sin(a) * r * sin(uTilt) + wob);
+      p = vec3(cos(a) * r, sin(a) * r, wob * 0.3);
       p += uCenter;
     } else {
       float y = fract(aSeed.y + uTime * uSpeed * 0.015 * (0.3 + aSeed.z));
-      p = vec3((aSeed.x - 0.5) * 2.0 * uBox.x * 1.05, (y - 0.5) * 2.0 * uBox.y * 1.05, -2.5 + aSeed.z * 3.5);
+      p = vec3((aSeed.x - 0.5) * 2.0 * uBox.x * 1.05, (y - 0.5) * 2.0 * uBox.y * 1.05, -0.4 + aSeed.z * 0.3);
       p.x += sin(uTime * 0.25 + aSeed.w * 30.0) * 0.25;
     }
     vec4 mv = viewMatrix * vec4(p, 1.0);
