@@ -540,6 +540,9 @@ export class Particles {
       u.uPixel.value = pixel;
       u.uBright.value = cfg.particles.brightness * 0.8 * env;
       u.uBox.value.set(halfW, halfH);
+      u.uRayLift.value = (cfg.particles.rayLift ?? 1.0) * env;
+      u.uCornL.value.set(ringPos.left.x / halfH, ringPos.left.y / halfH);
+      u.uCornR.value.set(ringPos.right.x / halfH, ringPos.right.y / halfH);
       u.uColA.value.copy(colA);
       u.uColB.value.copy(colB);
     }

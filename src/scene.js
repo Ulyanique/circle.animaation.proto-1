@@ -335,7 +335,7 @@ export class LogoScene {
     } else {
       this.glintLight.intensity = 0;
       // постоянная горизонтальная полоса на уровне верхнего кольца (как в референсе)
-      this.flare.set(0, 0, cfg.colors.goldHighlight, 1.3, 16);
+      this.flare.set(0, cfg.post.anamorphic * 0.5 * ph.reveal, cfg.colors.goldHighlight, 1.25, 2.6);
     }
 
     // камера слегка смещена при появлении и возвращается в фронтальный вид

@@ -114,7 +114,7 @@ export const DEFAULTS = {
     dofBokeh: 0.5,
     dofFocusDistance: 0.0, // сдвиг фокуса от плоскости логотипа
     dofStartBlur: 0,     // размытие в начале фазы появления
-    chromaticAberration: 0.0001,
+    chromaticAberration: 0.0008,   // радиальная: сильнее у краёв кадра
     anamorphic: 0.45,       // анаморфный блик вдоль блика по золоту
   },
   playback: {
