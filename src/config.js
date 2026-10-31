@@ -108,7 +108,6 @@ export const DEFAULTS = {
     smaa: true,            // антиалиасинг
     msaaSamples: 4,
     bloomIntensity: 0.9,
-    rippleEdges: 0.004,    // рябь воды по краям кадра
     bloomThreshold: 0.85,
     bloomRadius: 0.8,
     dofEnabled: true,      // «софт-блюр»: логотип проявляется из размытия
@@ -244,7 +243,6 @@ export const SCHEMA = [
       { key: "smaa", label: "SMAA (сглаживание)", type: "bool" },
       { key: "msaaSamples", label: "MSAA сэмплы", type: "range", min: 0, max: 8, step: 1 },
       { key: "bloomIntensity", label: "Блум", type: "range", min: 0, max: 4, step: 0.01 },
-      { key: "rippleEdges", label: "Рябь по краям", type: "range", min: 0, max: 0.02, step: 0.0005 },
       { key: "bloomThreshold", label: "Порог блума", type: "range", min: 0, max: 1, step: 0.01 },
       { key: "bloomRadius", label: "Радиус блума", type: "range", min: 0, max: 1, step: 0.01 },
       { key: "dofEnabled", label: "Софт-блюр (DOF)", type: "bool" },
