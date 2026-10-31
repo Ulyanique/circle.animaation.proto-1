@@ -25,6 +25,7 @@ const bgFS = /* glsl */ `
   uniform float uShimmer;
   uniform float uGrain;
   uniform float uVig;
+  uniform float uLowerShade;
   uniform float uGrid;
   uniform float uEnvL;
   uniform float uEnvR;
@@ -100,6 +101,9 @@ const bgFS = /* glsl */ `
     // виньетка
     float vig = 1.0 - uVig * dot(p*0.45, p*0.45);
     col *= clamp(vig, 0.0, 1.0);
+    // затемнение нижнего левого угла (диагональный градиент)
+    float lowerLeft = smoothstep(0.1, 1.6, (-p.x - p.y) * 0.5 + 0.5);
+    col *= 1.0 - uLowerShade * lowerLeft;
 
     // тонкая диагональная текстура (как в референсе), видна там, где есть свет
     float brush = sin((gl_FragCoord.x * 0.7 - gl_FragCoord.y) * 0.55);
@@ -127,6 +131,7 @@ export class Background {
       uShimmer: { value: 0.55 },
       uGrain: { value: 0.035 },
       uVig: { value: 0.55 },
+      uLowerShade: { value: 0.45 },
       uGrid: { value: 0.05 },
       uEnvL: { value: 1 },
       uEnvR: { value: 1 },
@@ -156,6 +161,7 @@ export class Background {
     u.uShimmer.value = cfg.background.shimmer;
     u.uGrain.value = cfg.background.grain;
     u.uVig.value = cfg.background.vignette;
+    u.uLowerShade.value = cfg.background.lowerShade ?? 0.45;
     u.uGrid.value = cfg.background.gridOpacity ?? 0.05;
     u.uRays.value = cfg.background.godRays ?? 0.35;
     u.uFog.value = cfg.background.fog ?? 0.6;

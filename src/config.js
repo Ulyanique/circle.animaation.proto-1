@@ -90,6 +90,7 @@ export const DEFAULTS = {
     brushed: 0.35,         // тонкая диагональная текстура
     grain: 0.012,          // зерно плёнки (тонкое)
     vignette: 0.85,
+    lowerShade: 0.45,      // затемнение нижнего левого угла (как в референсе)
     gridOpacity: 0.02,     // чертёжная сетка на фоне (тонкая)
   },
   lights: {
@@ -219,6 +220,7 @@ export const SCHEMA = [
       { key: "brushed", label: "Диагональная текстура", type: "range", min: 0, max: 1, step: 0.01 },
       { key: "grain", label: "Зерно", type: "range", min: 0, max: 0.2, step: 0.001 },
       { key: "vignette", label: "Виньетка", type: "range", min: 0, max: 1, step: 0.01 },
+      { key: "lowerShade", label: "Затемнение нижнего левого угла", type: "range", min: 0, max: 1, step: 0.01 },
       { key: "gridOpacity", label: "Чертёжная сетка", type: "range", min: 0, max: 0.3, step: 0.005 },
     ]
   },
