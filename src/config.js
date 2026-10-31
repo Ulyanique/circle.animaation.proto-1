@@ -57,7 +57,8 @@ export const DEFAULTS = {
     cornerY: 0.42,         // положение (доля высоты)
     speed: 0.35,           // скорость вращения
     tilt: 62,              // наклон колец (градусы)
-    thickness: 0.035,
+    thickness: 0.014,      // тонкая линия, как проведённая циркулем
+    constructionOpacity: 0.3, // пунктирная окружность-разметка на фоне
     layers: 3,             // количество концентрических колец
     glowIntensity: 1.6,
     lightStrength: 3.2,    // сила света, которым кольца освещают сцену
@@ -182,6 +183,7 @@ export const SCHEMA = [
       { key: "speed", label: "Скорость вращения", type: "range", min: 0, max: 2, step: 0.01 },
       { key: "tilt", label: "Наклон (°)", type: "range", min: 0, max: 90, step: 1 },
       { key: "thickness", label: "Толщина", type: "range", min: 0.005, max: 0.15, step: 0.001 },
+      { key: "constructionOpacity", label: "Разметка циркулем", type: "range", min: 0, max: 1, step: 0.01 },
       { key: "layers", label: "Слоёв колец", type: "range", min: 1, max: 6, step: 1 },
       { key: "glowIntensity", label: "Свечение колец", type: "range", min: 0, max: 5, step: 0.05 },
       { key: "lightStrength", label: "Сила света из колец", type: "range", min: 0, max: 10, step: 0.05 },

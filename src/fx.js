@@ -198,13 +198,18 @@ export class Corners {
     this.sig = "";
     this.ringMat = new THREE.MeshPhysicalMaterial({
       color: 0xc8962e,
-      metalness: 1,
-      roughness: 0.2,
-      clearcoat: 0.5,
+      metalness: 0.7,
+      roughness: 0.25,
+      clearcoat: 0.4,
       emissive: 0xe0b25a,
       emissiveIntensity: 0.3,
-      envMapIntensity: 1.4,
+      envMapIntensity: 1.2,
     });
+    this.constMat = new THREE.LineDashedMaterial({
+      color: 0xe0b25a, dashSize: 0.05, gapSize: 0.035, transparent: true, opacity: 0.3,
+      depthWrite: false, blending: THREE.AdditiveBlending,
+    });
+    this.pivotMat = new THREE.MeshBasicMaterial({ color: 0xffe2a6, transparent: true, opacity: 0.9, depthWrite: false });
     this.tickMat = new THREE.MeshStandardMaterial({ color: 0xe0b25a, metalness: 1, roughness: 0.3, emissive: 0xe0b25a, emissiveIntensity: 0.6 });
     this.glowMat = (color) => new THREE.SpriteMaterial({
       map: this.glowTex, color, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, opacity: 0.8,
@@ -267,6 +272,23 @@ export class Corners {
       ticks.instanceMatrix.needsUpdate = true;
       s.ticks = ticks;
       s.group.add(ticks);
+      // разметка циркулем: тонкая пунктирная окружность в плоскости фона + ножка в центре
+      if (s.construction) { s.group.remove(s.construction); s.construction.geometry.dispose(); }
+      if (s.pivot) { s.group.remove(s.pivot); s.pivot.geometry.dispose(); }
+      const pts = [];
+      for (let i = 0; i <= 192; i++) {
+        const a = (i / 192) * Math.PI * 2;
+        pts.push(new THREE.Vector3(Math.cos(a) * cfg.rings.radius * 1.5, Math.sin(a) * cfg.rings.radius * 1.5, -0.05));
+      }
+      const cgeo = new THREE.BufferGeometry().setFromPoints(pts);
+      const construction = new THREE.Line(cgeo, this.constMat);
+      construction.computeLineDistances();
+      s.construction = construction;
+      s.group.add(construction);
+      const pivot = new THREE.Mesh(new THREE.CircleGeometry(cfg.rings.radius * 0.03, 24), this.pivotMat);
+      pivot.position.z = 0.02;
+      s.pivot = pivot;
+      s.group.add(pivot);
     }
   }
 
@@ -295,6 +317,9 @@ export class Corners {
         l.group.rotation.z = t * sp * (1.0 + l.idx * 0.4) * l.dir * c.dir;
       });
       if (s.ticks) s.ticks.rotation.set(tilt, 0, t * sp * 0.2 * c.dir);
+      const cOp = (cfg.rings.constructionOpacity ?? 0.3) * env;
+      this.constMat.opacity = cOp;
+      this.pivotMat.opacity = Math.min(1, 0.9 * env);
       const col = new THREE.Color(cfg.colors.ringColor);
       this.ringMat.color.set(cfg.colors.gold);
       this.ringMat.emissive.copy(col);
