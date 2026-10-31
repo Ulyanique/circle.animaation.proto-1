@@ -18,8 +18,8 @@ export const DEFAULTS = {
   },
   logo: {
     scale: 0.85,           // размер логотипа в кадре (~32% ширины)
-    depth: 0.42,           // толщина экструзии (в единицах логотипа)
-    bevel: 0.07,           // скос кромок — ловит блики
+    depth: 0.18,           // толщина экструзии (тоньше, не такой жирный)
+    bevel: 0.035,          // скос кромок — ловит блики
     metalness: 1.0,
     roughness: 0.22,
     clearcoat: 0.6,
@@ -36,7 +36,7 @@ export const DEFAULTS = {
     outlineEnabled: true,
     outlineColor: "#ffd98a",
     outlineOpacity: 0.95,
-    outlineWidthPx: 2.4,   // толщина контура в пикселях (1920×1080)
+    outlineWidthPx: 1.6,   // толщина контура в пикселях (1920×1080)
     outlineGlow: 0.35,     // сила свечения контура
     glint: 1.0,            // блик, скользящий по золоту во время удержания
   },

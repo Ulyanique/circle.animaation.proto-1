@@ -286,7 +286,7 @@ export class LogoScene {
     const z = -cfg.logo.shadowDepth * (1 - ph.reveal) * (1 - ph.reveal);
     const root = this.logo.root;
     root.position.set(0, Math.sin(TAUt * quant(cfg.logo.swaySpeed * 0.5) * t) * 0.02, z);
-    root.scale.setScalar(cfg.logo.scale * scaleGrow * pulse * (0.9 + 0.1 * ph.reveal));
+    root.scale.setScalar(cfg.logo.scale * scaleGrow * pulse * (0.55 + 0.45 * easeOutCubic(ph.reveal)));  // сначала контур в малом размере, затем логотип растёт
     root.rotation.set(
       Math.cos(TAUt * quant(cfg.logo.swaySpeed * 0.7) * t + 1.0) * cfg.logo.swayAmount * 0.6,
       Math.sin(TAUt * quant(cfg.logo.swaySpeed) * t) * cfg.logo.swayAmount,
