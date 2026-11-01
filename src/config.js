@@ -96,7 +96,7 @@ export const DEFAULTS = {
   },
   lights: {
     keyIntensity: 14,      // ключевой свет спереди-сверху (тени)
-    topGlow: 38,           // свечение сверху за логотипом (тише, центр не пересвечен)
+    topGlow: 30,           // свечение сверху за логотипом (тише, центр не пересвечен)
     keyAngle: 35,
     fillIntensity: 0.35,
     shadowSoftness: 6,
