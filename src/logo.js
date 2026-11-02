@@ -202,6 +202,7 @@ export class Logo {
           a.x - cx, a.y - cy, b.x - cx, b.y - cy,
           start + (k / (pts.length - 1)) * (1 - STAGGER),
           start + ((k + 1) / (pts.length - 1)) * (1 - STAGGER),
+          i,
         ]);
       }
     });
@@ -210,15 +211,26 @@ export class Logo {
     // опорные точки контура — отсюда рождаются искры
     this.outlineAnchors = new Float32Array(segs.flatMap((s) => [s[0], s[1]]));
     const pos = new Float32Array(N * 12), other = new Float32Array(N * 12);
+    const nb = new Float32Array(N * 12), endF = new Float32Array(N * 4);
     const side = new Float32Array(N * 4), tt = new Float32Array(N * 4);
     const index = new Uint32Array(N * 6);
-    segs.forEach(([ax, ay, bx, by, t0, t1], s) => {
+    segs.forEach(([ax, ay, bx, by, t0, t1, sub], s) => {
       const v = s * 4;
+      // соседи в том же подконтуре: для стыков (miter join) лента не рвётся на сегментах
+      const prev = s > 0 && segs[s - 1][6] === sub ? segs[s - 1] : null;
+      const next = s < N - 1 && segs[s + 1][6] === sub ? segs[s + 1] : null;
+      const nA = prev ? [prev[0], prev[1]] : [ax, ay];   // точка перед A
+      const nB = next ? [next[2], next[3]] : [bx, by];   // точка после B
       // v0: A(-1) v1: A(+1) v2: B(-1) v3: B(+1)
-      const ends = [[ax, ay, bx, by, -1, t0], [ax, ay, bx, by, 1, t0], [bx, by, ax, ay, -1, t1], [bx, by, ax, ay, 1, t1]];
-      ends.forEach(([px, py, ox, oy, sd, t], k) => {
+      const ends = [
+        [ax, ay, bx, by, -1, t0, nA, 0], [ax, ay, bx, by, 1, t0, nA, 0],
+        [bx, by, ax, ay, -1, t1, nB, 1], [bx, by, ax, ay, 1, t1, nB, 1],
+      ];
+      ends.forEach(([px, py, ox, oy, sd, t, n, e], k) => {
         pos.set([px, py, 0], (v + k) * 3);
         other.set([ox, oy, 0], (v + k) * 3);
+        nb.set([n[0], n[1], 0], (v + k) * 3);
+        endF[v + k] = e;
         side[v + k] = sd;
         tt[v + k] = t;
       });
@@ -229,6 +241,8 @@ export class Logo {
     this.outlineGeo.setAttribute("aOther", new THREE.BufferAttribute(other, 3));
     this.outlineGeo.setAttribute("aSide", new THREE.BufferAttribute(side, 1));
     this.outlineGeo.setAttribute("aT", new THREE.BufferAttribute(tt, 1));
+    this.outlineGeo.setAttribute("aNb", new THREE.BufferAttribute(nb, 3));
+    this.outlineGeo.setAttribute("aEnd", new THREE.BufferAttribute(endF, 1));
     this.outlineGeo.setIndex(new THREE.BufferAttribute(index, 1));
     this.outlineGeo.boundingSphere = new THREE.Sphere(new THREE.Vector3(), 1e6);
 
@@ -286,6 +300,8 @@ export class Logo {
 
 const RIBBON_VS = /* glsl */ `
   attribute vec3 aOther;
+  attribute vec3 aNb;      // соседняя точка контура у этого конца (для стыка)
+  attribute float aEnd;    // 0 — конец A, 1 — конец B
   attribute float aSide;
   attribute float aT;
   uniform vec2 uRes;
@@ -297,13 +313,24 @@ const RIBBON_VS = /* glsl */ `
   void main(){
     vec4 cA = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
     vec4 cB = projectionMatrix * modelViewMatrix * vec4(aOther, 1.0);
+    vec4 cN = projectionMatrix * modelViewMatrix * vec4(aNb, 1.0);
     vec2 pA = cA.xy / cA.w * uRes * 0.5;
     vec2 pB = cB.xy / cB.w * uRes * 0.5;
-    vec2 d = pB - pA;
-    float len = length(d);
-    vec2 dir = len > 1e-4 ? d / len : vec2(1.0, 0.0);
-    vec2 n = vec2(-dir.y, dir.x);
-    vec2 offClip = n * aSide * uWidth / (uRes * 0.5) * cA.w;
+    vec2 pN = cN.xy / cN.w * uRes * 0.5;
+    // направление сегмента от этой точки к другому концу
+    vec2 along = pB - pA;
+    vec2 dA = length(along) > 1e-4 ? normalize(along) : vec2(1.0, 0.0);
+    // направление к соседней точке (если соседа нет — совпадает с сегментом)
+    vec2 toN = pN - pA;
+    vec2 dN = length(toN) > 1e-4 ? normalize(toN) : dA;
+    // касательная в стыке: вход + выход
+    vec2 tang = aEnd > 0.5 ? (dN - dA) : (dA - dN);
+    vec2 T = length(tang) > 1e-4 ? normalize(tang) : dA;
+    vec2 nrm = vec2(-T.y, T.x);
+    vec2 segN = vec2(-dA.y, dA.x);
+    // миттер: компенсирует толщину на изломе, ограничен, чтобы не выстреливать
+    float miter = clamp(1.0 / max(abs(dot(nrm, segN)), 0.5), 1.0, 2.0);
+    vec2 offClip = nrm * aSide * uWidth * miter / (uRes * 0.5) * cA.w;
     gl_Position = vec4(cA.xy + offClip, cA.z, cA.w);
     vSide = aSide;
     float dv = uDraw - aT;
