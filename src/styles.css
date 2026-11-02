@@ -225,38 +225,53 @@ body.ui-on, body.ui-on * { cursor: auto; }
 .toast.show { opacity: 1; transform: translate(-50%, 0); }
 .toast.error { border-color: #d05a4a; color: #ffd0c8; }
 
-/* ── подпись под логотипом (размеры в % ширины кадра через --u) ── */
+/* ── подпись под логотипом: обводка и построчное появление (размеры через --u = 1% ширины кадра) ── */
 #caption {
   position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%);
-  pointer-events: none; opacity: 0; font-family: "Cormorant Garamond", Georgia, serif;
+  pointer-events: none; opacity: 1; font-family: "Cormorant Garamond", Georgia, serif;
   --u: 10px;
 }
-#caption > * { position: absolute; left: 0; right: 0; text-align: center; white-space: nowrap; }
+#caption > * { position: absolute; left: 50%; white-space: nowrap; line-height: 1; text-align: center; }
+/* строка: сначала обводка (проявляется слева направо, --p), затем заливка (--f) */
+#caption [data-text] {
+  transform: translate(-50%, -50%); color: transparent;
+  clip-path: inset(0 calc((1 - var(--p, 0)) * 100%) 0 0);
+}
+#caption [data-text]::after {
+  content: attr(data-text); position: absolute; inset: 0; -webkit-text-stroke: 0;
+  clip-path: inset(0 calc((1 - var(--f, 0)) * 100%) 0 0);
+}
 .cap-title {
-  top: 55%; transform: translateY(-50%); font-weight: 600; line-height: 1;
+  top: 55%; font-weight: 600;
   font-size: calc(var(--u) * 7.2);
-  background: linear-gradient(180deg, #fff3cc 0%, #f0cc78 40%, #c08c36 75%, #e8c06a 100%);
-  -webkit-background-clip: text; background-clip: text; color: transparent;
+  -webkit-text-stroke: calc(var(--u) * 0.08) #e0b25a;
   filter: drop-shadow(0 calc(var(--u) * 0.2) calc(var(--u) * 0.5) rgba(0, 0, 0, 0.7));
 }
+.cap-title::after {
+  background: linear-gradient(180deg, #fff3cc 0%, #f0cc78 40%, #c08c36 75%, #e8c06a 100%);
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+}
 .cap-rule {
-  left: 50% !important; right: auto !important; transform: translate(-50%, -50%);
+  top: 0; transform: translate(-50%, -50%);
   width: calc(var(--u) * 34); display: flex; align-items: center; gap: calc(var(--u) * 1);
+  clip-path: inset(0 calc((1 - var(--p, 0)) * 50%) 0 calc((1 - var(--p, 0)) * 50%));
 }
 .cap-rule span { flex: 1; height: 1px; background: linear-gradient(90deg, transparent, #d9b061, transparent); }
 .cap-rule i {
   flex: none; width: calc(var(--u) * 0.9); height: calc(var(--u) * 0.9);
-  border: 1px solid #e0b25a; transform: rotate(45deg);
+  border: 1px solid #e0b25a; transform: rotate(45deg); opacity: var(--p, 0);
 }
 .r1 { top: 66%; }
 .r2 { top: 79%; }
 .cap-sub {
-  top: 72%; transform: translateY(-50%); font-weight: 400; line-height: 1;
+  top: 72%; font-weight: 400;
   font-size: calc(var(--u) * 2.4); letter-spacing: 0.32em; padding-left: 0.32em;
-  text-transform: uppercase; color: #ecd08c;
+  text-transform: uppercase; -webkit-text-stroke: calc(var(--u) * 0.04) #d9b061;
 }
+.cap-sub::after { color: #ecd08c; padding-left: 0.32em; }
 .cap-date {
-  top: 84%; transform: translateY(-50%); font-weight: 400; line-height: 1;
+  top: 84%; font-weight: 400;
   font-size: calc(var(--u) * 1.5); letter-spacing: 0.28em; padding-left: 0.28em;
-  text-transform: uppercase; color: #d9b061;
+  text-transform: uppercase; -webkit-text-stroke: calc(var(--u) * 0.035) #d9b061;
 }
+.cap-date::after { color: #d9b061; padding-left: 0.28em; }

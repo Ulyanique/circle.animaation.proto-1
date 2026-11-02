@@ -346,11 +346,27 @@ export class LogoScene {
     }
 
     // подпись появляется, когда логотип проявился, и уходит вместе с ним в тень
+    // подпись: собственный счётчик растёт, пока логотип проявлен (ph.reveal ≥ 0.5), и убывает при уходе;
+    // строки идут по нему по очереди: обводка слева направо, затем заливка, при уходе — в обратном порядке
     const capEl = document.getElementById("caption");
     if (capEl) {
-      const k = THREE.MathUtils.smoothstep(ph.reveal, 0.6, 1.0);
-      capEl.style.opacity = k.toFixed(4);
+      this._capV = THREE.MathUtils.clamp((this._capV ?? 0) + (ph.reveal >= 0.5 ? dt : -dt), 0, 2.7);
+      const V = this._capV;
+      const k = THREE.MathUtils.smoothstep(V, 0.0, 0.8);
+      capEl.style.opacity = "1";
       capEl.style.transform = `translate(-50%, calc(-50% + ${((1 - k) * 0.8).toFixed(3)}vh))`;
+      const pr = (s0, d) => THREE.MathUtils.clamp((V - s0) / d, 0, 1).toFixed(4);
+      const cap = (sel, p, f) => {
+        const el = capEl.querySelector(sel);
+        if (!el) return;
+        el.style.setProperty("--p", p);
+        if (f !== undefined) el.style.setProperty("--f", f);
+      };
+      cap(".cap-title", pr(0.0, 0.9), pr(0.7, 0.6));
+      cap(".r1", pr(0.8, 0.5));
+      cap(".cap-sub", pr(1.1, 0.7), pr(1.5, 0.5));
+      cap(".r2", pr(1.6, 0.5));
+      cap(".cap-date", pr(1.9, 0.6), pr(2.2, 0.5));
     }
 
     // камера слегка смещена при появлении и возвращается в фронтальный вид

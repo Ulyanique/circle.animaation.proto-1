@@ -45,7 +45,13 @@ let recording = null; // запись одного цикла в реально�
 
 const REC_W = 1920, REC_H = 1080;
 
-// подпись рисуется на канвас тем же макетом, что и DOM-слой (--u = 1% ширины кадра)
+// подпись на канвасе повторяет DOM-макет (--u = 1% ширины кадра) и ту же анимацию:
+// прогресс обводки и заливки каждой строки читается из --p / --f на элементах #caption
+function capVal(sel, name) {
+  const el = document.querySelector(`#caption ${sel}`);
+  return el ? parseFloat(getComputedStyle(el).getPropertyValue(name)) || 0 : 0;
+}
+
 function drawCaption(ctx, alpha) {
   const W = REC_W, H = REC_H, u = W / 100;
   const font = (w, size) => `${w} ${size}px "Cormorant Garamond", Georgia, serif`;
@@ -54,43 +60,69 @@ function drawCaption(ctx, alpha) {
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
 
-  const tSize = 7.2 * u;
-  const tg = ctx.createLinearGradient(0, 0.55 * H - tSize / 2, 0, 0.55 * H + tSize / 2);
-  tg.addColorStop(0, "#fff3cc"); tg.addColorStop(0.4, "#f0cc78");
-  tg.addColorStop(0.75, "#c08c36"); tg.addColorStop(1, "#e8c06a");
-  ctx.font = font(600, tSize);
-  ctx.fillStyle = tg;
-  ctx.shadowColor = "rgba(0,0,0,0.7)"; ctx.shadowBlur = 0.5 * u; ctx.shadowOffsetY = 0.2 * u;
-  ctx.fillText("Янтарный циркуль", W / 2, 0.55 * H);
-  ctx.shadowColor = "transparent"; ctx.shadowBlur = 0; ctx.shadowOffsetY = 0;
+  // строка: обводка проявляется слева направо (--p), затем заливка (--f)
+  const textLine = (sel, text, o) => {
+    const p = capVal(sel, "--p"), f = capVal(sel, "--f");
+    if (p <= 0.001) return;
+    ctx.font = font(o.weight, o.size);
+    ctx.letterSpacing = `${o.ls}px`;
+    const w = ctx.measureText(text).width - o.ls; // ширина без хвостового интервала
+    const cx = W / 2 + o.ls / 2;                  // как padding-left в DOM
+    const x0 = cx - w / 2;
+    ctx.save();
+    ctx.beginPath(); ctx.rect(x0, 0, w * p, H); ctx.clip();
+    ctx.strokeStyle = o.stroke; ctx.lineWidth = o.sw; ctx.lineJoin = "round";
+    ctx.strokeText(text, cx, o.y);
+    ctx.restore();
+    if (f > 0.001) {
+      ctx.save();
+      ctx.beginPath(); ctx.rect(x0, 0, w * f, H); ctx.clip();
+      if (o.shadow) { ctx.shadowColor = "rgba(0,0,0,0.7)"; ctx.shadowBlur = 0.5 * u; ctx.shadowOffsetY = 0.2 * u; }
+      ctx.fillStyle = typeof o.fill === "function" ? o.fill() : o.fill;
+      ctx.fillText(text, cx, o.y);
+      ctx.restore();
+    }
+  };
 
-  const rule = (y) => {
+  // разделитель с ромбом: раскрывается от центра (--p), ромб появляется вместе с ним
+  const rule = (sel, y) => {
+    const p = capVal(sel, "--p");
+    if (p <= 0.001) return;
     const half = 17 * u, gap = 1 * u, d = 0.9 * u;
+    ctx.save();
+    ctx.beginPath(); ctx.rect(W / 2 - half * p, 0, 2 * half * p, H); ctx.clip();
     const lg = ctx.createLinearGradient(W / 2 - half, 0, W / 2 + half, 0);
     lg.addColorStop(0, "rgba(217,176,97,0)"); lg.addColorStop(0.5, "#d9b061"); lg.addColorStop(1, "rgba(217,176,97,0)");
     ctx.fillStyle = lg;
     ctx.fillRect(W / 2 - half, y - 0.5, half - d / 2 - gap, 1);
     ctx.fillRect(W / 2 + d / 2 + gap, y - 0.5, half - d / 2 - gap, 1);
+    ctx.globalAlpha *= p;
     ctx.save();
     ctx.translate(W / 2, y); ctx.rotate(Math.PI / 4);
     ctx.strokeStyle = "#e0b25a"; ctx.lineWidth = 1;
     ctx.strokeRect(-d / 2, -d / 2, d, d);
     ctx.restore();
+    ctx.restore();
   };
-  rule(0.66 * H);
-  rule(0.79 * H);
 
-  const sSize = 2.4 * u, sLs = 0.32 * sSize;
-  ctx.font = font(400, sSize);
-  ctx.letterSpacing = `${sLs}px`;
-  ctx.fillStyle = "#ecd08c";
-  ctx.fillText("ВЕЧЕР РЕТРОСПЕКТИВА", W / 2 + sLs / 2, 0.72 * H);
-
-  const dSize = 1.5 * u, dLs = 0.28 * dSize;
-  ctx.font = font(400, dSize);
-  ctx.letterSpacing = `${dLs}px`;
-  ctx.fillStyle = "#d9b061";
-  ctx.fillText("20 НОЯБРЯ 2026 ГОДА", W / 2 + dLs / 2, 0.84 * H);
+  const tSize = 7.2 * u;
+  const titleGrad = () => {
+    const g = ctx.createLinearGradient(0, 0.55 * H - tSize / 2, 0, 0.55 * H + tSize / 2);
+    g.addColorStop(0, "#fff3cc"); g.addColorStop(0.4, "#f0cc78");
+    g.addColorStop(0.75, "#c08c36"); g.addColorStop(1, "#e8c06a");
+    return g;
+  };
+  textLine(".cap-title", "Янтарный циркуль", {
+    y: 0.55 * H, weight: 600, size: tSize, ls: 0, stroke: "#e0b25a", sw: 0.08 * u, shadow: true, fill: titleGrad,
+  });
+  rule(".r1", 0.66 * H);
+  rule(".r2", 0.79 * H);
+  textLine(".cap-sub", "ВЕЧЕР РЕТРОСПЕКТИВА", {
+    y: 0.72 * H, weight: 400, size: 2.4 * u, ls: 0.32 * 2.4 * u, stroke: "#d9b061", sw: 0.04 * u, fill: "#ecd08c",
+  });
+  textLine(".cap-date", "20 НОЯБРЯ 2026 ГОДА", {
+    y: 0.84 * H, weight: 400, size: 1.5 * u, ls: 0.28 * 1.5 * u, stroke: "#d9b061", sw: 0.035 * u, fill: "#d9b061",
+  });
   ctx.restore();
 }
 
