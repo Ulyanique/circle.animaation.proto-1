@@ -118,7 +118,7 @@ export class LogoScene {
     this.scene.add(this.shadowPlane);
 
     // Освещение
-    this.keyLight = new THREE.SpotLight(0xfff1d6, 14, 0, 0.6, 0.9, 2);
+    this.keyLight = new THREE.SpotLight(0xffe0a8, 14, 0, 0.6, 0.9, 2);
     this.keyLight.castShadow = true;
     this.keyLight.shadow.mapSize.set(2048, 2048);
     this.keyLight.shadow.bias = -0.0004;
@@ -128,7 +128,7 @@ export class LogoScene {
     this.scene.add(this.keyLight, this.keyLight.target);
 
     // блик: точечный свет, который скользит по золоту во время удержания
-    this.glintLight = new THREE.PointLight(0xfff0c8, 0, 0, 2);
+    this.glintLight = new THREE.PointLight(0xffdc9a, 0, 0, 2);
     this.glintLight.position.set(0, 1, 2.2);
     this.scene.add(this.glintLight);
 
