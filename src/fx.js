@@ -219,6 +219,19 @@ export class Corners {
       depthWrite: false, blending: THREE.AdditiveBlending,
     });
     this.pivotMat = new THREE.MeshBasicMaterial({ color: 0xffe2a6, transparent: true, opacity: 0.9, depthWrite: false });
+    // центральная разметка циркулем: тонкая пунктирная окружность за логотипом, медленно вращается
+    const cpts = [];
+    for (let i = 0; i <= 256; i++) {
+      const a = (i / 256) * Math.PI * 2;
+      cpts.push(new THREE.Vector3(Math.cos(a), Math.sin(a), 0));
+    }
+    this.centerMat = new THREE.LineDashedMaterial({
+      color: 0xe0b25a, dashSize: 0.05, gapSize: 0.04, transparent: true, opacity: 0.18,
+      depthWrite: false, blending: THREE.AdditiveBlending,
+    });
+    this.centerRing = new THREE.Line(new THREE.BufferGeometry().setFromPoints(cpts), this.centerMat);
+    this.centerRing.computeLineDistances();
+    this.group.add(this.centerRing);
     this.tickMat = new THREE.MeshBasicMaterial({
       color: 0xe0b25a, transparent: true, opacity: 0.8, depthWrite: false,
       blending: THREE.AdditiveBlending, side: THREE.DoubleSide,
@@ -343,6 +356,13 @@ export class Corners {
     const cOp = (cfg.rings.constructionOpacity ?? 0.3) * env;
     this.constMat.opacity = cOp;
     this.pivotMat.opacity = Math.min(1, 0.9 * env);
+    // центральный круг: позиция и размер от логотипа, вращение медленное, в плоскости фона
+    const cr = this.centerRing;
+    cr.visible = cfg.rings.enabled && env > 0.0005;
+    cr.position.set(0, cfg.logo.offsetY ?? 0, -0.05);
+    cr.rotation.z = t * 0.04;
+    cr.scale.setScalar(cfg.rings.radius * 0.8);
+    this.centerMat.opacity = 0.18 * env;
     this.tickMat.opacity = 0.8 * env;
     for (const name of ["left", "right"]) {
       const s = this.sides[name];
