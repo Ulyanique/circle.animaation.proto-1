@@ -24,7 +24,7 @@ export const DEFAULTS = {
     metalness: 1.0,
     roughness: 0.22,
     clearcoat: 0.6,
-    envIntensity: 1.25,
+    envIntensity: 1.0,
     holdScaleFrom: 1.0,    // плавное увеличение во время удержания
     holdScaleTo: 1.04,
     pulseAmount: 0.018,    // амплитуда «дыхания»
