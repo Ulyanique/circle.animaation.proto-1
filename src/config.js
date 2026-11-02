@@ -108,7 +108,7 @@ export const DEFAULTS = {
   post: {
     smaa: true,            // антиалиасинг
     msaaSamples: 4,
-    bloomIntensity: 0.55,
+    bloomIntensity: 0.4,
     bloomThreshold: 0.85,
     bloomRadius: 0.8,
     dofEnabled: false,     // ДОФ выключен: кадр чёткий, без мыла
