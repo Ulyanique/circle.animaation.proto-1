@@ -4,7 +4,7 @@ import { SCHEMA, DEFAULTS, cloneDefaults, configToJSON, parseConfigJSON, saveCon
  * Минималистичная панель настроек.
  * Кнопка ⚙ (правый верх) → панель со всеми параметрами, экспорт/импорт JSON.
  */
-export function createSettingsUI(cfg, { onChange, onPauseToggle, onToast }) {
+export function createSettingsUI(cfg, { onChange, onPauseToggle, onToast, onExportVideo }) {
   // ─── кнопка ───
   const btn = document.createElement("button");
   btn.className = "cfg-toggle";
@@ -26,6 +26,7 @@ export function createSettingsUI(cfg, { onChange, onPauseToggle, onToast }) {
     <div class="cfg-tools">
       <button type="button" data-act="pause">Пауза</button>
       <button type="button" data-act="export">Экспорт JSON</button>
+      <button type="button" data-act="video">Экспорт видео</button>
       <button type="button" data-act="import">Импорт</button>
       <button type="button" data-act="reset">Сброс</button>
     </div>
@@ -179,6 +180,8 @@ export function createSettingsUI(cfg, { onChange, onPauseToggle, onToast }) {
     if (act === "pause") {
       onPauseToggle?.();
       refresh();
+    } else if (act === "video") {
+      onExportVideo?.();
     } else if (act === "export") {
       showIO("export");
     } else if (act === "import") {
