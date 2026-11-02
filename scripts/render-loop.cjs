@@ -26,6 +26,8 @@ const N = Math.round(CYCLE * FPS);
   const page = await browser.newPage();
   await page.goto(URL_, { waitUntil: "networkidle0", timeout: 120000 });
   await page.evaluate(() => { window.__logo.cfg.playback.paused = true; });
+  // в видео нет интерфейса настроек
+  await page.addStyleTag({ content: ".cfg-toggle{display:none!important}" });
   for (let k = 0; k < N; k++) {
     const t = START + k / FPS;
     await page.evaluate((t) => window.__logo.setTime(t), t);
