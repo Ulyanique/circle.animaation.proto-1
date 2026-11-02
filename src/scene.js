@@ -206,6 +206,13 @@ export class LogoScene {
     if (ch > H) { ch = H; cw = H * ASPECT; }
     this.renderer.domElement.style.width = Math.round(cw) + "px";
     this.renderer.domElement.style.height = Math.round(ch) + "px";
+    // подпись повторяет рамку канваса: --u = 1% ширины кадра
+    const cap = document.getElementById("caption");
+    if (cap) {
+      cap.style.width = Math.round(cw) + "px";
+      cap.style.height = Math.round(ch) + "px";
+      cap.style.setProperty("--u", (cw / 100).toFixed(3) + "px");
+    }
     this._w = RW;
     this._h = RH;
     this.renderer.setPixelRatio(1);
@@ -285,7 +292,7 @@ export class LogoScene {
     const pulse = 1 + cfg.logo.pulseAmount * Math.sin(TAUt * quant(cfg.logo.pulseSpeed) * t);
     const z = -cfg.logo.shadowDepth * (1 - ph.reveal) * (1 - ph.reveal);
     const root = this.logo.root;
-    root.position.set(0, Math.sin(TAUt * quant(cfg.logo.swaySpeed * 0.5) * t) * 0.02, z);
+    root.position.set(0, Math.sin(TAUt * quant(cfg.logo.swaySpeed * 0.5) * t) * 0.02 + (cfg.logo.offsetY ?? 0), z);
     root.scale.setScalar(cfg.logo.scale * scaleGrow * pulse * (0.55 + 0.45 * easeOutCubic(ph.reveal)));  // сначала контур в малом размере, затем логотип растёт
     root.rotation.set(
       Math.cos(TAUt * quant(cfg.logo.swaySpeed * 0.7) * t + 1.0) * cfg.logo.swayAmount * 0.6,
@@ -336,6 +343,14 @@ export class LogoScene {
       this.glintLight.intensity = 0;
       // постоянная горизонтальная полоса на уровне верхнего кольца (как в референсе)
       this.flare.set(0, cfg.post.anamorphic * 0.5 * ph.reveal, cfg.colors.goldHighlight, 1.25, 1.6);
+    }
+
+    // подпись появляется, когда логотип проявился, и уходит вместе с ним в тень
+    const capEl = document.getElementById("caption");
+    if (capEl) {
+      const k = THREE.MathUtils.smoothstep(ph.reveal, 0.6, 1.0);
+      capEl.style.opacity = k.toFixed(4);
+      capEl.style.transform = `translate(-50%, calc(-50% + ${((1 - k) * 0.8).toFixed(3)}vh))`;
     }
 
     // камера слегка смещена при появлении и возвращается в фронтальный вид

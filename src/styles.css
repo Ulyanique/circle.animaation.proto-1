@@ -224,3 +224,39 @@ body.ui-on, body.ui-on * { cursor: auto; }
 }
 .toast.show { opacity: 1; transform: translate(-50%, 0); }
 .toast.error { border-color: #d05a4a; color: #ffd0c8; }
+
+/* ── подпись под логотипом (размеры в % ширины кадра через --u) ── */
+#caption {
+  position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%);
+  pointer-events: none; opacity: 0; font-family: "Cormorant Garamond", Georgia, serif;
+  --u: 10px;
+}
+#caption > * { position: absolute; left: 0; right: 0; text-align: center; white-space: nowrap; }
+.cap-title {
+  top: 55%; transform: translateY(-50%); font-weight: 600; line-height: 1;
+  font-size: calc(var(--u) * 7.2);
+  background: linear-gradient(180deg, #fff3cc 0%, #f0cc78 40%, #c08c36 75%, #e8c06a 100%);
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+  filter: drop-shadow(0 calc(var(--u) * 0.2) calc(var(--u) * 0.5) rgba(0, 0, 0, 0.7));
+}
+.cap-rule {
+  left: 50% !important; right: auto !important; transform: translate(-50%, -50%);
+  width: calc(var(--u) * 34); display: flex; align-items: center; gap: calc(var(--u) * 1);
+}
+.cap-rule span { flex: 1; height: 1px; background: linear-gradient(90deg, transparent, #d9b061, transparent); }
+.cap-rule i {
+  flex: none; width: calc(var(--u) * 0.9); height: calc(var(--u) * 0.9);
+  border: 1px solid #e0b25a; transform: rotate(45deg);
+}
+.r1 { top: 66%; }
+.r2 { top: 79%; }
+.cap-sub {
+  top: 72%; transform: translateY(-50%); font-weight: 400; line-height: 1;
+  font-size: calc(var(--u) * 2.4); letter-spacing: 0.32em; padding-left: 0.32em;
+  text-transform: uppercase; color: #ecd08c;
+}
+.cap-date {
+  top: 84%; transform: translateY(-50%); font-weight: 400; line-height: 1;
+  font-size: calc(var(--u) * 1.5); letter-spacing: 0.28em; padding-left: 0.28em;
+  text-transform: uppercase; color: #d9b061;
+}

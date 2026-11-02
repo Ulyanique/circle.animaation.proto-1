@@ -17,7 +17,8 @@ export const DEFAULTS = {
     speed: 1.0,            // общая скорость (1 = реальное время)
   },
   logo: {
-    scale: 0.85,           // размер логотипа в кадре (~32% ширины)
+    scale: 0.45,           // размер логотипа в кадре (над подписью)
+    offsetY: 1.1,          // сдвиг логотипа вверх (мировые единицы)
     depth: 0.18,           // толщина экструзии (тоньше, не такой жирный)
     bevel: 0.035,          // скос кромок — ловит блики
     metalness: 1.0,
@@ -139,6 +140,7 @@ export const SCHEMA = [
   {
     id: "logo", title: "Логотип", fields: [
       { key: "scale", label: "Размер", type: "range", min: 0.3, max: 2.5, step: 0.01 },
+      { key: "offsetY", label: "Положение по высоте", type: "range", min: -2, max: 2, step: 0.01 },
       { key: "depth", label: "Толщина", type: "range", min: 0, max: 2, step: 0.01 },
       { key: "bevel", label: "Скос кромок", type: "range", min: 0, max: 0.3, step: 0.005 },
       { key: "metalness", label: "Металличность", type: "range", min: 0, max: 1, step: 0.01 },

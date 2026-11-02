@@ -1,4 +1,6 @@
 import "./styles.css";
+import "@fontsource/cormorant-garamond/cyrillic-400.css";
+import "@fontsource/cormorant-garamond/cyrillic-600.css";
 import { loadConfig, saveConfig } from "./config.js";
 import { LogoScene } from "./scene.js";
 import { createSettingsUI } from "./ui.js";
