@@ -27,3 +27,9 @@
 - `rings.constructionOpacity` — пунктирная разметка «циркулем»; `rings.thickness` — толщина колец (плоские дуги).
 - `particles.rayLift` — подсветка пыли кольцами.
 - `post.dofEnabled` — размытие (выключено, кадр чёткий); `post.chromaticAberration` — радиальная аберрация у краёв; `post.bloomIntensity` — блум.
+
+## Видео (зацикленный цикл)
+- `scripts/render-loop.cjs` — кадры одного цикла (12.7 с) в PNG; нужен запущенный dev-сервер и Chrome (`CHROME=/путь/к/chrome`).
+  Пример: `RW=1920 RH=1080 FPS=60 OUT=out/frames node scripts/render-loop.cjs`
+- `scripts/encode-loop.sh` — сборка MP4 через ffmpeg: `FPS=60 IN=out/frames OUT=out/logo-loop.mp4 scripts/encode-loop.sh`
+- Шов цикла: кадры берутся от фазы 0 до 12.7 с; начало и конец совпадают по времени и приходятся на тёмную паузу.
