@@ -3,13 +3,17 @@ import assert from "node:assert/strict";
 import { AnimationRuntime, cycleDuration } from "../src/runtime.js";
 import { OUTPUT, SCENES, sceneById } from "../src/scenes/catalog.js";
 import { DEFAULTS, cloneDefaults } from "../src/config.js";
+import { BRAND_DEFAULTS } from "../src/scenes/brand.js";
 
 test("единый формат и каталог девяти сцен без ложных готовых рендеров", () => {
   assert.deepEqual(OUTPUT, { width: 1920, height: 1080, fps: 60 });
   assert.equal(SCENES.length, 9);
   assert.equal(sceneById("waiting")?.status, "ready");
   assert.equal(sceneById("waiting")?.defaults, DEFAULTS);
-  assert.equal(SCENES.filter((scene) => scene.status === "ready").length, 1);
+  assert.equal(sceneById("brand")?.status, "ready");
+  assert.equal(sceneById("brand")?.defaults, BRAND_DEFAULTS);
+  assert.equal(cycleDuration(BRAND_DEFAULTS.timeline), 24);
+  assert.equal(SCENES.filter((scene) => scene.status === "ready").length, 2);
   assert.equal(sceneById("nonexistent"), undefined);
 });
 

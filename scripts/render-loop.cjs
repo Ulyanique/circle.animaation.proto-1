@@ -18,6 +18,7 @@ if (!Number.isInteger(FPS) || FPS < 1 || FPS > 120) throw new Error("FPS дол�
     const errors = [];
     page.on("pageerror", (e) => errors.push(e.message));
     await page.goto(URL_, { waitUntil: "networkidle0", timeout: 120000 });
+    await page.waitForFunction(() => document.body.classList.contains("boot-ready"), { timeout: 240000 });
     if (errors.length) throw new Error("Ошибка сцены: " + errors.join("; "));
     const { start, cycle } = await page.evaluate(async () => {
       await document.fonts.ready;
@@ -31,7 +32,7 @@ if (!Number.isInteger(FPS) || FPS < 1 || FPS > 120) throw new Error("FPS дол�
     });
     const total = Math.round(cycle * FPS);
     if (!(cycle > 0) || !Number.isFinite(total)) throw new Error("Некорректная длительность цикла");
-    await page.addStyleTag({ content: ".cfg-toggle,.cfg-panel,.toast,.review-panel{display:none!important} body{cursor:none!important}" });
+    await page.addStyleTag({ content: ".cfg-toggle,.cfg-panel,.toast,.review-panel,.brand-controls{display:none!important} body{cursor:none!important}" });
     console.log(`Рендер ${total} кадров, ${FPS} FPS, ${cycle.toFixed(3)} с, 1920×1080 → ${OUT}`);
     for (let k = 0; k < total; k++) {
       // Каждый кадр рисуется прямо по абсолютному времени, без ожидания/накопления dt.

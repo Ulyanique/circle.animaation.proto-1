@@ -1,17 +1,23 @@
 import "./styles.css";
 import "@fontsource/cormorant-garamond/cyrillic-400.css";
 import "@fontsource/cormorant-garamond/cyrillic-600.css";
-import { loadConfig, saveConfig } from "./config.js";
+import { loadConfig, cloneDefaults, saveConfig } from "./config.js";
 import { LogoScene } from "./scene.js";
+import { BrandScene } from "./brand-scene.js";
 import { createSettingsUI } from "./ui.js";
 import { AnimationRuntime } from "./runtime.js";
 import { OUTPUT, sceneById } from "./scenes/catalog.js";
 import { glyphReveal } from "./caption.js";
 import { createReviewControls } from "./review.js";
 
-const activeScene = sceneById("waiting"); // остальные сцены в каталоге пока только запланированы
-if (!activeScene?.defaults) throw new Error("Первая заставка не зарегистрирована");
-const cfg = loadConfig(activeScene.defaults);
+const sceneId = new URLSearchParams(location.search).get("scene") || "waiting";
+const activeScene = sceneById(sceneId);
+if (!activeScene?.defaults || activeScene.status !== "ready") {
+  throw new Error(`Сцена «${sceneId}» пока не подготовлена`);
+}
+// Старые пользовательские настройки относятся только к первой заставке.
+const cfg = sceneId === "waiting" ? loadConfig(activeScene.defaults) : cloneDefaults(activeScene.defaults);
+document.body.classList.toggle("scene-brand", sceneId === "brand");
 const canvas = document.getElementById("stage");
 const toastEl = document.getElementById("toast");
 let toastTimer = 0;
@@ -39,18 +45,32 @@ for (const el of document.querySelectorAll("#caption [data-text]")) {
   }));
 }
 
-const scene = new LogoScene(canvas, cfg);
+const scene = sceneId === "brand" ? new BrandScene(canvas, cfg) : new LogoScene(canvas, cfg);
 const runtime = new AnimationRuntime(scene, cfg, OUTPUT.fps);
 
-createSettingsUI(cfg, {
-  onChange: () => {},
-  onPauseToggle: () => {
+if (sceneId === "waiting") {
+  createSettingsUI(cfg, {
+    onChange: () => {},
+    onPauseToggle: () => {
+      cfg.playback.paused = !cfg.playback.paused;
+      saveConfig(cfg);
+    },
+    onToast: toast,
+    onExportVideo: startRecording,
+  });
+} else {
+  // Режим для зала: управление доступно в превью, но не попадает в canvas/видео.
+  const tools = document.createElement("nav");
+  tools.className = "brand-controls";
+  tools.setAttribute("aria-label", "Управление фирменным фоном");
+  tools.innerHTML = '<a href="?scene=waiting">Заставка ожидания</a><button type="button" data-action="pause">Пауза</button><button type="button" data-action="record">Записать цикл</button>';
+  tools.querySelector('[data-action="pause"]').addEventListener("click", (event) => {
     cfg.playback.paused = !cfg.playback.paused;
-    saveConfig(cfg);
-  },
-  onToast: toast,
-  onExportVideo: startRecording,
-});
+    event.currentTarget.textContent = cfg.playback.paused ? "Воспроизвести" : "Пауза";
+  });
+  tools.querySelector('[data-action="record"]').addEventListener("click", startRecording);
+  document.body.appendChild(tools);
+}
 
 window.addEventListener("resize", () => scene.resize());
 
@@ -64,12 +84,12 @@ window.addEventListener("keydown", (e) => {
 
 let last = performance.now();
 let recording = null; // запись одного цикла в реальном времени
-const review = createReviewControls(cfg, {
+const review = sceneId === "waiting" ? createReviewControls(cfg, {
   getTime: () => runtime.time,
   seek: (value) => runtime.renderAt(value, 1 / OUTPUT.fps),
   onPause: () => { cfg.playback.paused = !cfg.playback.paused; },
   isRecording: () => Boolean(recording),
-});
+}) : { refresh() {} };
 
 const REC_W = OUTPUT.width, REC_H = OUTPUT.height;
 
@@ -104,7 +124,7 @@ function drawCaption(ctx, alpha) {
     ctx.letterSpacing = "0px";
     const widths = glyphs.map((glyph) => ctx.measureText(glyph).width);
     const w = widths.reduce((a, b) => a + b, 0) + o.ls * Math.max(0, glyphs.length - 1);
-    let x = W / 2 - w / 2 + o.ls / 2; // то же центрирование, что padding-left в DOM
+    let x = (o.centerX ?? W / 2) - w / 2 + o.ls / 2; // то же центрирование, что padding-left в DOM
     ctx.textAlign = "left";
     ctx.strokeStyle = o.stroke; ctx.lineWidth = o.sw; ctx.lineJoin = "round";
     const pen = capVal(sel, "--pen");
@@ -164,7 +184,8 @@ function drawCaption(ctx, alpha) {
     ctx.restore();
   };
 
-  const tSize = 7.2 * u;
+  const brand = activeScene.id === "brand";
+  const tSize = (brand ? 5.7 : 7.2) * u;
   const titleGrad = (y) => {
     const g = ctx.createLinearGradient(0, y - tSize / 2, 0, y + tSize / 2);
     g.addColorStop(0, "#fff3cc"); g.addColorStop(0.4, "#f0cc78");
@@ -172,16 +193,19 @@ function drawCaption(ctx, alpha) {
     return g;
   };
   textLine(".cap-title", "Янтарный циркуль", {
-    y: 0.55 * H, weight: 600, size: tSize, ls: 0, stroke: "#e0b25a", sw: 0.08 * u, shadow: true, fill: titleGrad,
+    y: (brand ? 0.50 : 0.55) * H, centerX: brand ? 0.62 * W : W / 2,
+    weight: 600, size: tSize, ls: 0, stroke: "#e0b25a", sw: 0.08 * u, shadow: true, fill: titleGrad,
   });
-  rule(".r1", 0.66 * H);
-  rule(".r2", 0.79 * H);
-  textLine(".cap-sub", "ВЕЧЕР РЕТРОСПЕКТИВА", {
-    y: 0.72 * H, weight: 400, size: 2.4 * u, ls: 0.32 * 2.4 * u, stroke: "#d9b061", sw: 0.04 * u, fill: "#ecd08c",
-  });
-  textLine(".cap-date", "20 НОЯБРЯ 2026 ГОДА", {
-    y: 0.84 * H, weight: 400, size: 1.5 * u, ls: 0.28 * 1.5 * u, stroke: "#d9b061", sw: 0.035 * u, fill: "#d9b061",
-  });
+  if (!brand) {
+    rule(".r1", 0.66 * H);
+    rule(".r2", 0.79 * H);
+    textLine(".cap-sub", "ВЕЧЕР РЕТРОСПЕКТИВА", {
+      y: 0.72 * H, weight: 400, size: 2.4 * u, ls: 0.32 * 2.4 * u, stroke: "#d9b061", sw: 0.04 * u, fill: "#ecd08c",
+    });
+    textLine(".cap-date", "20 НОЯБРЯ 2026 ГОДА", {
+      y: 0.84 * H, weight: 400, size: 1.5 * u, ls: 0.28 * 1.5 * u, stroke: "#d9b061", sw: 0.035 * u, fill: "#d9b061",
+    });
+  }
   ctx.restore();
 }
 
@@ -224,7 +248,7 @@ function startRecording() {
     window.__lastVideoBlob = blob;
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
-    a.download = "logo-loop-1920x1080.webm";
+    a.download = `${activeScene.id}-1920x1080.webm`;
     document.body.appendChild(a);
     a.click();
     a.remove();

@@ -17,6 +17,7 @@ const url = process.env.URL || "http://localhost:5173/";
     await page.goto(url, { waitUntil: "networkidle0", timeout: 120000 });
     const frames = await page.evaluate(async () => {
       await document.fonts.ready;
+      if (window.__logo.activeScene.id !== "waiting") throw new Error("Эта раскадровка относится к первой заставке; для фирменного фона используйте verify:brand");
       const t = window.__logo.cfg.timeline;
       window.__logo.cfg.playback.paused = true;
       const D = t.drawDuration, E = t.emergeDuration, H = t.holdDuration, F = t.fadeDuration;
