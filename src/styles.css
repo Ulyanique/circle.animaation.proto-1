@@ -30,7 +30,32 @@ html, body {
 
 /* курсор скрыт до открытия настроек */
 body { cursor: none; }
-body.ui-on, body.ui-on * { cursor: auto; }
+body.ui-on, body.ui-on *, body.review-on, body.review-on * { cursor: auto; }
+
+/* Необязательная режиссёрская панель; не входит в 1920×1080 WebGL-кадр. */
+.review-panel {
+  position: fixed; z-index: 22; bottom: 18px; left: 50%;
+  transform: translateX(-50%); width: min(740px, calc(100vw - 36px));
+  padding: 13px 18px 11px; border: 1px solid rgba(217,176,97,.35);
+  border-radius: 14px; background: rgba(10,8,6,.92);
+  backdrop-filter: blur(18px); color: #e9dcc0;
+  box-shadow: 0 20px 60px rgba(0,0,0,.7);
+  font: 12px/1.4 "Inter", "Segoe UI", system-ui, sans-serif;
+}
+.review-panel[hidden] { display: none; }
+.review-header, .review-actions, .review-markers { display: flex; align-items: center; gap: 9px; }
+.review-header { justify-content: space-between; color: #d9b061; letter-spacing: .16em; font-size: 10px; }
+.review-panel button { background: transparent; color: #e9dcc0; border: 1px solid rgba(217,176,97,.27); border-radius: 6px; padding: 5px 9px; cursor: pointer; font: inherit; }
+.review-panel button:hover, .review-panel button:focus-visible { border-color: #d9b061; color: #ffe7a6; }
+.review-panel .review-close { font-size: 20px; border: 0; padding: 0 4px; line-height: 1; }
+.review-actions { margin: 10px 0; flex-wrap: wrap; }
+.review-time { margin-left: auto; color: #ffe7a6; font-variant-numeric: tabular-nums; }
+.review-range { width: 100%; accent-color: #d9b061; cursor: pointer; }
+.review-markers { flex-wrap: wrap; justify-content: space-between; margin-top: 7px; }
+.review-markers button { font-size: 11px; }
+.review-hint { margin: 10px 0 0; color: rgba(233,220,192,.55); font-size: 10px; }
+.review-busy .review-actions, .review-busy .review-range, .review-busy .review-markers { opacity: .45; pointer-events: none; }
+
 /* ── кнопка настроек ── */
 .cfg-toggle {
   position: fixed;
@@ -225,20 +250,31 @@ body.ui-on, body.ui-on * { cursor: auto; }
 .toast.show { opacity: 1; transform: translate(-50%, 0); }
 .toast.error { border-color: #d05a4a; color: #ffd0c8; }
 
-/* ── подпись под логотипом: обводка и построчное появление (размеры через --u = 1% ширины кадра) ── */
+/* ── титр: каждая графема гравируется контуром, затем получает заливку. ── */
 #caption {
   position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%);
   pointer-events: none; opacity: 1; font-family: "Cormorant Garamond", Georgia, serif;
   --u: 10px;
 }
 #caption > * { position: absolute; left: 50%; white-space: nowrap; line-height: 1; text-align: center; }
-/* строка: сначала обводка (проявляется слева направо, --p), затем заливка (--f) */
 #caption [data-text] {
-  transform: translate(-50%, -50%); color: transparent;
-  clip-path: inset(0 calc((1 - var(--p, 0)) * 100%) 0 0);
+  transform: translate(-50%, calc(-50% + var(--lift, 0px))); color: transparent;
 }
-#caption [data-text]::after {
-  content: attr(data-text); position: absolute; inset: 0; -webkit-text-stroke: 0;
+#caption .cap-glyph {
+  display: inline-block; position: relative; white-space: pre; vertical-align: baseline;
+  clip-path: inset(0 calc((1 - var(--o, 0)) * 100%) 0 0);
+}
+/* Перед обводкой — короткий свет кончика пера, а не общий блик всей строки. */
+#caption .cap-glyph::before {
+  content: ""; position: absolute; top: 0.12em; bottom: 0.08em;
+  left: calc(var(--o, 0) * 100%); width: calc(var(--u) * 0.45);
+  transform: translateX(-50%);
+  background: linear-gradient(90deg, transparent, rgba(255, 231, 164, 0.55), transparent);
+  filter: blur(calc(var(--u) * 0.10)); opacity: var(--gpen, 0);
+  pointer-events: none;
+}
+#caption .cap-glyph::after {
+  content: attr(data-glyph); position: absolute; inset: 0; -webkit-text-stroke: 0;
   clip-path: inset(0 calc((1 - var(--f, 0)) * 100%) 0 0);
 }
 .cap-title {
@@ -247,12 +283,12 @@ body.ui-on, body.ui-on * { cursor: auto; }
   -webkit-text-stroke: calc(var(--u) * 0.08) #e0b25a;
   filter: drop-shadow(0 calc(var(--u) * 0.2) calc(var(--u) * 0.5) rgba(0, 0, 0, 0.7));
 }
-.cap-title::after {
+.cap-title .cap-glyph::after {
   background: linear-gradient(180deg, #fff3cc 0%, #f0cc78 40%, #c08c36 75%, #e8c06a 100%);
   -webkit-background-clip: text; background-clip: text; color: transparent;
 }
 .cap-rule {
-  top: 0; transform: translate(-50%, -50%);
+  top: 0; transform: translate(-50%, calc(-50% + var(--lift, 0px)));
   width: calc(var(--u) * 34); display: flex; align-items: center; gap: calc(var(--u) * 1);
   clip-path: inset(0 calc((1 - var(--p, 0)) * 50%) 0 calc((1 - var(--p, 0)) * 50%));
 }
@@ -268,10 +304,10 @@ body.ui-on, body.ui-on * { cursor: auto; }
   font-size: calc(var(--u) * 2.4); letter-spacing: 0.32em; padding-left: 0.32em;
   text-transform: uppercase; -webkit-text-stroke: calc(var(--u) * 0.04) #d9b061;
 }
-.cap-sub::after { color: #ecd08c; padding-left: 0.32em; }
+.cap-sub .cap-glyph::after { color: #ecd08c; }
 .cap-date {
   top: 84%; font-weight: 400;
   font-size: calc(var(--u) * 1.5); letter-spacing: 0.28em; padding-left: 0.28em;
   text-transform: uppercase; -webkit-text-stroke: calc(var(--u) * 0.035) #d9b061;
 }
-.cap-date::after { color: #d9b061; padding-left: 0.28em; }
+.cap-date .cap-glyph::after { color: #d9b061; }

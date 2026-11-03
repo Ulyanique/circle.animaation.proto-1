@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { OUTPUT } from "./scenes/catalog.js";
 import { SVGLoader } from "three/examples/jsm/loaders/SVGLoader.js";
 import svgText from "./assets/logo.svg?raw";
 
@@ -18,16 +19,21 @@ export const revealUniforms = {
   uGlowColor: { value: new THREE.Color(1, 0.7, 0.3) },
   uK: { value: 1 },
   uCenter: { value: new THREE.Vector2(0, 0) },
+  uSpecPass: { value: 0 },
+  uSpecX: { value: 0 },
 };
 
 const REVEAL_GLSL_COMMON = /* glsl */ `
   varying vec3 vLocalPos;
+  varying vec3 vLocalNormal;
   uniform float uReveal;
   uniform float uRevealNoise;
   uniform float uRevealGlow;
   uniform vec3 uGlowColor;
   uniform float uK;
   uniform vec2 uCenter;
+  uniform float uSpecPass;
+  uniform float uSpecX;
   float rvHash(vec2 p){ p = fract(p*vec2(123.34,456.21)); p += dot(p,p+45.32); return fract(p.x*p.y); }
   float rvNoise(vec2 p){
     vec2 i = floor(p), f = fract(p);
@@ -44,8 +50,8 @@ function patchRevealMaterial(material, withEmission) {
   material.onBeforeCompile = (shader) => {
     Object.assign(shader.uniforms, revealUniforms);
     shader.vertexShader = shader.vertexShader
-      .replace("#include <common>", "#include <common>\nvarying vec3 vLocalPos;\nuniform float uK;")
-      .replace("#include <begin_vertex>", "#include <begin_vertex>\nvLocalPos = position * uK;");
+      .replace("#include <common>", "#include <common>\nvarying vec3 vLocalPos;\nvarying vec3 vLocalNormal;\nuniform float uK;")
+      .replace("#include <begin_vertex>", "#include <begin_vertex>\nvLocalPos = position * uK;\nvLocalNormal = normal;");
     shader.fragmentShader = shader.fragmentShader
       .replace("#include <common>", "#include <common>\n" + REVEAL_GLSL_COMMON)
       .replace(
@@ -60,6 +66,30 @@ function patchRevealMaterial(material, withEmission) {
         `#include <emissivemap_fragment>
          float rvEdge = 1.0 - smoothstep(0.0, 0.14, uReveal - rvF);
          totalEmissiveRadiance += uGlowColor * uRevealGlow * rvEdge;`
+      );
+      // Студийное окружение остаётся HDR, но на металле мягко сжимаем пики
+      // по каналам: так золото сохраняет объём вместо белого пересвета.
+      shader.fragmentShader = shader.fragmentShader.replace(
+        "#include <opaque_fragment>",
+        `outgoingLight = outgoingLight / (1.0 + outgoingLight / vec3(1.10, 0.48, 0.16));
+         // Тёплый студийный градиент только на лицевой поверхности:
+         // от светлой верхней левой кромки к более глубокому янтарю справа внизу.
+         // На боковых гранях сохраняем естественное отражение окружения.
+         float rvFront = smoothstep(0.55, 0.92, abs(vLocalNormal.z));
+         float rvShade = smoothstep(-1.45, 1.35, vLocalPos.x + vLocalPos.y * 0.22);
+         vec3 rvFaceTone = mix(vec3(0.98, 0.95, 0.88), vec3(0.66, 0.71, 0.73), rvShade);
+         outgoingLight *= mix(vec3(1.0), rvFaceTone, rvFront);
+         // Микрогравировка в локальных координатах: не плавает по поверхности.
+         // Производная подавляет муар, если линии становятся мельче пикселя.
+         float rvBrush = vLocalPos.y * 110.0 + sin(vLocalPos.x * 9.0) * 0.32;
+         float rvAA = 1.0 - smoothstep(0.7, 1.8, fwidth(rvBrush));
+         outgoingLight *= 1.0 - 0.032 * rvAA * (0.5 + 0.5 * sin(rvBrush));
+         // Узкое отражение студийного источника: движется только по металлу,
+         // остаётся янтарным и не превращается в белую вспышку по всему кадру.
+         float rvBandCoord = vLocalPos.x + vLocalPos.y * 0.26 - uSpecX;
+         float rvSpecBand = exp(-rvBandCoord * rvBandCoord * 22.0) * rvFront * uSpecPass;
+         outgoingLight += vec3(0.38, 0.15, 0.035) * rvSpecBand;
+         #include <opaque_fragment>`
       );
     }
   };
@@ -187,7 +217,7 @@ export class Logo {
    */
   buildOutline() {
     const { subPaths, cx, cy, W } = this.parsed;
-    const STAGGER = 0.3; // подконтуры начинают рисоваться со сдвигом
+    const STAGGER = 0.75; // сначала единый оголовок, затем остальные детали — без разрозненных штрихов
     const n = Math.max(1, subPaths.length);
     const segs = []; // [ax,ay,bx,by,t0,t1]
     subPaths.forEach((sp, i) => {
@@ -202,7 +232,7 @@ export class Logo {
           a.x - cx, a.y - cy, b.x - cx, b.y - cy,
           start + (k / (pts.length - 1)) * (1 - STAGGER),
           start + ((k + 1) / (pts.length - 1)) * (1 - STAGGER),
-          i,
+          i, k / (pts.length - 1), (k + 1) / (pts.length - 1),
         ]);
       }
     });
@@ -213,8 +243,9 @@ export class Logo {
     const pos = new Float32Array(N * 12), other = new Float32Array(N * 12);
     const nb = new Float32Array(N * 12), endF = new Float32Array(N * 4);
     const side = new Float32Array(N * 4), tt = new Float32Array(N * 4);
+    const part = new Float32Array(N * 4), pathT = new Float32Array(N * 4);
     const index = new Uint32Array(N * 6);
-    segs.forEach(([ax, ay, bx, by, t0, t1, sub], s) => {
+    segs.forEach(([ax, ay, bx, by, t0, t1, sub, path0, path1], s) => {
       const v = s * 4;
       // соседи в том же подконтуре: для стыков (miter join) лента не рвётся на сегментах
       const prev = s > 0 && segs[s - 1][6] === sub ? segs[s - 1] : null;
@@ -233,6 +264,8 @@ export class Logo {
         endF[v + k] = e;
         side[v + k] = sd;
         tt[v + k] = t;
+        part[v + k] = sub === 0 ? 0 : 1;
+        pathT[v + k] = e ? path1 : path0;
       });
       index.set([v, v + 1, v + 2, v + 1, v + 3, v + 2], s * 6);
     });
@@ -243,12 +276,16 @@ export class Logo {
     this.outlineGeo.setAttribute("aT", new THREE.BufferAttribute(tt, 1));
     this.outlineGeo.setAttribute("aNb", new THREE.BufferAttribute(nb, 3));
     this.outlineGeo.setAttribute("aEnd", new THREE.BufferAttribute(endF, 1));
+    this.outlineGeo.setAttribute("aPart", new THREE.BufferAttribute(part, 1));
+    this.outlineGeo.setAttribute("aPathT", new THREE.BufferAttribute(pathT, 1));
     this.outlineGeo.setIndex(new THREE.BufferAttribute(index, 1));
     this.outlineGeo.boundingSphere = new THREE.Sphere(new THREE.Vector3(), 1e6);
 
     this.outlineU = {
-      uRes: { value: new THREE.Vector2(1920, 1080) },
+      uRes: { value: new THREE.Vector2(OUTPUT.width, OUTPUT.height) },
       uDraw: { value: 0 },
+      uReverse: { value: 0 },
+      uRetire: { value: 0 },
     };
     this.outlineMat = makeRibbonMaterial(this.outlineU, 1.1, 1);
     this.outlineGlowMat = makeRibbonMaterial(this.outlineU, 4.5, 0.3);
@@ -270,11 +307,13 @@ export class Logo {
    * draw: 0..1 — сколько контура нарисовано;
    * opacity: видимость контура; fill: 0..1 — stroke-to-fill (контур сужается и уходит в золотую заливку).
    */
-  updateOutline(draw, opacity, cfg, fill = 0) {
+  updateOutline(draw, opacity, cfg, fill = 0, reverse = false) {
     this.outline.visible = cfg.logo.outlineEnabled && opacity > 0.001;
     if (!this.outline.visible) return;
     const u = this.outlineU;
     u.uDraw.value = draw;
+    u.uReverse.value = reverse ? 1 : 0;
+    u.uRetire.value = reverse ? 1 - draw : 0;
     const colCore = this._colCore = this._colCore || new THREE.Color();
     colCore.set(cfg.logo.outlineColor).lerp(new THREE.Color(cfg.colors.goldHighlight), fill * 0.6);
     const half = (cfg.logo.outlineWidthPx ?? 2.2) * 0.5 * (1 - 0.85 * fill);
@@ -304,9 +343,13 @@ const RIBBON_VS = /* glsl */ `
   attribute float aEnd;    // 0 — конец A, 1 — конец B
   attribute float aSide;
   attribute float aT;
+  attribute float aPart;   // первый подконтур — оголовок циркуля
+  attribute float aPathT;  // прогресс внутри собственного подконтурa
   uniform vec2 uRes;
   uniform float uWidth;   // половина ширины в пикселях
   uniform float uDraw;
+  uniform float uReverse;
+  uniform float uRetire;
   varying float vSide;
   varying float vVis;
   varying float vHead;
@@ -334,8 +377,13 @@ const RIBBON_VS = /* glsl */ `
     gl_Position = vec4(cA.xy + offClip, cA.z, cA.w);
     vSide = aSide;
     float dv = uDraw - aT;
-    vVis = clamp(dv / 0.012, 0.0, 1.0);
-    vHead = exp(-dv * dv / (0.025 * 0.025));
+    float detailFade = 1.0 - smoothstep(0.05, 0.60, uRetire);
+    float headRemain = 1.0 - smoothstep(0.27, 1.0, uRetire);
+    // Уход собирает детали в единый оголовок, который отматывается последним.
+    float lastLine = clamp((headRemain - aPathT) / 0.025, 0.0, 1.0);
+    vVis = mix(clamp(dv / 0.012, 0.0, 1.0), mix(lastLine, detailFade, aPart), uReverse);
+    float reverseHead = (1.0 - aPart) * exp(-pow((headRemain - aPathT) / 0.045, 2.0));
+    vHead = mix(exp(-dv * dv / (0.025 * 0.025)), reverseHead, uReverse);
   }
 `;
 
@@ -364,6 +412,8 @@ function makeRibbonMaterial(shared, widthMul, alphaMul) {
     uniforms: {
       uRes: shared.uRes,
       uDraw: shared.uDraw,
+      uReverse: shared.uReverse,
+      uRetire: shared.uRetire,
       uWidth: { value: 1 * widthMul },
       uOpacity: { value: alphaMul },
       uColor: { value: new THREE.Color(0xffd98a) },

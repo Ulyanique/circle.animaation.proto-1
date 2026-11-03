@@ -1,40 +1,47 @@
-// Рендер одного зацикленного цикла логотипа в PNG-кадры (для MP4 см. scripts/encode-loop.sh).
-// Шов: кадры берутся от локальной фазы 0 до cycle (12.7 с) — конец переходит в начало через тёмную паузу.
-// Запуск (dev-сервер уже запущен на 5173):
-//   RW=1920 RH=1080 FPS=60 OUT=out/frames node scripts/render-loop.cjs
-// Переменные: URL, RW, RH, FPS, OUT, START (startDelay из конфига, по умолчанию 0.6), CYCLE (12.7), CHROME (путь к Chrome/Chromium).
-const puppeteer = require("puppeteer-core");
-const fs = require("fs");
-const path = require("path");
+// Запуск: npm run dev (в другом терминале), затем npm run render:frames
+// Настройки: CHROME=/путь/к/chrome, URL, FPS=60, OUT=out/frames.
+// Время цикла и startDelay всегда берутся из текущих настроек сцены.
+const fs = require("node:fs");
+const path = require("node:path");
+const { launchBrowser } = require("./browser.cjs");
 
 const URL_ = process.env.URL || "http://localhost:5173/";
-const RW = +(process.env.RW || 1920), RH = +(process.env.RH || 1080);
-const FPS = +(process.env.FPS || 24);
-const CYCLE = +(process.env.CYCLE || 12.7);
-const START = +(process.env.START || 0.6);
+const FPS = Number(process.env.FPS || 60);
 const OUT = process.env.OUT || "out/frames";
-const N = Math.round(CYCLE * FPS);
+if (!Number.isInteger(FPS) || FPS < 1 || FPS > 120) throw new Error("FPS должен быть целым числом от 1 до 120");
 
 (async () => {
   fs.mkdirSync(OUT, { recursive: true });
-  const browser = await puppeteer.launch({
-    executablePath: process.env.CHROME || undefined,
-    headless: "shader",
-    args: ["--use-gl=angle", "--enable-unsafe-swiftshader", "--ignore-gpu-blocklist"],
-    defaultViewport: { width: RW, height: RH },
-  });
-  const page = await browser.newPage();
-  await page.goto(URL_, { waitUntil: "networkidle0", timeout: 120000 });
-  await page.evaluate(() => { window.__logo.cfg.playback.paused = true; });
-  // в видео нет интерфейса настроек
-  await page.addStyleTag({ content: ".cfg-toggle{display:none!important}" });
-  for (let k = 0; k < N; k++) {
-    const t = START + k / FPS;
-    await page.evaluate((t) => window.__logo.setTime(t), t);
-    await new Promise((r) => setTimeout(r, 500));
-    await page.screenshot({ path: path.join(OUT, `f${String(k).padStart(4, "0")}.png`) });
-    console.log(`frame ${k + 1}/${N}`);
+  const browser = await launchBrowser();
+  try {
+    const page = await browser.newPage();
+    const errors = [];
+    page.on("pageerror", (e) => errors.push(e.message));
+    await page.goto(URL_, { waitUntil: "networkidle0", timeout: 120000 });
+    if (errors.length) throw new Error("Ошибка сцены: " + errors.join("; "));
+    const { start, cycle } = await page.evaluate(async () => {
+      await document.fonts.ready;
+      const { cfg } = window.__logo;
+      cfg.playback.paused = true;
+      const tl = cfg.timeline;
+      return {
+        start: tl.startDelay,
+        cycle: window.__logo.runtime.cycle,
+      };
+    });
+    const total = Math.round(cycle * FPS);
+    if (!(cycle > 0) || !Number.isFinite(total)) throw new Error("Некорректная длительность цикла");
+    await page.addStyleTag({ content: ".cfg-toggle,.cfg-panel,.toast,.review-panel{display:none!important} body{cursor:none!important}" });
+    console.log(`Рендер ${total} кадров, ${FPS} FPS, ${cycle.toFixed(3)} с, 1920×1080 → ${OUT}`);
+    for (let k = 0; k < total; k++) {
+      // Каждый кадр рисуется прямо по абсолютному времени, без ожидания/накопления dt.
+      await page.evaluate(({ t, dt }) => window.__logo.renderAt(t, dt), { t: start + k / FPS, dt: 1 / FPS });
+      if (errors.length) throw new Error("Ошибка сцены: " + errors.join("; "));
+      await page.screenshot({ path: path.join(OUT, `f${String(k).padStart(5, "0")}.png`) });
+      if ((k + 1) % FPS === 0 || k + 1 === total) console.log(`${k + 1}/${total}`);
+    }
+    console.log("DONE");
+  } finally {
+    await browser.close();
   }
-  await browser.close();
-  console.log("DONE");
-})().catch((e) => { console.error("FAIL", e.message); process.exit(1); });
+})().catch((e) => { console.error("FAIL", e); process.exitCode = 1; });

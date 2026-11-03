@@ -5,7 +5,7 @@ set -euo pipefail
 DIR="${HEADLESS_DIR:-$HOME/.cache/headless}"
 mkdir -p "$DIR" && cd "$DIR"
 [ -f package.json ] || npm init -y >/dev/null
-npm install @sparticuz/chromium@131 puppeteer-core@23 --no-audit --no-fund
+npm install @sparticuz/chromium@131 --no-audit --no-fund
 # системных библиотек (libnss3 и т.п.) в песочнице нет — распаковываем поставляемые архивы
 mkdir -p libs && node -e "
 const zlib=require('zlib'),fs=require('fs'),p='node_modules/@sparticuz/chromium/bin/';

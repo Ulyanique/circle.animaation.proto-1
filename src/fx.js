@@ -1,4 +1,6 @@
 import * as THREE from "three";
+import { seededRandom } from "./random.js";
+import { ringSweep } from "./timeline.js";
 
 /* ─────────────────────────── Фон: свет из углов ─────────────────────────── */
 
@@ -344,7 +346,7 @@ export class Corners {
   /**
    * @param {number} halfW, halfH — полуразмеры видимой области на z=0
    */
-  update(t, cfg, halfW, halfH, env = 1) {
+  update(t, cfg, halfW, halfH, env = 1, focus = 0) {
     this.rebuild(cfg);
     this.group.visible = cfg.rings.enabled;
     const sides = {
@@ -353,17 +355,17 @@ export class Corners {
     };
     const sp = cfg.rings.speed;
     const ringCol = new THREE.Color(cfg.colors.gold).multiplyScalar(0.8 + 0.3 * cfg.rings.glowIntensity);
-    const cOp = (cfg.rings.constructionOpacity ?? 0.3) * env;
+    const cOp = (cfg.rings.constructionOpacity ?? 0.3) * env * (1 - 0.52 * focus);
     this.constMat.opacity = cOp;
-    this.pivotMat.opacity = Math.min(1, 0.9 * env);
+    this.pivotMat.opacity = Math.min(1, 0.9 * env * (1 - 0.35 * focus));
     // центральный круг: позиция и размер от логотипа, вращение медленное, в плоскости фона
     const cr = this.centerRing;
     cr.visible = cfg.rings.enabled && env > 0.0005;
     cr.position.set(0, cfg.logo.offsetY ?? 0, -0.05);
     cr.rotation.z = t * 0.04;
-    cr.scale.setScalar(cfg.rings.radius * 0.8);
-    this.centerMat.opacity = 0.18 * env;
-    this.tickMat.opacity = 0.8 * env;
+    cr.scale.setScalar(cfg.rings.radius * (0.8 - 0.06 * focus));
+    this.centerMat.opacity = 0.18 * env * (1 - 0.67 * focus);
+    this.tickMat.opacity = 0.8 * env * (1 - 0.2 * focus);
     for (const name of ["left", "right"]) {
       const s = this.sides[name];
       const c = sides[name];
@@ -373,20 +375,28 @@ export class Corners {
       // кольца рисуются дугой из плоскости фона: появление и уход — через проход дуги, без масштаба
       s.layers.forEach((l) => {
         l.mesh.material.color.copy(ringCol);
-        l.u.value = THREE.MathUtils.clamp(env * 1.15 - 0.08 * l.idx, 0, 1);
+        l.u.value = ringSweep(env, l.idx);
+        l.mesh.material.opacity = 1 - 0.38 * focus;
       });
-      if (s.ticks) s.ticks.rotation.set(0, 0, t * sp * 0.2 * c.dir);
+      // Риски и пунктир не должны заранее выдавать уже замкнутый круг:
+      // отрисовываем только построенный сектор, как у основных дуг.
+      const construction = ringSweep(env, 0);
+      if (s.ticks) {
+        s.ticks.count = Math.ceil(96 * construction);
+        s.ticks.rotation.set(0, 0, t * sp * 0.2 * c.dir);
+      }
+      s.construction?.geometry.setDrawRange(0, Math.ceil(193 * construction));
 
       const flick = 1 + cfg.rings.flicker * (Math.sin(t * 7.3 + (name === "left" ? 0 : 2.1)) * 0.5 + Math.sin(t * 2.9 + 4.0) * 0.5);
       const lightCol = name === "left" ? cfg.colors.lightLeft : cfg.colors.lightRight;
-      const intensity = cfg.rings.lightStrength * flick * 6 * cfg.lights.exposure * env;
+      const intensity = cfg.rings.lightStrength * flick * 6 * cfg.lights.exposure * env * (1 - 0.55 * focus);
       const light = this.lights[name];
       light.color.set(lightCol);
       light.intensity = intensity;
       light.distance = 10 + cfg.background.lightSpread * 4;
       const sprite = this.sprites[name];
       sprite.material.color.set(lightCol);
-      sprite.material.opacity = Math.min(1, 0.45 * cfg.rings.glowIntensity * flick) * env;
+      sprite.material.opacity = Math.min(1, 0.45 * cfg.rings.glowIntensity * flick) * env * (1 - 0.50 * focus);
       sprite.scale.setScalar(cfg.rings.radius * 4.2 * cfg.background.lightSpread);
     }
     return { left: this.sides.left.group.position, right: this.sides.right.group.position };
@@ -460,12 +470,13 @@ const ptFS = /* glsl */ `
   }
 `;
 
-function particleGeometry(count, seedFn) {
+function particleGeometry(count, seedValue) {
   const geo = new THREE.BufferGeometry();
   const pos = new Float32Array(count * 3);
   const seed = new Float32Array(count * 4);
+  const rnd = seededRandom(seedValue);
   for (let i = 0; i < count; i++) {
-    seed.set([Math.random(), Math.random(), Math.random(), Math.random() > 0.5 ? 1 : 0], i * 4);
+    seed.set([rnd(), rnd(), rnd(), rnd() > 0.5 ? 1 : 0], i * 4);
   }
   geo.setAttribute("position", new THREE.BufferAttribute(pos, 3));
   geo.setAttribute("aSeed", new THREE.BufferAttribute(seed, 4));
@@ -514,15 +525,15 @@ export class Particles {
     }
     const n = Math.max(0, Math.round(cfg.particles.count));
     if (n > 0) {
-      this.left = new THREE.Points(particleGeometry(n), this._mat(0));
-      this.right = new THREE.Points(particleGeometry(n), this._mat(0));
+      this.left = new THREE.Points(particleGeometry(n, 0x1234abcd), this._mat(0));
+      this.right = new THREE.Points(particleGeometry(n, 0x6789abcd), this._mat(0));
       this.left.frustumCulled = false;
       this.right.frustumCulled = false;
       this.group.add(this.left, this.right);
     }
     const d = Math.max(0, Math.round(cfg.particles.dust));
     if (d > 0) {
-      this.dust = new THREE.Points(particleGeometry(d), this._mat(1));
+      this.dust = new THREE.Points(particleGeometry(d, 0xdef01234), this._mat(1));
       this.dust.frustumCulled = false;
       this.group.add(this.dust);
     }

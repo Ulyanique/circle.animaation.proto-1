@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { OUTPUT } from "./scenes/catalog.js";
 import {
   EffectComposer,
   RenderPass,
@@ -16,67 +17,18 @@ import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment
 import { Logo, revealUniforms } from "./logo.js";
 import { Background, Corners, Particles } from "./fx.js";
 import { Sparks, AnamorphicFlare } from "./sparks.js";
+import { Plotter } from "./plotter.js";
+import { SolarBokeh } from "./bokeh.js";
+import { captionState, captionAccent, glyphReveal } from "./caption.js";
+import { computePhase, compositionFocus, heroGlint, seamCurtainOpacity } from "./timeline.js";
 
 const FOV = 30;
 const CAM_Z = 9;
 const REVEAL_MAX = 2.9; // радиус проявления, покрывающий весь логотип
 const TAU = Math.PI * 2;
-
-const clamp01 = (x) => Math.min(1, Math.max(0, x));
-const smooth = (a, b, x) => {
-  const t = clamp01((x - a) / (b - a));
-  return t * t * (3 - 2 * t);
-};
-const easeInOutCubic = (x) => (x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2);
 const easeOutCubic = (x) => 1 - Math.pow(1 - x, 3);
 
-/**
- * Вычисляет фазу цикла по времени.
- * Цикл: прорисовка контура → появление из тени → удержание → уход в тень → пауза.
- */
-export function computePhase(t, tl) {
-  const D = tl.drawDuration, E = tl.emergeDuration, H = tl.holdDuration;
-  const F = tl.fadeDuration, R = tl.restDuration;
-  const cycle = Math.max(0.1, D + E + H + F + R);
-  let local = (t - tl.startDelay) % cycle;
-  if (local < 0) local += cycle;
-
-  let draw = 0, reveal = 0, outline = 0, fill = 0, glint = -1, emergeT = -1, name = "rest";
-  if (local < D) {
-    name = "draw";
-    draw = easeInOutCubic(clamp01(local / Math.max(D, 1e-4)));
-    outline = 1;
-  } else if (local < D + E) {
-    name = "emerge";
-    const p = (local - D) / Math.max(E, 1e-4);
-    draw = 1;
-    reveal = easeInOutCubic(p);
-    outline = 1 - smooth(0.25, 1.0, p);
-    fill = easeInOutCubic(p);
-  } else if (local < D + E + H) {
-    name = "hold";
-    draw = 1;
-    reveal = 1;
-    fill = 1;
-    glint = (local - D - E) / Math.max(H, 1e-4);
-  } else if (local < D + E + H + F) {
-    name = "fade";
-    const p = (local - D - E - H) / Math.max(F, 1e-4);
-    reveal = 1 - easeInOutCubic(p);
-    draw = 1;
-  }
-  // прогресс «удержания» для плавного увеличения (0 → 1 от появления до ухода)
-  const grow = clamp01((local - D) / Math.max(E + H + F, 1e-4));
-  // огибающая кругов/света: из пустоты в начале цикла, обратно в пустоту к паузе
-  const RI = Math.max(0.05, tl.ringsIntro ?? 2.4);
-  const introE = smooth(0, RI, local);
-  const outroStart = D + E + H;
-  const outroE = local < outroStart ? 1 : 1 - smooth(0, Math.max(F, 1e-4), local - outroStart);
-  const rings = introE * outroE;
-  // секунды от начала появления (для искр); -1 — вне интервала
-  if (local >= D && local < D + E + H + F) emergeT = local - D;
-  return { name, draw, reveal, outline, fill, glint, emergeT, grow, local, cycle, rings };
-}
+export { computePhase } from "./timeline.js";
 
 export class LogoScene {
   constructor(canvas, cfg) {
@@ -127,8 +79,8 @@ export class LogoScene {
     this.keyLight.shadow.camera.far = 30;
     this.scene.add(this.keyLight, this.keyLight.target);
 
-    // блик: точечный свет, который скользит по золоту во время удержания
-    this.glintLight = new THREE.PointLight(0xffdc9a, 0, 0, 2);
+    // блик: точечный свет, который один раз скользит по золоту при сборке названия
+    this.glintLight = new THREE.PointLight(0xffca78, 0, 0, 2);
     this.glintLight.position.set(0, 1, 2.2);
     this.scene.add(this.glintLight);
 
@@ -144,6 +96,10 @@ export class LogoScene {
     // Кольца и частицы
     this.corners = new Corners();
     this.scene.add(this.corners.group);
+    this.plotter = new Plotter(this.corners.glowTex, this.logo);
+    this.scene.add(this.plotter.group);
+    this.solarBokeh = new SolarBokeh();
+    this.scene.add(this.solarBokeh.group);
     this.particles = new Particles();
     this.sparks = new Sparks(this.logo);
     this.flare = new AnamorphicFlare();
@@ -160,6 +116,18 @@ export class LogoScene {
     this.topGlow.scale.setScalar(9);
     this.scene.add(this.topGlow);
     this.scene.add(this.particles.group);
+
+    // Полноэкранная заслонка внутри WebGL: одинаково действует на превью,
+    // PNG-кадры и запись canvas (в отличие от DOM-оверлея).
+    this.seamCurtain = new THREE.Mesh(
+      new THREE.PlaneGeometry(100, 100),
+      new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0,
+        depthTest: false, depthWrite: false, toneMapped: false })
+    );
+    this.seamCurtain.position.z = CAM_Z - 0.6;
+    this.seamCurtain.renderOrder = 1000;
+    this.seamCurtain.frustumCulled = false;
+    this.scene.add(this.seamCurtain);
 
     this._msaaSig = String(cfg.post.msaaSamples);
     this._setupComposer();
@@ -200,7 +168,7 @@ export class LogoScene {
 
   resize() {
     // внутренний рендер фиксирован 1920×1080 (pixelRatio = 1); на экран кадр масштабируется с letterbox
-    const RW = 1920, RH = 1080, ASPECT = RW / RH;
+    const RW = OUTPUT.width, RH = OUTPUT.height, ASPECT = RW / RH;
     const W = window.innerWidth, H = window.innerHeight;
     let cw = W, ch = W / ASPECT;
     if (ch > H) { ch = H; cw = H * ASPECT; }
@@ -299,16 +267,23 @@ export class LogoScene {
       Math.sin(TAUt * quant(cfg.logo.swaySpeed) * t) * cfg.logo.swayAmount,
       0
     );
-    this.logo.updateOutline(ph.draw, ph.outline, cfg, ph.fill);
+    this.logo.updateOutline(ph.draw, ph.outline, cfg, ph.fill, ph.name === "fade");
 
     // кольца, свет из углов
     const env = ph.rings;
-    const cpos = this.corners.update(t, cfg, this.halfW, this.halfH, env);
+    const focus = compositionFocus(ph, cfg.timeline);
+    const cornerEnv = env * (1 - 0.44 * focus);
+    const cpos = this.corners.update(t, cfg, this.halfW, this.halfH, env, focus);
+    this.solarBokeh.update(t, ph, cfg, cpos);
+    this.plotter.update(ph, cfg);
     const tilt = THREE.MathUtils.degToRad(cfg.rings.tilt);
-    this.particles.update(t, cfg, this.halfW, this.halfH, this.pixelRatio, this.viewportH, this.fovRad, cpos, cfg.rings.radius, tilt, env);
+    this.particles.update(t, cfg, this.halfW, this.halfH, this.pixelRatio, this.viewportH, this.fovRad, cpos, cfg.rings.radius, tilt, cornerEnv);
     this.background.update(t, cfg);
-    this.background.uniforms.uEnvL.value = env;
-    this.background.uniforms.uEnvR.value = env;
+    this.background.uniforms.uEnvL.value = cornerEnv;
+    this.background.uniforms.uEnvR.value = cornerEnv;
+    // На удержании фон остаётся живым, но перестаёт спорить с названием.
+    this.background.uniforms.uShimmer.value *= 1 - 0.32 * focus;
+    this.background.uniforms.uRays.value *= 1 - 0.22 * focus;
 
     // фон: координаты кругов в NDC-подобных единицах
     const bgU = this.background.uniforms;
@@ -320,53 +295,59 @@ export class LogoScene {
       const du = this.particles.dust.material.uniforms;
       du.uCornL.value.copy(bgU.uL.value);
       du.uCornR.value.copy(bgU.uR.value);
-      du.uRayLift.value = cfg.particles.rayLift * env;
+      du.uRayLift.value = cfg.particles.rayLift * cornerEnv;
     }
 
     // ключевой свет и тени
     const a = THREE.MathUtils.degToRad(cfg.lights.keyAngle);
     this.keyLight.position.set(-Math.sin(a) * 6.5, 5.2, Math.cos(a) * 6.5);
-    this.keyLight.intensity = cfg.lights.keyIntensity * 4 * exposure;
+    this.keyLight.intensity = cfg.lights.keyIntensity * 1.5 * exposure;
     this.keyLight.shadow.radius = cfg.lights.shadowSoftness;
     this.shadowPlane.material.opacity = cfg.lights.shadowOpacity;
     this.fillLight.intensity = cfg.lights.fillIntensity * exposure;
-    // блик скользит слева направо за время удержания и гаснет по краям
-    if (ph.glint >= 0 && ph.glint <= 1) {
-      const g = ph.glint;
-      const gx = THREE.MathUtils.lerp(-3.0, 3.0, g);
-      const env = Math.sin(Math.PI * g);
-      this.glintLight.position.set(gx, 1.1, 2.2);
-      this.glintLight.intensity = cfg.logo.glint * 40 * env * exposure;
-      // анаморфный блик вдоль блика
-      this.flare.set(gx, cfg.post.anamorphic * env * cfg.logo.glint * 0.5, cfg.colors.goldHighlight, 1.1, 1.6);
-    } else {
-      this.glintLight.intensity = 0;
-      // постоянная горизонтальная полоса на уровне верхнего кольца (как в референсе)
-      this.flare.set(0, cfg.post.anamorphic * 0.5 * ph.reveal, cfg.colors.goldHighlight, 1.25, 1.6);
-    }
+    // Один короткий тёплый проход по граням, пока собирается название.
+    // На удержании ключевой акцент — текст, а не бегущий по нему блик.
+    const cue = heroGlint(ph, cfg.timeline);
+    revealUniforms.uSpecPass.value = cfg.logo.glint * cue.intensity;
+    revealUniforms.uSpecX.value = cue.position * 1.7;
+    const gx = cue.position * 1.25;
+    this.glintLight.position.set(gx, 1.1, 2.2);
+    this.glintLight.intensity = cfg.logo.glint * 7 * cue.intensity * exposure;
+    const edgeFlare = 4 * ph.reveal * (1 - ph.reveal);
+    this.flare.set(cue.intensity > 0 ? gx : 0, cfg.post.anamorphic * cfg.logo.glint * 0.16 * cue.intensity +
+      cfg.post.anamorphic * 0.055 * edgeFlare, cfg.colors.goldHighlight, 1.1, 1.2);
 
-    // подпись появляется, когда логотип проявился, и уходит вместе с ним в тень
-    // подпись: собственный счётчик растёт, пока логотип проявлен (ph.reveal ≥ 0.5), и убывает при уходе;
-    // строки идут по нему по очереди: обводка слева направо, затем заливка, при уходе — в обратном порядке
+    // Один и тот же t всегда даёт один и тот же кадр подписи, даже после seek.
     const capEl = document.getElementById("caption");
     if (capEl) {
-      this._capV = THREE.MathUtils.clamp((this._capV ?? 0) + (ph.reveal >= 0.5 ? dt : -dt), 0, 2.7);
-      const V = this._capV;
-      const k = THREE.MathUtils.smoothstep(V, 0.0, 0.8);
+      const { progress, lines } = captionState(t, cfg.timeline);
+      const k = THREE.MathUtils.smoothstep(progress, 0.0, 0.8);
       capEl.style.opacity = "1";
-      capEl.style.transform = `translate(-50%, calc(-50% + ${((1 - k) * 0.8).toFixed(3)}vh))`;
-      const pr = (s0, d) => THREE.MathUtils.clamp((V - s0) / d, 0, 1).toFixed(4);
-      const cap = (sel, p, f) => {
+      capEl.style.setProperty("--drift", `${((1 - k) * window.innerHeight * 0.008).toFixed(3)}px`);
+      capEl.style.transform = "translate(-50%, calc(-50% + var(--drift)))";
+      const u = parseFloat(capEl.style.getPropertyValue("--u")) || 19.2;
+      for (const [sel, name, line] of [
+        [".cap-title", "title", lines.title], [".r1", "rule1", lines.rule1],
+        [".cap-sub", "subtitle", lines.subtitle], [".r2", "rule2", lines.rule2],
+        [".cap-date", "date", lines.date],
+      ]) {
         const el = capEl.querySelector(sel);
-        if (!el) return;
-        el.style.setProperty("--p", p);
-        if (f !== undefined) el.style.setProperty("--f", f);
-      };
-      cap(".cap-title", pr(0.0, 0.9), pr(0.7, 0.6));
-      cap(".r1", pr(0.8, 0.5));
-      cap(".cap-sub", pr(1.1, 0.7), pr(1.5, 0.5));
-      cap(".r2", pr(1.6, 0.5));
-      cap(".cap-date", pr(1.9, 0.6), pr(2.2, 0.5));
+        if (!el) continue;
+        const accent = captionAccent(name, line, ph.name === "fade" || ph.name === "rest");
+        el.style.setProperty("--p", line.outline.toFixed(4));
+        if (line.fill !== undefined) el.style.setProperty("--f", line.fill.toFixed(4));
+        el.style.setProperty("--lift", `${(accent.rise * u).toFixed(3)}px`);
+        el.style.setProperty("--pen", accent.pen.toFixed(4));
+        if (line.fill !== undefined) {
+          const glyphs = el.children;
+          for (let i = 0; i < glyphs.length; i++) {
+            const glyph = glyphReveal(line, i, glyphs.length);
+            glyphs[i].style.setProperty("--o", glyph.outline.toFixed(4));
+            glyphs[i].style.setProperty("--f", glyph.fill.toFixed(4));
+            glyphs[i].style.setProperty("--gpen", (accent.pen * Math.sin(Math.PI * glyph.outline)).toFixed(4));
+          }
+        }
+      }
     }
 
     // камера слегка смещена при появлении и возвращается в фронтальный вид
@@ -381,6 +362,10 @@ export class LogoScene {
     // искры при проявлении
     const pixel = (this.viewportH * this.pixelRatio) / (2 * Math.tan(this.fovRad / 2)) * 0.012;
     this.sparks.update(ph.emergeT, cfg, pixel, cfg.timeline.emergeDuration * 0.8);
+
+    // Темнота полностью закрывает шов, в том числе непрерывный шум фона.
+    this.seamCurtain.material.opacity = seamCurtainOpacity(ph, cfg.timeline);
+    this.seamCurtain.visible = this.seamCurtain.material.opacity > 0.001;
 
     // постобработка
     this._applyPost(ph, cfg, t);
@@ -406,6 +391,10 @@ export class LogoScene {
   dispose() {
     this.logo.dispose();
     this.particles.dispose();
+    this.plotter.dispose();
+    this.solarBokeh.dispose();
+    this.seamCurtain.geometry.dispose();
+    this.seamCurtain.material.dispose();
     this.composer.dispose();
     this.renderer.dispose();
   }

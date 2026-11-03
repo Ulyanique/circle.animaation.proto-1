@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { seededRandom } from "./random.js";
 
 /* ─────────────────── Искры: всплеск при проявлении логотипа ─────────────────── */
 
@@ -90,7 +91,7 @@ export class Sparks {
     const K = this.logo.parsed.K;
     const spawn = new Float32Array(n * 3), vel = new Float32Array(n * 3);
     const birth = new Float32Array(n), life = new Float32Array(n), size = new Float32Array(n);
-    const rnd = Math.random;
+    const rnd = seededRandom(0x5a93c721);
     for (let i = 0; i < n; i++) {
       const s = Math.floor(rnd() * segs);
       const x = anchors[s * 2] * K, y = -anchors[s * 2 + 1] * K;
