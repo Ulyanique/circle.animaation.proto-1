@@ -4,7 +4,7 @@ import { SCHEMA, DEFAULTS, cloneDefaults, configToJSON, parseConfigJSON, saveCon
  * Минималистичная панель настроек.
  * Кнопка ⚙ (правый верх) → панель со всеми параметрами, экспорт/импорт JSON.
  */
-export function createSettingsUI(cfg, { onChange, onPauseToggle, onToast, onExportVideo }) {
+export function createSettingsUI(cfg, { onChange, onPauseToggle, onToast, onExportVideo, isActive = () => true }) {
   // ─── кнопка ───
   const btn = document.createElement("button");
   btn.className = "cfg-toggle";
@@ -227,6 +227,7 @@ export function createSettingsUI(cfg, { onChange, onPauseToggle, onToast, onExpo
   // горячие клавиши
   window.addEventListener("keydown", (e) => {
     if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+    if (!isActive()) return;
     if (e.code === "KeyS") toggle();
     if (e.code === "Space") {
       e.preventDefault();

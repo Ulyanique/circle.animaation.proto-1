@@ -12,6 +12,7 @@
     "verify:render": "node scripts/verify-render.cjs",
     "verify:brand": "node scripts/verify-brand.cjs",
     "verify:priority": "node scripts/verify-priority.cjs",
+    "verify:operator": "node scripts/verify-operator.cjs",
     "verify:loader": "node scripts/verify-loader.cjs",
     "render:frames": "node scripts/render-loop.cjs",
     "render:storyboard": "node scripts/render-storyboard.cjs",

@@ -393,8 +393,21 @@ export class LogoScene {
     this.particles.dispose();
     this.plotter.dispose();
     this.solarBokeh.dispose();
-    this.seamCurtain.geometry.dispose();
-    this.seamCurtain.material.dispose();
+    this.sparks.dispose();
+    // При переключении роликов освобождаем также фон, кольца, световые
+    // спрайты и окружение: иначе за время показа накапливаются GPU-ресурсы.
+    const geometries = new Set();
+    const materials = new Set();
+    this.scene.traverse((object) => {
+      if (object.geometry) geometries.add(object.geometry);
+      const material = object.material;
+      if (Array.isArray(material)) material.forEach((item) => materials.add(item));
+      else if (material) materials.add(material);
+    });
+    for (const geometry of geometries) geometry.dispose();
+    for (const material of materials) material.dispose();
+    this.corners.glowTex.dispose();
+    this.envTexture.dispose();
     this.composer.dispose();
     this.renderer.dispose();
   }

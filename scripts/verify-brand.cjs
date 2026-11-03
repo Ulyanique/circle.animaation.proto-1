@@ -38,7 +38,7 @@ const URL_ = process.env.URL || "http://localhost:5173/?scene=brand";
         centeredSymbol: L.scene.logo.root.position.x < -1.5 && L.scene.logo.root.position.y < 0.3,
       };
     });
-    await page.addStyleTag({ content: ".brand-controls,.toast{display:none!important}" });
+    await page.addStyleTag({ content: ".brand-controls,.operator-panel,.toast{display:none!important}" });
     await page.evaluate(() => window.__logo.renderAt(window.__logo.runtime.cycle / 2));
     if (process.env.OUT) await page.screenshot({ path: process.env.OUT, type: "jpeg", quality: 90 });
     const capture = async (time) => {

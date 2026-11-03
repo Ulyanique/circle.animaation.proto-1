@@ -10,19 +10,21 @@ import { createSettingsUI } from "./ui.js";
 import { AnimationRuntime } from "./runtime.js";
 import { OUTPUT, sceneById } from "./scenes/catalog.js";
 import { glyphReveal } from "./caption.js";
-import { createReviewControls } from "./review.js";
+import { createOperatorControls, crossedBoundary } from "./operator.js";
 
-const sceneId = new URLSearchParams(location.search).get("scene") || "waiting";
-const activeScene = sceneById(sceneId);
+let sceneId = new URLSearchParams(location.search).get("scene") || "waiting";
+let activeScene = sceneById(sceneId);
 if (!activeScene?.defaults || activeScene.status !== "ready") {
   throw new Error(`Сцена «${sceneId}» пока не подготовлена`);
 }
-// Старые пользовательские настройки относятся только к первой заставке.
-const cfg = sceneId === "waiting" ? loadConfig(activeScene.defaults) : cloneDefaults(activeScene.defaults);
-document.body.classList.toggle("scene-brand", sceneId === "brand");
-document.body.classList.toggle("scene-photo", sceneId === "photo-pause");
-document.body.classList.toggle("scene-finale", sceneId === "finale");
-const canvas = document.getElementById("stage");
+const configs = new Map();
+configs.set("waiting", loadConfig(sceneById("waiting").defaults));
+function configFor(id) {
+  if (!configs.has(id)) configs.set(id, cloneDefaults(sceneById(id).defaults));
+  return configs.get(id);
+}
+let cfg = configFor(sceneId);
+let canvas = document.getElementById("stage");
 const toastEl = document.getElementById("toast");
 let toastTimer = 0;
 function toast(msg, isError = false) {
@@ -33,60 +35,53 @@ function toast(msg, isError = false) {
   toastTimer = setTimeout(() => toastEl.classList.remove("show"), 2200);
 }
 
-// Тексты видов 8 и 9 — только подтверждённые пользователем названия.
 const sceneCopy = {
   "photo-pause": { title: "Фотопауза" },
   finale: { title: "Янтарный циркуль", subtitle: "История продолжается" },
-}[sceneId];
-// Разделяем русские строки на графемы один раз; позицию каждой буквы затем
-// вычисляем только из абсолютного времени. Пробел остаётся настоящим пробелом.
-for (const el of document.querySelectorAll("#caption [data-text]")) {
-  const name = el.classList.contains("cap-title") ? "title" : el.classList.contains("cap-sub") ? "subtitle" : "date";
-  const text = sceneCopy?.[name] ?? el.textContent;
-  el.dataset.text = text;
-  const letters = typeof Intl.Segmenter === "function"
-    ? [...new Intl.Segmenter("ru", { granularity: "grapheme" }).segment(text)].map((part) => part.segment)
-    : Array.from(text);
-  el.replaceChildren(...letters.map((letter) => {
-    const span = document.createElement("span");
-    span.className = "cap-glyph";
-    span.textContent = letter === " " ? "\u00a0" : letter;
-    span.dataset.glyph = span.textContent;
-    return span;
-  }));
+};
+function activateText(id) {
+  const copy = sceneCopy[id];
+  for (const el of document.querySelectorAll("#caption [data-text]")) {
+    const name = el.classList.contains("cap-title") ? "title" : el.classList.contains("cap-sub") ? "subtitle" : "date";
+    const text = copy?.[name] ?? el.dataset.original;
+    el.dataset.text = text;
+    const letters = typeof Intl.Segmenter === "function"
+      ? [...new Intl.Segmenter("ru", { granularity: "grapheme" }).segment(text)].map((part) => part.segment)
+      : Array.from(text);
+    el.replaceChildren(...letters.map((letter) => {
+      const span = document.createElement("span");
+      span.className = "cap-glyph";
+      span.textContent = letter === " " ? "\u00a0" : letter;
+      span.dataset.glyph = span.textContent;
+      return span;
+    }));
+  }
 }
+for (const el of document.querySelectorAll("#caption [data-text]")) el.dataset.original = el.textContent;
+function activateClasses(id) {
+  for (const name of ["brand", "photo-pause", "finale"]) {
+    document.body.classList.toggle(`scene-${name === "photo-pause" ? "photo" : name}`, id === name);
+  }
+  document.body.classList.toggle("scene-waiting", id === "waiting");
+}
+activateClasses(sceneId);
+activateText(sceneId);
 
 const adapters = { waiting: LogoScene, brand: BrandScene,
   "photo-pause": PhotoPauseScene, finale: FinaleScene };
-const SceneAdapter = adapters[sceneId];
-if (!SceneAdapter) throw new Error(`Адаптер сцены «${sceneId}» не найден`);
-const scene = new SceneAdapter(canvas, cfg);
-const runtime = new AnimationRuntime(scene, cfg, OUTPUT.fps);
-
-if (sceneId === "waiting") {
-  createSettingsUI(cfg, {
-    onChange: () => {},
-    onPauseToggle: () => {
-      cfg.playback.paused = !cfg.playback.paused;
-      saveConfig(cfg);
-    },
-    onToast: toast,
-    onExportVideo: startRecording,
-  });
-} else {
-  // Режим для зала: управление доступно в превью, но не попадает в canvas/видео.
-  const tools = document.createElement("nav");
-  tools.className = "brand-controls";
-  tools.setAttribute("aria-label", "Переключение и запись заставок");
-  tools.innerHTML = '<a href="?scene=waiting" title="Заставка ожидания">01</a><a href="?scene=brand" title="Фирменный фон">02</a><a href="?scene=photo-pause" title="Фотопауза">08</a><a href="?scene=finale" title="Финал">09</a><button type="button" data-action="pause">Пауза</button><button type="button" data-action="record">Записать цикл</button>';
-  tools.querySelector(`a[href="?scene=${sceneId}"]`)?.setAttribute("aria-current", "page");
-  tools.querySelector('[data-action="pause"]').addEventListener("click", (event) => {
+let scene = new adapters[sceneId](canvas, cfg);
+let runtime = new AnimationRuntime(scene, cfg, OUTPUT.fps);
+const settings = createSettingsUI(configFor("waiting"), {
+  onChange: () => {},
+  onPauseToggle: () => {
+    if (sceneId !== "waiting") return;
     cfg.playback.paused = !cfg.playback.paused;
-    event.currentTarget.textContent = cfg.playback.paused ? "Воспроизвести" : "Пауза";
-  });
-  tools.querySelector('[data-action="record"]').addEventListener("click", startRecording);
-  document.body.appendChild(tools);
-}
+    saveConfig(cfg);
+  },
+  onToast: toast,
+  onExportVideo: () => { if (sceneId === "waiting") startRecording(); },
+  isActive: () => sceneId === "waiting",
+});
 
 window.addEventListener("resize", () => scene.resize());
 
@@ -99,13 +94,25 @@ window.addEventListener("keydown", (e) => {
 });
 
 let last = performance.now();
-let recording = null; // запись одного цикла в реальном времени
-const review = sceneId === "waiting" ? createReviewControls(cfg, {
-  getTime: () => runtime.time,
-  seek: (value) => runtime.renderAt(value, 1 / OUTPUT.fps),
-  onPause: () => { cfg.playback.paused = !cfg.playback.paused; },
-  isRecording: () => Boolean(recording),
-}) : { refresh() {} };
+let recording = null; // один цикл текущей сцены, переключение на время записи заблокировано
+const operator = createOperatorControls({
+  getState: () => ({ id: sceneId, time: runtime.time, config: cfg, cycle: runtime.cycle, recording: !!recording }),
+  seek: (value) => { cfg.playback.paused = true; runtime.renderAt(value, 1 / OUTPUT.fps); },
+  setDuration: (value) => {
+    const tl = cfg.timeline;
+    const other = runtime.cycle - tl.holdDuration;
+    const minHold = sceneId === "finale" ? 12 : sceneId === "waiting" ? 1 : 4;
+    tl.holdDuration = Math.max(minHold, Math.min(300, value - other));
+    if (sceneId === "waiting") { saveConfig(cfg); settings.refresh(); }
+    runtime.renderAt(Math.min(runtime.time, tl.startDelay + runtime.cycle - 1 / OUTPUT.fps));
+  },
+  togglePause: () => {
+    cfg.playback.paused = !cfg.playback.paused;
+    if (sceneId === "waiting") saveConfig(cfg);
+  },
+  switchScene: (id) => switchScene(id),
+  record: () => startRecording(),
+});
 
 const REC_W = OUTPUT.width, REC_H = OUTPUT.height;
 
@@ -250,8 +257,60 @@ function compositeFrameAt(time, dt = 1 / OUTPUT.fps, includeCaption = true) {
   return frame;
 }
 
+// Склейка без перезагрузки: последний композит старого вида (WebGL + DOM-титры)
+// мягко растворяется поверх первого кадра нового. Запись одного цикла не
+// прерывается случайным переключением, а пульт не попадает в экспорт.
+let transition = null;
+function switchScene(id) {
+  if (id === sceneId) return true;
+  if (!adapters[id] || recording || transition) return false;
+  const nextCfg = configFor(id);
+  const nextCanvas = document.createElement("canvas");
+  nextCanvas.setAttribute("aria-label", "Анимация логотипа");
+  let nextScene;
+  try {
+    nextScene = new adapters[id](nextCanvas, nextCfg);
+  } catch (error) {
+    toast(`Не удалось открыть сцену: ${error.message}`, true);
+    return false;
+  }
+  const snapshot = document.createElement("canvas");
+  snapshot.width = REC_W; snapshot.height = REC_H;
+  snapshot.className = "transition-frame";
+  snapshot.style.width = canvas.style.width;
+  snapshot.style.height = canvas.style.height;
+  drawCompositeFrame(snapshot.getContext("2d"));
+  document.body.appendChild(snapshot);
+  const oldCanvas = canvas;
+  const oldScene = scene;
+  settings.close();
+  nextCanvas.id = "stage";
+  oldCanvas.replaceWith(nextCanvas);
+  canvas = nextCanvas;
+  sceneId = id;
+  activeScene = sceneById(id);
+  cfg = nextCfg;
+  scene = nextScene;
+  runtime = new AnimationRuntime(scene, cfg, OUTPUT.fps);
+  activateClasses(id);
+  activateText(id);
+  runtime.renderAt(cfg.timeline.startDelay, 1 / OUTPUT.fps);
+  oldScene.dispose();
+  const url = new URL(location.href);
+  url.searchParams.set("scene", id);
+  history.replaceState(null, "", url);
+  transition = snapshot;
+  requestAnimationFrame(() => snapshot.classList.add("transition-out"));
+  setTimeout(() => {
+    snapshot.remove();
+    if (transition === snapshot) transition = null;
+  }, 1050);
+  operator.refresh();
+  return true;
+}
+
 function startRecording() {
-  if (recording) return;
+  if (recording || transition) return;
   if (typeof MediaRecorder === "undefined" || !HTMLCanvasElement.prototype.captureStream) {
     toast("Запись не поддерживается в этом браузере", true);
     return;
@@ -296,10 +355,16 @@ function frame(now) {
   const elapsed = Math.max(0, (now - last) / 1000);
   const renderDt = Math.min(0.05, elapsed);
   last = now;
+  const before = runtime.time;
   if (recording) {
     runtime.renderAt(recording.start + ((now - recording.t0) / 1000) * cfg.timeline.speed, renderDt);
   } else {
     runtime.advance(elapsed, renderDt);
+    if (operator.auto && !cfg.playback.paused && !transition &&
+        crossedBoundary(before, runtime.time, cfg.timeline.startDelay, runtime.cycle)) {
+      const order = ["waiting", "brand", "photo-pause", "finale"];
+      switchScene(order[(order.indexOf(sceneId) + 1) % order.length]);
+    }
   }
   // Не снимаем заставку загрузки до реального WebGL-кадра и готовых шрифтов.
   // Это также защищает титр от вспышки системного шрифта при медленном запуске.
@@ -311,7 +376,7 @@ function frame(now) {
     ]) : Promise.resolve();
     fonts.then(() => window.__bootReady?.());
   }
-  review.refresh();
+  operator.refresh();
   if (recording) {
     drawCompositeFrame(recording.ctx);
     if (runtime.time >= recording.start + recording.cycle) stopRecording();
@@ -327,8 +392,10 @@ window.__logo = {
   renderAt(v, dt = 1 / OUTPUT.fps) { runtime.renderAt(v, dt); },
   compositeFrameAt,
   startRecording,
-  activeScene,
-  runtime,
-  cfg,
-  scene,
+  switchScene,
+  operator,
+  get activeScene() { return activeScene; },
+  get runtime() { return runtime; },
+  get cfg() { return cfg; },
+  get scene() { return scene; },
 };

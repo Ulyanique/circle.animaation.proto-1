@@ -7,6 +7,7 @@ import { BRAND_DEFAULTS } from "../src/scenes/brand.js";
 import { PHOTO_PAUSE_DEFAULTS } from "../src/scenes/photo-pause.js";
 import { FINALE_DEFAULTS } from "../src/scenes/finale.js";
 import { quietBreath, finaleCues } from "../src/scenes/cues.js";
+import { crossedBoundary } from "../src/operator.js";
 
 test("единый формат и каталог девяти сцен без ложных готовых рендеров", () => {
   assert.deepEqual(OUTPUT, { width: 1920, height: 1080, fps: 60 });
@@ -22,6 +23,14 @@ test("единый формат и каталог девяти сцен без �
   assert.equal(cycleDuration(FINALE_DEFAULTS.timeline), 18);
   assert.equal(SCENES.filter((scene) => scene.status === "ready").length, 4);
   assert.equal(sceneById("nonexistent"), undefined);
+});
+
+test("автопереход только при пересечении шва во время воспроизведения", () => {
+  assert.equal(crossedBoundary(14, 15.89, 0.6, 15.3), false);
+  assert.equal(crossedBoundary(15.89, 15.92, 0.6, 15.3), true);
+  assert.equal(crossedBoundary(15.92, 16, 0.6, 15.3), false);
+  assert.equal(crossedBoundary(23.98, 24.02, 0, 24), true);
+  assert.equal(crossedBoundary(10, 10, 0, 24), false);
 });
 
 test("фотопауза бесшовна, финальная фраза идёт после названия и уходит до стыка", () => {

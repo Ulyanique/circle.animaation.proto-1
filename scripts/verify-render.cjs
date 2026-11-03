@@ -94,7 +94,7 @@ const URL_ = process.env.URL || "http://localhost:5173/";
     });
     // Сравниваем реальные пиксели первого и последнего PNG-кадра (60 FPS).
     // Состояние логотипа само по себе не гарантирует незаметный шов фона.
-    await page.addStyleTag({ content: ".cfg-toggle,.cfg-panel,.toast,.review-panel{display:none!important}" });
+    await page.addStyleTag({ content: ".cfg-toggle,.cfg-panel,.operator-panel,.toast,.review-panel{display:none!important}" });
     const capture = async (offset) => {
       await page.evaluate((offset) => {
         const { cfg } = window.__logo;
