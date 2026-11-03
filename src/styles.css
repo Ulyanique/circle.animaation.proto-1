@@ -34,8 +34,23 @@ body.scene-brand #caption .cap-title {
 }
 body.scene-brand #caption .cap-rule,
 body.scene-brand #caption .cap-sub,
-body.scene-brand #caption .cap-date { display: none; }
-body.scene-brand { cursor: auto; }
+body.scene-brand #caption .cap-date,
+body.scene-photo #caption .cap-rule,
+body.scene-photo #caption .cap-sub,
+body.scene-photo #caption .cap-date,
+body.scene-finale #caption .cap-rule,
+body.scene-finale #caption .cap-date { display: none; }
+body.scene-photo #caption .cap-title {
+  left: 50%; top: 69%; font-size: calc(var(--u) * 6.7);
+}
+body.scene-finale #caption .cap-title {
+  left: 50%; top: 55%; font-size: calc(var(--u) * 6.6);
+}
+body.scene-finale #caption .cap-sub {
+  left: 50%; top: 71%; font-size: calc(var(--u) * 2.55);
+  letter-spacing: .18em; padding-left: .18em;
+}
+body.scene-brand, body.scene-photo, body.scene-finale { cursor: auto; }
 .brand-controls {
   position: fixed; z-index: 21; right: 20px; bottom: 18px;
   display: flex; gap: 8px; align-items: center;
@@ -48,7 +63,8 @@ body.scene-brand { cursor: auto; }
   background: rgba(10,8,6,.86); color: #e9dcc0; text-decoration: none;
   font: inherit; cursor: pointer;
 }
-.brand-controls a:hover, .brand-controls button:hover { border-color: #e8bf76; }
+.brand-controls a:hover, .brand-controls button:hover,
+.brand-controls a[aria-current="page"] { border-color: #e8bf76; color: #ffe7ad; }
 
 /* курсор скрыт до открытия настроек */
 body { cursor: none; }

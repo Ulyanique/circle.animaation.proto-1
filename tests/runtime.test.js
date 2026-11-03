@@ -4,6 +4,9 @@ import { AnimationRuntime, cycleDuration } from "../src/runtime.js";
 import { OUTPUT, SCENES, sceneById } from "../src/scenes/catalog.js";
 import { DEFAULTS, cloneDefaults } from "../src/config.js";
 import { BRAND_DEFAULTS } from "../src/scenes/brand.js";
+import { PHOTO_PAUSE_DEFAULTS } from "../src/scenes/photo-pause.js";
+import { FINALE_DEFAULTS } from "../src/scenes/finale.js";
+import { quietBreath, finaleCues } from "../src/scenes/cues.js";
 
 test("единый формат и каталог девяти сцен без ложных готовых рендеров", () => {
   assert.deepEqual(OUTPUT, { width: 1920, height: 1080, fps: 60 });
@@ -13,8 +16,27 @@ test("единый формат и каталог девяти сцен без �
   assert.equal(sceneById("brand")?.status, "ready");
   assert.equal(sceneById("brand")?.defaults, BRAND_DEFAULTS);
   assert.equal(cycleDuration(BRAND_DEFAULTS.timeline), 24);
-  assert.equal(SCENES.filter((scene) => scene.status === "ready").length, 2);
+  assert.equal(sceneById("photo-pause")?.defaults, PHOTO_PAUSE_DEFAULTS);
+  assert.equal(sceneById("finale")?.defaults, FINALE_DEFAULTS);
+  assert.equal(cycleDuration(PHOTO_PAUSE_DEFAULTS.timeline), 24);
+  assert.equal(cycleDuration(FINALE_DEFAULTS.timeline), 18);
+  assert.equal(SCENES.filter((scene) => scene.status === "ready").length, 4);
   assert.equal(sceneById("nonexistent"), undefined);
+});
+
+test("фотопауза бесшовна, финальная фраза идёт после названия и уходит до стыка", () => {
+  assert.equal(quietBreath(0, 24), 0);
+  assert.equal(quietBreath(24 - 1 / 60, 24), 0);
+  assert.ok(quietBreath(6, 24) > 0);
+  assert.equal(finaleCues(0, 18).symbol, 0);
+  assert.equal(finaleCues(18 - 1 / 60, 18).symbol, 0);
+  assert.equal(finaleCues(18 - 1 / 60, 18).phraseFill, 0);
+  assert.equal(finaleCues(18, 18).titleOutline, 0);
+  assert.ok(finaleCues(4.2, 18).titleFill > 0);
+  assert.equal(finaleCues(4.2, 18).phraseFill, 0);
+  assert.ok(finaleCues(6.2, 18).phraseOutline > 0);
+  assert.equal(finaleCues(6.2, 18).phraseFill, 0);
+  assert.equal(finaleCues(8, 18).phraseFill, 1);
 });
 
 test("описание сцены копируется для настроек, но эталон не меняется", () => {

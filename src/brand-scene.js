@@ -1,6 +1,7 @@
 import { LogoScene } from "./scene.js";
 import { cloneDefaults } from "./config.js";
 import { WAITING_DEFAULTS } from "./scenes/waiting.js";
+import { quietBreath } from "./scenes/cues.js";
 
 // Переиспользуем проверенный Three.js/PMREM/postprocessing рендерер, но не
 // тайминг и декор заставки ожидания. Все движения нового вида — функция t.
@@ -21,11 +22,6 @@ function renderConfig() {
   return cfg;
 }
 
-const smooth = (a, b, x) => {
-  const p = Math.min(1, Math.max(0, (x - a) / (b - a)));
-  return p * p * (3 - 2 * p);
-};
-
 /** Второй вид: спокойное живое фирменное поле, без бегущих титров и искр. */
 export class BrandScene extends LogoScene {
   constructor(canvas, config) {
@@ -40,11 +36,7 @@ export class BrandScene extends LogoScene {
     // заставка не может «протечь» сюда через общий цикл или прежний seek.
     super.update(this.holdAt, dt);
     const cycle = this.brandConfig.timeline.holdDuration;
-    const local = ((t % cycle) + cycle) % cycle;
-    // Покой по обе стороны шва — реальные первый и последний кадры идентичны.
-    const settle = smooth(0.25, 1.5, local) *
-      (1 - smooth(cycle - 1.5, cycle - 0.25, local));
-    const breathe = Math.sin(local * Math.PI * 2 / cycle) * settle;
+    const breathe = quietBreath(t, cycle);
     this.logo.root.position.set(-1.7, 0.06, 0);
     this.logo.root.scale.setScalar(0.61 * (1 + 0.012 * breathe));
     this.logo.root.rotation.set(0.015 * breathe, 0.022 * breathe, 0);

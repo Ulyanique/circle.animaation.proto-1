@@ -4,6 +4,8 @@ import "@fontsource/cormorant-garamond/cyrillic-600.css";
 import { loadConfig, cloneDefaults, saveConfig } from "./config.js";
 import { LogoScene } from "./scene.js";
 import { BrandScene } from "./brand-scene.js";
+import { PhotoPauseScene } from "./photo-pause-scene.js";
+import { FinaleScene } from "./finale-scene.js";
 import { createSettingsUI } from "./ui.js";
 import { AnimationRuntime } from "./runtime.js";
 import { OUTPUT, sceneById } from "./scenes/catalog.js";
@@ -18,6 +20,8 @@ if (!activeScene?.defaults || activeScene.status !== "ready") {
 // Старые пользовательские настройки относятся только к первой заставке.
 const cfg = sceneId === "waiting" ? loadConfig(activeScene.defaults) : cloneDefaults(activeScene.defaults);
 document.body.classList.toggle("scene-brand", sceneId === "brand");
+document.body.classList.toggle("scene-photo", sceneId === "photo-pause");
+document.body.classList.toggle("scene-finale", sceneId === "finale");
 const canvas = document.getElementById("stage");
 const toastEl = document.getElementById("toast");
 let toastTimer = 0;
@@ -29,10 +33,17 @@ function toast(msg, isError = false) {
   toastTimer = setTimeout(() => toastEl.classList.remove("show"), 2200);
 }
 
+// Тексты видов 8 и 9 — только подтверждённые пользователем названия.
+const sceneCopy = {
+  "photo-pause": { title: "Фотопауза" },
+  finale: { title: "Янтарный циркуль", subtitle: "История продолжается" },
+}[sceneId];
 // Разделяем русские строки на графемы один раз; позицию каждой буквы затем
 // вычисляем только из абсолютного времени. Пробел остаётся настоящим пробелом.
 for (const el of document.querySelectorAll("#caption [data-text]")) {
-  const text = el.textContent;
+  const name = el.classList.contains("cap-title") ? "title" : el.classList.contains("cap-sub") ? "subtitle" : "date";
+  const text = sceneCopy?.[name] ?? el.textContent;
+  el.dataset.text = text;
   const letters = typeof Intl.Segmenter === "function"
     ? [...new Intl.Segmenter("ru", { granularity: "grapheme" }).segment(text)].map((part) => part.segment)
     : Array.from(text);
@@ -45,7 +56,11 @@ for (const el of document.querySelectorAll("#caption [data-text]")) {
   }));
 }
 
-const scene = sceneId === "brand" ? new BrandScene(canvas, cfg) : new LogoScene(canvas, cfg);
+const adapters = { waiting: LogoScene, brand: BrandScene,
+  "photo-pause": PhotoPauseScene, finale: FinaleScene };
+const SceneAdapter = adapters[sceneId];
+if (!SceneAdapter) throw new Error(`Адаптер сцены «${sceneId}» не найден`);
+const scene = new SceneAdapter(canvas, cfg);
 const runtime = new AnimationRuntime(scene, cfg, OUTPUT.fps);
 
 if (sceneId === "waiting") {
@@ -62,8 +77,9 @@ if (sceneId === "waiting") {
   // Режим для зала: управление доступно в превью, но не попадает в canvas/видео.
   const tools = document.createElement("nav");
   tools.className = "brand-controls";
-  tools.setAttribute("aria-label", "Управление фирменным фоном");
-  tools.innerHTML = '<a href="?scene=waiting">Заставка ожидания</a><button type="button" data-action="pause">Пауза</button><button type="button" data-action="record">Записать цикл</button>';
+  tools.setAttribute("aria-label", "Переключение и запись заставок");
+  tools.innerHTML = '<a href="?scene=waiting" title="Заставка ожидания">01</a><a href="?scene=brand" title="Фирменный фон">02</a><a href="?scene=photo-pause" title="Фотопауза">08</a><a href="?scene=finale" title="Финал">09</a><button type="button" data-action="pause">Пауза</button><button type="button" data-action="record">Записать цикл</button>';
+  tools.querySelector(`a[href="?scene=${sceneId}"]`)?.setAttribute("aria-current", "page");
   tools.querySelector('[data-action="pause"]').addEventListener("click", (event) => {
     cfg.playback.paused = !cfg.playback.paused;
     event.currentTarget.textContent = cfg.playback.paused ? "Воспроизвести" : "Пауза";
@@ -185,18 +201,26 @@ function drawCaption(ctx, alpha) {
   };
 
   const brand = activeScene.id === "brand";
-  const tSize = (brand ? 5.7 : 7.2) * u;
+  const photo = activeScene.id === "photo-pause";
+  const finale = activeScene.id === "finale";
+  const tSize = (brand ? 5.7 : photo ? 6.7 : finale ? 6.6 : 7.2) * u;
   const titleGrad = (y) => {
     const g = ctx.createLinearGradient(0, y - tSize / 2, 0, y + tSize / 2);
     g.addColorStop(0, "#fff3cc"); g.addColorStop(0.4, "#f0cc78");
     g.addColorStop(0.75, "#c08c36"); g.addColorStop(1, "#e8c06a");
     return g;
   };
-  textLine(".cap-title", "Янтарный циркуль", {
-    y: (brand ? 0.50 : 0.55) * H, centerX: brand ? 0.62 * W : W / 2,
+  textLine(".cap-title", photo ? "Фотопауза" : "Янтарный циркуль", {
+    y: (brand ? 0.50 : photo ? 0.69 : 0.55) * H, centerX: brand ? 0.62 * W : W / 2,
     weight: 600, size: tSize, ls: 0, stroke: "#e0b25a", sw: 0.08 * u, shadow: true, fill: titleGrad,
   });
-  if (!brand) {
+  if (finale) {
+    textLine(".cap-sub", "ИСТОРИЯ ПРОДОЛЖАЕТСЯ", {
+      y: 0.71 * H, weight: 400, size: 2.55 * u, ls: 0.18 * 2.55 * u,
+      stroke: "#d9b061", sw: 0.04 * u, fill: "#ecd08c",
+    });
+  }
+  if (!brand && !photo && !finale) {
     rule(".r1", 0.66 * H);
     rule(".r2", 0.79 * H);
     textLine(".cap-sub", "ВЕЧЕР РЕТРОСПЕКТИВА", {
