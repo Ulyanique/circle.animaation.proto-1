@@ -32,7 +32,7 @@ if (!Number.isInteger(FPS) || FPS < 1 || FPS > 120) throw new Error("FPS дол�
     });
     const total = Math.round(cycle * FPS);
     if (!(cycle > 0) || !Number.isFinite(total)) throw new Error("Некорректная длительность цикла");
-    await page.addStyleTag({ content: ".cfg-toggle,.cfg-panel,.toast,.review-panel,.brand-controls{display:none!important} body{cursor:none!important}" });
+    await page.addStyleTag({ content: ".cfg-toggle,.cfg-panel,.toast,.review-panel,.brand-controls,.operator-panel{display:none!important} body{cursor:none!important}" });
     console.log(`Рендер ${total} кадров, ${FPS} FPS, ${cycle.toFixed(3)} с, 1920×1080 → ${OUT}`);
     for (let k = 0; k < total; k++) {
       // Каждый кадр рисуется прямо по абсолютному времени, без ожидания/накопления dt.

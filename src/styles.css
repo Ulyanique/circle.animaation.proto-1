@@ -85,7 +85,8 @@ body.operator-idle:not(.ui-on) .operator-panel { opacity: 0; pointer-events: non
 .operator-duration input { width: 65px; padding: 5px; border: 1px solid rgba(217,176,97,.36); border-radius: 4px;
   background: #110e0a; color: #ffe3a1; font: inherit; font-variant-numeric: tabular-nums; }
 .operator-busy .operator-scenes, .operator-busy .operator-transport input,
-.operator-busy .operator-transport .operator-duration { opacity: .4; pointer-events: none; }
+.operator-busy .operator-transport .operator-duration,
+.operator-busy [data-action="record"], .operator-busy [data-action="record-chain"] { opacity: .4; pointer-events: none; }
 .transition-frame {
   position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%);
   z-index: 12; pointer-events: none; opacity: 1; display: block;

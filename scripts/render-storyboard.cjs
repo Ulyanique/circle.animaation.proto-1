@@ -31,7 +31,7 @@ const url = process.env.URL || "http://localhost:5173/";
         ["07-final-contour", t.startDelay + D + E + H + F * 0.92],
       ];
     });
-    await page.addStyleTag({ content: ".cfg-toggle,.cfg-panel,.toast,.review-panel{display:none!important}" });
+    await page.addStyleTag({ content: ".cfg-toggle,.cfg-panel,.toast,.review-panel,.operator-panel{display:none!important}" });
     const only = (process.env.FRAMES || "").split(",").map((s) => s.trim()).filter(Boolean);
     const chosen = only.length ? frames.filter(([name]) => only.includes(name)) : frames;
     if (only.length && chosen.length !== new Set(only).size) throw new Error(`Неизвестный кадр в FRAMES: ${only.join(", ")}`);

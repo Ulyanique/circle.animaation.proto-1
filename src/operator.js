@@ -7,7 +7,7 @@ export function crossedBoundary(before, after, delay, cycle) {
 }
 
 /** Единый пульт для всех готовых видов. В кадр и WebM не входит. */
-export function createOperatorControls({ getState, seek, setDuration, togglePause, switchScene, record }) {
+export function createOperatorControls({ getState, seek, setDuration, togglePause, switchScene, record, recordChain }) {
   const panel = document.createElement("section");
   panel.className = "operator-panel";
   panel.setAttribute("aria-label", "Пульт заставок");
@@ -30,7 +30,8 @@ export function createOperatorControls({ getState, seek, setDuration, togglePaus
       <button type="button" data-action="next" title="Вперёд на кадр">+1</button>
       <output data-role="time" aria-live="off"></output>
       <label class="operator-duration">Цикл <input type="number" data-action="duration" min="1" max="300" step="0.1" aria-label="Длительность цикла в секундах"> с</label>
-      <button type="button" data-action="record" title="Записать один цикл текущей заставки">● Запись</button>
+      <button type="button" data-action="record" title="Записать один цикл текущей заставки">● Цикл</button>
+      <button type="button" data-action="record-chain" title="Записать 01 → 02 → 08 → 09 с переходами одним WebM">● Вся цепочка</button>
     </div>`;
   document.body.appendChild(panel);
   const range = panel.querySelector('[data-action="seek"]');
@@ -74,6 +75,8 @@ export function createOperatorControls({ getState, seek, setDuration, togglePaus
       else button.removeAttribute("aria-current");
     }
     panel.classList.toggle("operator-busy", state.recording);
+    panel.querySelector('[data-action="record"]').textContent = state.recordingKind === "single" ? "◉ Запись…" : "● Цикл";
+    panel.querySelector('[data-action="record-chain"]').textContent = state.recordingKind === "sequence" ? "◉ Цепочка…" : "● Вся цепочка";
   }
   function jump(value) {
     const state = getState();
@@ -116,6 +119,7 @@ export function createOperatorControls({ getState, seek, setDuration, togglePaus
     } else if (!state.recording && (action === "prev" || action === "next")) {
       jump(localTime(state) + (action === "next" ? 1 : -1) / OUTPUT.fps);
     } else if (action === "record") record();
+    else if (action === "record-chain") recordChain();
   });
   window.addEventListener("keydown", (event) => {
     if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) return;

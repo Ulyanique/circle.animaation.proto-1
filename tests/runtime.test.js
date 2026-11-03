@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { AnimationRuntime, cycleDuration } from "../src/runtime.js";
-import { OUTPUT, SCENES, sceneById } from "../src/scenes/catalog.js";
+import { OUTPUT, RECORDING_CHAIN, SCENES, sceneById } from "../src/scenes/catalog.js";
 import { DEFAULTS, cloneDefaults } from "../src/config.js";
 import { BRAND_DEFAULTS } from "../src/scenes/brand.js";
 import { PHOTO_PAUSE_DEFAULTS } from "../src/scenes/photo-pause.js";
@@ -22,6 +22,8 @@ test("единый формат и каталог девяти сцен без �
   assert.equal(cycleDuration(PHOTO_PAUSE_DEFAULTS.timeline), 24);
   assert.equal(cycleDuration(FINALE_DEFAULTS.timeline), 18);
   assert.equal(SCENES.filter((scene) => scene.status === "ready").length, 4);
+  assert.deepEqual(RECORDING_CHAIN, ["waiting", "brand", "photo-pause", "finale"]);
+  assert.ok(RECORDING_CHAIN.every((id) => sceneById(id)?.status === "ready"));
   assert.equal(sceneById("nonexistent"), undefined);
 });
 
