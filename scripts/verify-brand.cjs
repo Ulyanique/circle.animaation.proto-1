@@ -27,7 +27,18 @@ const URL_ = process.env.URL || "http://localhost:5173/?scene=brand";
         if (Math.abs(a[i] - b[i]) + Math.abs(a[i + 1] - b[i + 1]) +
             Math.abs(a[i + 2] - b[i + 2]) > 30) captionPixels++;
       }
+      L.renderAt(2.3);
+      const drawing = L.scene.logo.outline.visible && L.scene.logo.outlineU.uDraw.value > 0;
+      L.renderAt(9);
+      const timeA = L.scene.background.uniforms.uTime.value;
+      const waves = L.scene.waves.pulses.some(({ material }) => material.opacity > 0.005);
+      L.renderAt(10);
+      const movingBackground = L.scene.background.uniforms.uTime.value !== timeA;
+      L.renderAt(L.runtime.cycle - 1 / 60);
+      const cleared = parseFloat(getComputedStyle(document.querySelector(".cap-title")).getPropertyValue("--p")) === 0;
+      L.renderAt(middle);
       return {
+        drawing, waves, movingBackground, cleared,
         id: L.activeScene.id,
         cycle: L.runtime.cycle,
         format: [withTitle.width, withTitle.height],
@@ -61,7 +72,8 @@ const URL_ = process.env.URL || "http://localhost:5173/?scene=brand";
     if (errors.length || state.id !== "brand" || state.cycle !== 24 ||
         state.format[0] !== 1920 || state.format[1] !== 1080 ||
         state.captionPixels < 1000 || !state.onlyTitle || !state.ambientField ||
-        !state.centeredSymbol || !state.titleBelow || seamChangedPixels !== 0) process.exitCode = 1;
+        !state.centeredSymbol || !state.titleBelow || !state.drawing ||
+        !state.waves || !state.movingBackground || !state.cleared || seamChangedPixels !== 0) process.exitCode = 1;
   } finally {
     await browser.close();
   }

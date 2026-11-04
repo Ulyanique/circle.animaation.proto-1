@@ -56,6 +56,16 @@ const URL_ = process.env.URL || `http://localhost:5173/?scene=${sceneId}`;
           parseFloat(subtitle.style.getPropertyValue("--f")) === 0;
         L.renderAt(middle);
       }
+      L.renderAt(2.3);
+      state.drawing = L.scene.logo.outline.visible && L.scene.logo.outlineU.uDraw.value > 0;
+      L.renderAt(9);
+      const timeA = L.scene.background.uniforms.uTime.value;
+      state.waves = L.scene.waves.pulses.some(({ material }) => material.opacity > 0.005);
+      L.renderAt(10);
+      state.movingBackground = L.scene.background.uniforms.uTime.value !== timeA;
+      L.renderAt(L.runtime.cycle - 1 / 60);
+      state.cleared = parseFloat(getComputedStyle(title).getPropertyValue("--p")) === 0;
+      L.renderAt(middle);
       return state;
     });
     await page.addStyleTag({ content: ".brand-controls,.operator-panel,.toast{display:none!important}" });
@@ -79,7 +89,8 @@ const URL_ = process.env.URL || `http://localhost:5173/?scene=${sceneId}`;
         state.title !== expected.title || state.subtitle !== expected.subtitle ||
         state.format[0] !== 1920 || state.format[1] !== 1080 ||
         state.captionPixels < 1000 || !state.ambientField || !state.titleBelow ||
-        !state.centeredSymbol || !state.noDate ||
+        !state.centeredSymbol || !state.noDate || !state.drawing ||
+        !state.waves || !state.movingBackground || !state.cleared ||
         (sceneId === "finale" && !state.phraseInProgress) || seamChangedPixels !== 0) process.exitCode = 1;
   } finally {
     await browser.close();

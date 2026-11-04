@@ -6,7 +6,7 @@ import { DEFAULTS, cloneDefaults } from "../src/config.js";
 import { BRAND_DEFAULTS } from "../src/scenes/brand.js";
 import { PHOTO_PAUSE_DEFAULTS } from "../src/scenes/photo-pause.js";
 import { FINALE_DEFAULTS } from "../src/scenes/finale.js";
-import { quietBreath, finaleCues } from "../src/scenes/cues.js";
+import { FIELD_TIMING, fieldCues, quietBreath, finaleCues } from "../src/scenes/cues.js";
 import { crossedBoundary } from "../src/operator.js";
 import { exportPlan, outgoingOpacity } from "../src/export-plan.js";
 
@@ -63,6 +63,22 @@ test("фотопауза бесшовна, финальная фраза идё�
   assert.ok(finaleCues(6.2, 18).phraseOutline > 0);
   assert.equal(finaleCues(6.2, 18).phraseFill, 0);
   assert.equal(finaleCues(8, 18).phraseFill, 1);
+});
+
+test("№2 и №8: прорисовка, заливка и обратный уход до закрытого шва", () => {
+  const cycle = 24;
+  assert.equal(FIELD_TIMING.drawDuration + FIELD_TIMING.emergeDuration +
+    FIELD_TIMING.fadeDuration + FIELD_TIMING.restDuration, 8);
+  assert.equal(fieldCues(0, cycle).titleOutline, 0);
+  assert.ok(fieldCues(4.2, cycle).titleOutline > 0);
+  assert.equal(fieldCues(4.2, cycle).titleFill, 0);
+  assert.equal(fieldCues(8, cycle).titleFill, 1);
+  assert.ok(fieldCues(21.6, cycle).titleOutline > fieldCues(21.6, cycle).titleFill);
+  assert.equal(fieldCues(cycle - 1 / 60, cycle).titleOutline, 0);
+  assert.deepEqual(fieldCues(cycle, cycle), fieldCues(0, cycle));
+  assert.equal(finaleCues(15.8, 18).phraseFill, 0);
+  assert.ok(finaleCues(15.8, 18).titleOutline > 0);
+  assert.equal(finaleCues(18 - 1 / 60, 18).titleOutline, 0);
 });
 
 test("описание сцены копируется для настроек, но эталон не меняется", () => {

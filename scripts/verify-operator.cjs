@@ -14,14 +14,17 @@ const { launchBrowser } = require("./browser.cjs");
       panel: !!document.querySelector(".operator-panel"),
       settings: getComputedStyle(document.querySelector(".cfg-toggle")).display !== "none",
     }));
-    await page.evaluate(() => document.querySelector('[data-scene="brand"]').click());
-    await page.waitForFunction(() => window.__logo.activeScene.id === "brand", { timeout: 120000 });
-    const crossfade = await page.evaluate(() => ({
-      overlay: !!document.querySelector(".transition-frame"),
-      canvasCount: document.querySelectorAll("#stage").length,
-      samePage: location.search.includes("scene=brand"),
-      brandTitle: document.querySelector(".cap-title").textContent.replaceAll("\u00a0", " "),
-    }));
+    // Снимаем состояние синхронно с кликом: software WebGL может обработать
+    // дополнительный CDP-запрос позже завершения 0,9-секундного перехода.
+    const crossfade = await page.evaluate(() => {
+      document.querySelector('[data-scene="brand"]').click();
+      return {
+        overlay: !!document.querySelector(".transition-frame"),
+        canvasCount: document.querySelectorAll("#stage").length,
+        samePage: location.search.includes("scene=brand"),
+        brandTitle: document.querySelector(".cap-title").textContent.replaceAll("\u00a0", " "),
+      };
+    });
     await page.waitForFunction(() => !document.querySelector(".transition-frame"), { timeout: 60000 });
     const edit = await page.evaluate(() => {
       const duration = document.querySelector('[data-action="duration"]');

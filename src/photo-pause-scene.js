@@ -28,16 +28,20 @@ export class PhotoPauseScene extends BrandScene {
   update(t, dt) {
     super.update(t, dt);
     const breathe = quietBreath(t, this.brandConfig.timeline.holdDuration);
-    this.logo.root.position.set(0, 0.92, 0);
-    this.logo.root.scale.setScalar(0.47 * (1 + 0.009 * breathe));
-    this.logo.root.rotation.set(0, 0.012 * breathe, 0);
-    this.viewfinder.position.set(0, 0.92, -0.22);
+    // Те же ось и масштаб, что у №2: видоискатель обнимает символ,
+    // а «Фотопауза» стоит строго под ним, не смещая всю композицию.
+    this.logo.root.position.x = 0;
+    this.logo.root.position.y = 1.00;
+    this.viewfinder.position.set(0, 1.00, -0.22);
     this.viewfinder.scale.setScalar(1 + 0.008 * breathe);
-    // Та же световая сцена, но более прохладная и симметричная пауза.
-    this.background.uniforms.uEnvL.value = 0.39;
-    this.background.uniforms.uEnvR.value = 0.39;
-    this.topGlow.position.set(0, 0.92, -0.65);
-    this.topGlow.material.opacity = 0.09;
+    this.viewfinder.material.opacity = 0.24 * Math.min(1, this.logo.root.scale.x / 0.5) *
+      Math.min(1, this.background.uniforms.uEnvL.value / 0.48);
+    // Та же живая сцена, чуть мягче и симметричнее, чем у фирменного фона.
+    this.background.uniforms.uEnvL.value *= 0.83;
+    this.background.uniforms.uEnvR.value *= 0.91;
+    this.waves.pulses.forEach(({ material }) => { material.opacity *= 0.72; });
+    this.topGlow.position.set(0, 1.00, -0.65);
+    this.topGlow.material.opacity *= 0.88;
   }
 
   dispose() {

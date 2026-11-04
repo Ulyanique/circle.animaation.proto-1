@@ -105,7 +105,9 @@ const operator = createOperatorControls({
   setDuration: (value) => {
     const tl = cfg.timeline;
     const other = runtime.cycle - tl.holdDuration;
-    const minHold = sceneId === "finale" ? 12 : sceneId === "waiting" ? 1 : 4;
+    // У второстепенных видов вход/обводка/обратный выход занимают 8 с.
+    // Не даём укоротить цикл так, чтобы титр исчезал до появления.
+    const minHold = sceneId === "finale" ? 16 : sceneId === "waiting" ? 1 : 11;
     tl.holdDuration = Math.max(minHold, Math.min(300, value - other));
     if (sceneId === "waiting") { saveConfig(cfg); settings.refresh(); }
     runtime.renderAt(Math.min(runtime.time, tl.startDelay + runtime.cycle - 1 / OUTPUT.fps));
