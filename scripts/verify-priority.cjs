@@ -42,7 +42,12 @@ const URL_ = process.env.URL || `http://localhost:5173/?scene=${sceneId}`;
         captionPixels,
         title: title.textContent.replaceAll("\u00a0", " "),
         subtitle: getComputedStyle(subtitle).display === "none" ? false : subtitle.textContent.replaceAll("\u00a0", " "),
-        noCorners: !L.scene.corners.group.visible && !L.scene.plotter.group.visible,
+        ambientField: L.scene.corners.group.visible && L.scene.particles.group.visible &&
+          L.scene.background.uniforms.uEnvL.value > 0.3 && !L.scene.plotter.group.visible,
+        titleBelow: parseFloat(getComputedStyle(title).top) >
+          (L.activeScene.id === "finale" ? 0.53 : 0.66) *
+          parseFloat(getComputedStyle(document.getElementById("caption")).height),
+        centeredSymbol: Math.abs(L.scene.logo.root.position.x) < 0.01,
         noDate: getComputedStyle(document.querySelector(".cap-date")).display === "none",
       };
       if (L.activeScene.id === "finale") {
@@ -73,7 +78,8 @@ const URL_ = process.env.URL || `http://localhost:5173/?scene=${sceneId}`;
     if (errors.length || state.id !== sceneId || state.cycle !== expected.cycle ||
         state.title !== expected.title || state.subtitle !== expected.subtitle ||
         state.format[0] !== 1920 || state.format[1] !== 1080 ||
-        state.captionPixels < 1000 || !state.noCorners || !state.noDate ||
+        state.captionPixels < 1000 || !state.ambientField || !state.titleBelow ||
+        !state.centeredSymbol || !state.noDate ||
         (sceneId === "finale" && !state.phraseInProgress) || seamChangedPixels !== 0) process.exitCode = 1;
   } finally {
     await browser.close();

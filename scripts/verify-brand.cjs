@@ -20,7 +20,7 @@ const URL_ = process.env.URL || "http://localhost:5173/?scene=brand";
       const middle = L.runtime.cycle / 2;
       const withTitle = L.compositeFrameAt(middle);
       const noTitle = L.compositeFrameAt(middle, 1 / 60, false);
-      const sample = (canvas) => canvas.getContext("2d").getImageData(760, 470, 850, 170).data;
+      const sample = (canvas) => canvas.getContext("2d").getImageData(340, 655, 1240, 190).data;
       const a = sample(withTitle), b = sample(noTitle);
       let captionPixels = 0;
       for (let i = 0; i < a.length; i += 4) {
@@ -34,8 +34,11 @@ const URL_ = process.env.URL || "http://localhost:5173/?scene=brand";
         captionPixels,
         onlyTitle: [...document.querySelectorAll(".cap-rule,.cap-sub,.cap-date")]
           .every((el) => getComputedStyle(el).display === "none"),
-        noCorners: !L.scene.corners.group.visible && !L.scene.plotter.group.visible,
-        centeredSymbol: L.scene.logo.root.position.x < -1.5 && L.scene.logo.root.position.y < 0.3,
+        ambientField: L.scene.corners.group.visible && L.scene.particles.group.visible &&
+          L.scene.background.uniforms.uEnvL.value > 0.3 && !L.scene.plotter.group.visible,
+        centeredSymbol: Math.abs(L.scene.logo.root.position.x) < 0.01 && L.scene.logo.root.position.y > 0.8,
+        titleBelow: parseFloat(getComputedStyle(document.querySelector(".cap-title")).top) >
+          0.65 * parseFloat(getComputedStyle(document.getElementById("caption")).height),
       };
     });
     await page.addStyleTag({ content: ".brand-controls,.operator-panel,.toast{display:none!important}" });
@@ -57,8 +60,8 @@ const URL_ = process.env.URL || "http://localhost:5173/?scene=brand";
     console.log({ ...state, seamChangedPixels, errors });
     if (errors.length || state.id !== "brand" || state.cycle !== 24 ||
         state.format[0] !== 1920 || state.format[1] !== 1080 ||
-        state.captionPixels < 1000 || !state.onlyTitle || !state.noCorners ||
-        !state.centeredSymbol || seamChangedPixels !== 0) process.exitCode = 1;
+        state.captionPixels < 1000 || !state.onlyTitle || !state.ambientField ||
+        !state.centeredSymbol || !state.titleBelow || seamChangedPixels !== 0) process.exitCode = 1;
   } finally {
     await browser.close();
   }

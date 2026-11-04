@@ -10,8 +10,10 @@ export class FinaleScene extends BrandScene {
     this.logo.root.position.set(0, 1.02, 0);
     this.logo.root.scale.setScalar(0.50 * cue.symbol);
     this.logo.root.rotation.set(0, 0, 0);
-    this.background.uniforms.uEnvL.value = 0.08 * cue.light;
-    this.background.uniforms.uEnvR.value = 0.08 * cue.light;
+    // При сборке фразы проявляется фирменное поле с крайними кольцами;
+    // финальная темнота по-прежнему замыкает цикл точно в ноль.
+    this.background.uniforms.uEnvL.value = 0.45 * cue.light;
+    this.background.uniforms.uEnvR.value = 0.40 * cue.light;
     this.topGlow.position.set(0, 1.35, -0.65);
     this.topGlow.material.opacity = 0.085 * cue.light;
 

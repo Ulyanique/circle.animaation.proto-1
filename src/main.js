@@ -216,7 +216,7 @@ function drawCaption(ctx, alpha) {
   const brand = activeScene.id === "brand";
   const photo = activeScene.id === "photo-pause";
   const finale = activeScene.id === "finale";
-  const tSize = (brand ? 5.7 : photo ? 6.7 : finale ? 6.6 : 7.2) * u;
+  const tSize = (brand ? 6.2 : photo ? 6.7 : finale ? 6.6 : 7.2) * u;
   const titleGrad = (y) => {
     const g = ctx.createLinearGradient(0, y - tSize / 2, 0, y + tSize / 2);
     g.addColorStop(0, "#fff3cc"); g.addColorStop(0.4, "#f0cc78");
@@ -224,7 +224,7 @@ function drawCaption(ctx, alpha) {
     return g;
   };
   textLine(".cap-title", photo ? "Фотопауза" : "Янтарный циркуль", {
-    y: (brand ? 0.50 : photo ? 0.69 : 0.55) * H, centerX: brand ? 0.62 * W : W / 2,
+    y: (brand || photo ? 0.69 : 0.55) * H, centerX: W / 2,
     weight: 600, size: tSize, ls: 0, stroke: "#e0b25a", sw: 0.08 * u, shadow: true, fill: titleGrad,
   });
   if (finale) {

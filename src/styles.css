@@ -28,9 +28,9 @@ html, body {
   pointer-events: none; /* никакой реакции на мышь */
 }
 
-/* Фирменное поле: один символ и одно название, без даты и декора титров. */
+/* Во всех видах циркуль и титр образуют вертикальную композицию. */
 body.scene-brand #caption .cap-title {
-  left: 62%; top: 50%; font-size: calc(var(--u) * 5.7);
+  left: 50%; top: 69%; font-size: calc(var(--u) * 6.2);
 }
 body.scene-brand #caption .cap-rule,
 body.scene-brand #caption .cap-sub,

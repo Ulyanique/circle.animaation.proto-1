@@ -33,8 +33,9 @@ export class PhotoPauseScene extends BrandScene {
     this.logo.root.rotation.set(0, 0.012 * breathe, 0);
     this.viewfinder.position.set(0, 0.92, -0.22);
     this.viewfinder.scale.setScalar(1 + 0.008 * breathe);
-    this.background.uniforms.uEnvL.value = 0.08;
-    this.background.uniforms.uEnvR.value = 0.08;
+    // Та же световая сцена, но более прохладная и симметричная пауза.
+    this.background.uniforms.uEnvL.value = 0.39;
+    this.background.uniforms.uEnvR.value = 0.39;
     this.topGlow.position.set(0, 0.92, -0.65);
     this.topGlow.material.opacity = 0.09;
   }
