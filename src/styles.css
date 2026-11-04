@@ -55,7 +55,7 @@ body, body.ui-on, body.review-on { cursor: auto; }
 body:not(.scene-waiting) .cfg-toggle,
 body:not(.scene-waiting) .cfg-panel { display: none; }
 body.operator-idle:not(.ui-on) .cfg-toggle,
-body.operator-idle:not(.ui-on) .operator-panel { opacity: 0; pointer-events: none; }
+body.operator-idle:not(.ui-on) .operator-panel:not(.operator-exporting) { opacity: 0; pointer-events: none; }
 .cfg-toggle { transition: opacity .25s ease; }
 .operator-panel {
   position: fixed; z-index: 24; left: 50%; bottom: 16px;
@@ -68,6 +68,11 @@ body.operator-idle:not(.ui-on) .operator-panel { opacity: 0; pointer-events: non
 }
 .operator-row { display: flex; align-items: center; gap: 9px; }
 .operator-row + .operator-row { margin-top: 9px; }
+.operator-export { display: flex; align-items: center; gap: 12px; margin-top: 10px;
+  color: #ffe3a1; font-variant-numeric: tabular-nums; }
+.operator-export[hidden] { display: none; }
+.operator-export progress { flex: 1; height: 9px; accent-color: #d9b061; }
+.operator-export button { border-color: #d9b061; }
 .operator-label { font-size: 10px; letter-spacing: .17em; color: #b79457; white-space: nowrap; }
 .operator-scenes { display: flex; gap: 4px; flex: 1; }
 .operator-panel button {

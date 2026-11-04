@@ -8,6 +8,7 @@ import { PHOTO_PAUSE_DEFAULTS } from "../src/scenes/photo-pause.js";
 import { FINALE_DEFAULTS } from "../src/scenes/finale.js";
 import { quietBreath, finaleCues } from "../src/scenes/cues.js";
 import { crossedBoundary } from "../src/operator.js";
+import { exportPlan, outgoingOpacity } from "../src/export-plan.js";
 
 test("единый формат и каталог девяти сцен без ложных готовых рендеров", () => {
   assert.deepEqual(OUTPUT, { width: 1920, height: 1080, fps: 60 });
@@ -25,6 +26,20 @@ test("единый формат и каталог девяти сцен без �
   assert.deepEqual(RECORDING_CHAIN, ["waiting", "brand", "photo-pause", "finale"]);
   assert.ok(RECORDING_CHAIN.every((id) => sceneById(id)?.status === "ready"));
   assert.equal(sceneById("nonexistent"), undefined);
+});
+
+test("покадровый план: фиксированные 60 FPS, без пропусков и с тремя переходами", () => {
+  const plan = exportPlan([
+    { id: "waiting", cycle: 15.3 }, { id: "brand", cycle: 24 },
+    { id: "photo-pause", cycle: 24 }, { id: "finale", cycle: 18 },
+  ], 60);
+  assert.equal(plan.totalFrames, 4878);
+  assert.deepEqual(plan.segments.map((s) => s.start), [0, 918, 2358, 3798]);
+  assert.equal(plan.transitionFrames, 54);
+  assert.equal(outgoingOpacity(0, 54), 1);
+  assert.ok(outgoingOpacity(27, 54) > 0.49 && outgoingOpacity(27, 54) < 0.51);
+  assert.equal(outgoingOpacity(54, 54), 0);
+  assert.equal(outgoingOpacity(55, 54), 0);
 });
 
 test("автопереход только при пересечении шва во время воспроизведения", () => {

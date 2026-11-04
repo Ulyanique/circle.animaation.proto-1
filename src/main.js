@@ -7,10 +7,11 @@ import { BrandScene } from "./brand-scene.js";
 import { PhotoPauseScene } from "./photo-pause-scene.js";
 import { FinaleScene } from "./finale-scene.js";
 import { createSettingsUI } from "./ui.js";
-import { AnimationRuntime } from "./runtime.js";
+import { AnimationRuntime, cycleDuration } from "./runtime.js";
 import { OUTPUT, RECORDING_CHAIN, sceneById } from "./scenes/catalog.js";
 import { glyphReveal } from "./caption.js";
 import { createOperatorControls, crossedBoundary } from "./operator.js";
+import { exportPlan, outgoingOpacity } from "./export-plan.js";
 
 let sceneId = new URLSearchParams(location.search).get("scene") || "waiting";
 let activeScene = sceneById(sceneId);
@@ -79,7 +80,7 @@ const settings = createSettingsUI(configFor("waiting"), {
     saveConfig(cfg);
   },
   onToast: toast,
-  onExportVideo: () => { if (sceneId === "waiting") startRecording(); },
+  onExportVideo: () => { if (sceneId === "waiting") startOfflineExport("single"); },
   isActive: () => sceneId === "waiting",
 });
 
@@ -97,7 +98,9 @@ let last = performance.now();
 let recording = null; // один цикл текущей сцены, переключение на время записи заблокировано
 const operator = createOperatorControls({
   getState: () => ({ id: sceneId, time: runtime.time, config: cfg, cycle: runtime.cycle,
-    recording: !!recording, recordingKind: recording?.kind }),
+    recording: !!recording, recordingKind: recording?.kind,
+    exportDone: recording?.kind === "offline" ? recording.done : 0,
+    exportTotal: recording?.kind === "offline" ? recording.totalFrames : 0 }),
   seek: (value) => { cfg.playback.paused = true; runtime.renderAt(value, 1 / OUTPUT.fps); },
   setDuration: (value) => {
     const tl = cfg.timeline;
@@ -112,8 +115,9 @@ const operator = createOperatorControls({
     if (sceneId === "waiting") saveConfig(cfg);
   },
   switchScene: (id) => switchScene(id),
-  record: () => startRecording(),
-  recordChain: () => startSequenceRecording(),
+  record: () => startOfflineExport("single"),
+  recordChain: () => startOfflineExport("chain"),
+  cancelExport: () => recording?.kind === "offline" && recording.controller.abort(),
 });
 
 const REC_W = OUTPUT.width, REC_H = OUTPUT.height;
@@ -264,9 +268,12 @@ function compositeFrameAt(time, dt = 1 / OUTPUT.fps, includeCaption = true) {
 // прерывается случайным переключением, а пульт не попадает в экспорт.
 let transition = null;
 const SEQUENCE_SWITCH = Symbol("sequence transition");
+const OFFLINE_SWITCH = Symbol("offline render");
 function switchScene(id, source) {
   if (id === sceneId) return true;
-  if (!adapters[id] || transition || (recording && !(source === SEQUENCE_SWITCH && recording.kind === "sequence"))) return false;
+  const offline = source === OFFLINE_SWITCH && recording?.kind === "offline";
+  if (!adapters[id] || (transition && !offline) ||
+      (recording && !(offline || (source === SEQUENCE_SWITCH && recording.kind === "sequence")))) return false;
   const nextCfg = configFor(id);
   const nextCanvas = document.createElement("canvas");
   nextCanvas.setAttribute("aria-label", "Анимация логотипа");
@@ -277,13 +284,16 @@ function switchScene(id, source) {
     toast(`Не удалось открыть сцену: ${error.message}`, true);
     return false;
   }
-  const snapshot = document.createElement("canvas");
-  snapshot.width = REC_W; snapshot.height = REC_H;
-  snapshot.className = "transition-frame";
-  snapshot.style.width = canvas.style.width;
-  snapshot.style.height = canvas.style.height;
-  drawCompositeFrame(snapshot.getContext("2d"));
-  document.body.appendChild(snapshot);
+  let snapshot = null;
+  if (!offline) {
+    snapshot = document.createElement("canvas");
+    snapshot.width = REC_W; snapshot.height = REC_H;
+    snapshot.className = "transition-frame";
+    snapshot.style.width = canvas.style.width;
+    snapshot.style.height = canvas.style.height;
+    drawCompositeFrame(snapshot.getContext("2d"));
+    document.body.appendChild(snapshot);
+  }
   const oldCanvas = canvas;
   const oldScene = scene;
   settings.close();
@@ -302,14 +312,104 @@ function switchScene(id, source) {
   const url = new URL(location.href);
   url.searchParams.set("scene", id);
   history.replaceState(null, "", url);
-  transition = snapshot;
-  requestAnimationFrame(() => snapshot.classList.add("transition-out"));
-  setTimeout(() => {
-    snapshot.remove();
-    if (transition === snapshot) transition = null;
-  }, 1050);
+  if (snapshot) {
+    transition = snapshot;
+    requestAnimationFrame(() => snapshot.classList.add("transition-out"));
+    setTimeout(() => {
+      snapshot.remove();
+      if (transition === snapshot) transition = null;
+    }, 1050);
+  }
   operator.refresh();
   return true;
+}
+
+/** Основной экспорт: весь набор кадров k/60 кодируется независимо от RAF.
+ * Прежние MediaRecorder-функции оставлены только как явная legacy-альтернатива. */
+async function startOfflineExport(mode = "single", { download = true } = {}) {
+  if (recording || transition) return false;
+  if (mode !== "single" && mode !== "chain") throw new Error("Неизвестный режим экспорта");
+  const ids = mode === "chain" ? [...RECORDING_CHAIN] : [sceneId];
+  const plan = exportPlan(ids.map((id) => {
+    const tl = configFor(id).timeline;
+    return { id, cycle: cycleDuration(tl) / Math.max(0.01, tl.speed) };
+  }), OUTPUT.fps);
+  const original = { id: sceneId, time: runtime.time, paused: cfg.playback.paused };
+  const controller = new AbortController();
+  const job = { kind: "offline", controller, done: 0, totalFrames: plan.totalFrames };
+  recording = job;
+  operator.awaken();
+  operator.refresh();
+  window.__lastOfflineBlob = null;
+  window.__offlineError = null;
+  const stats = { plan, renderedFrames: 0, transitions: [], format: [REC_W, REC_H],
+    fileSize: 0, cancelled: false };
+  window.__offlineStats = stats;
+  const exportCanvas = document.createElement("canvas");
+  exportCanvas.width = REC_W;
+  exportCanvas.height = REC_H;
+  const ctx = exportCanvas.getContext("2d");
+  const outgoing = document.createElement("canvas");
+  outgoing.width = REC_W;
+  outgoing.height = REC_H;
+  let part = 0;
+  try {
+    const { encodeOffline } = await import("./offline-encoder.js");
+    if (sceneId !== ids[0] && !switchScene(ids[0], OFFLINE_SWITCH))
+      throw new Error("Не удалось подготовить первый вид");
+    const blob = await encodeOffline({
+      canvas: exportCanvas, fps: OUTPUT.fps, totalFrames: plan.totalFrames,
+      signal: controller.signal,
+      renderFrame: (frame) => {
+        while (part + 1 < plan.segments.length && frame >= plan.segments[part + 1].start) {
+          // Запоминаем реальный последний композит WebGL + титр предыдущего вида.
+          outgoing.getContext("2d").drawImage(exportCanvas, 0, 0);
+          const from = ids[part];
+          part++;
+          if (!switchScene(ids[part], OFFLINE_SWITCH)) throw new Error("Не удалось переключить вид при экспорте");
+          stats.transitions.push({ from, to: ids[part], startFrame: frame });
+        }
+        const local = frame - plan.segments[part].start;
+        runtime.renderAt(cfg.timeline.startDelay + local * cfg.timeline.speed / OUTPUT.fps, 1 / OUTPUT.fps);
+        drawCompositeFrame(ctx);
+        if (part > 0 && local < plan.transitionFrames) {
+          ctx.save();
+          ctx.globalAlpha = outgoingOpacity(local, plan.transitionFrames);
+          ctx.drawImage(outgoing, 0, 0, REC_W, REC_H);
+          ctx.restore();
+        }
+        stats.renderedFrames = frame + 1;
+      },
+      onProgress: (done) => { job.done = done; operator.refresh(); },
+    });
+    stats.fileSize = blob.size;
+    window.__lastOfflineBlob = blob;
+    if (download) {
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.download = `${mode === "chain" ? "circle-01-02-08-09" : sceneId}-1920x1080-60fps.webm`;
+      document.body.appendChild(link);
+      link.click(); link.remove();
+      setTimeout(() => URL.revokeObjectURL(link.href), 60000);
+    }
+    toast(`Готово: ${plan.totalFrames} кадров, 60 FPS, WebM`);
+    return true;
+  } catch (error) {
+    stats.cancelled = controller.signal.aborted;
+    window.__offlineError = error.message;
+    toast(stats.cancelled ? "Покадровый экспорт отменён" : `Ошибка экспорта: ${error.message}`, !stats.cancelled);
+    return false;
+  } finally {
+    // Не оставляем сцену в середине программы после отмены/ошибки.
+    try {
+      if (sceneId !== original.id) switchScene(original.id, OFFLINE_SWITCH);
+      runtime.renderAt(original.time, 1 / OUTPUT.fps);
+      cfg.playback.paused = original.paused;
+    } finally {
+      recording = null;
+      operator.refresh();
+    }
+  }
 }
 
 function startRecording() {
@@ -483,7 +583,9 @@ function frame(now) {
   const renderDt = Math.min(0.05, elapsed);
   last = now;
   const before = runtime.time;
-  if (recording?.kind === "sequence") {
+  if (recording?.kind === "offline") {
+    // Покадровый экспорт сам вызывает renderAt(k/60): RAF не должен менять кадр.
+  } else if (recording?.kind === "sequence") {
     renderSequenceFrame(now);
   } else if (recording?.kind === "single") {
     runtime.renderAt(recording.start + ((now - recording.t0) / 1000) * cfg.timeline.speed, renderDt);
@@ -521,6 +623,7 @@ window.__logo = {
   compositeFrameAt,
   startRecording,
   startSequenceRecording,
+  startOfflineExport,
   getSceneConfig: configFor, // технический API тестов: изменить тайминги без смены художественных defaults
   switchScene,
   operator,

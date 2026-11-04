@@ -14,12 +14,14 @@
     "verify:priority": "node scripts/verify-priority.cjs",
     "verify:operator": "node scripts/verify-operator.cjs",
     "verify:chain": "node scripts/verify-chain.cjs",
+    "verify:offline": "node scripts/verify-offline.cjs",
     "verify:loader": "node scripts/verify-loader.cjs",
     "render:frames": "node scripts/render-loop.cjs",
     "render:storyboard": "node scripts/render-storyboard.cjs",
     "render:encode": "bash scripts/encode-loop.sh"
   },
   "dependencies": {
+    "mediabunny": "^1.65.1",
     "postprocessing": "^6.39.5",
     "three": "^0.186.0"
   },

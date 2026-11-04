@@ -7,7 +7,7 @@ export function crossedBoundary(before, after, delay, cycle) {
 }
 
 /** Единый пульт для всех готовых видов. В кадр и WebM не входит. */
-export function createOperatorControls({ getState, seek, setDuration, togglePause, switchScene, record, recordChain }) {
+export function createOperatorControls({ getState, seek, setDuration, togglePause, switchScene, record, recordChain, cancelExport }) {
   const panel = document.createElement("section");
   panel.className = "operator-panel";
   panel.setAttribute("aria-label", "Пульт заставок");
@@ -31,7 +31,12 @@ export function createOperatorControls({ getState, seek, setDuration, togglePaus
       <output data-role="time" aria-live="off"></output>
       <label class="operator-duration">Цикл <input type="number" data-action="duration" min="1" max="300" step="0.1" aria-label="Длительность цикла в секундах"> с</label>
       <button type="button" data-action="record" title="Записать один цикл текущей заставки">● Цикл</button>
-      <button type="button" data-action="record-chain" title="Записать 01 → 02 → 08 → 09 с переходами одним WebM">● Вся цепочка</button>
+      <button type="button" data-action="record-chain" title="Покадровый WebM 01 → 02 → 08 → 09, 1920×1080 / 60 FPS">● Вся цепочка</button>
+    </div>
+    <div class="operator-export" hidden role="status" aria-live="off">
+      <span data-role="export-label">Подготовка экспорта…</span>
+      <progress data-role="export-progress" value="0" max="1"></progress>
+      <button type="button" data-action="cancel-export">Отменить</button>
     </div>`;
   document.body.appendChild(panel);
   const range = panel.querySelector('[data-action="seek"]');
@@ -75,6 +80,16 @@ export function createOperatorControls({ getState, seek, setDuration, togglePaus
       else button.removeAttribute("aria-current");
     }
     panel.classList.toggle("operator-busy", state.recording);
+    const exporting = state.recordingKind === "offline";
+    panel.classList.toggle("operator-exporting", exporting);
+    const exportRow = panel.querySelector(".operator-export");
+    exportRow.hidden = !exporting;
+    if (exporting) {
+      const done = state.exportDone || 0, total = state.exportTotal || 1;
+      exportRow.querySelector('[data-role="export-label"]').textContent =
+        `Покадровый экспорт: ${done} / ${total} · ${Math.floor(100 * done / total)}%`;
+      exportRow.querySelector("progress").value = done / total;
+    }
     panel.querySelector('[data-action="record"]').textContent = state.recordingKind === "single" ? "◉ Запись…" : "● Цикл";
     panel.querySelector('[data-action="record-chain"]').textContent = state.recordingKind === "sequence" ? "◉ Цепочка…" : "● Вся цепочка";
   }
@@ -120,6 +135,7 @@ export function createOperatorControls({ getState, seek, setDuration, togglePaus
       jump(localTime(state) + (action === "next" ? 1 : -1) / OUTPUT.fps);
     } else if (action === "record") record();
     else if (action === "record-chain") recordChain();
+    else if (action === "cancel-export" && state.recordingKind === "offline") cancelExport();
   });
   window.addEventListener("keydown", (event) => {
     if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) return;
