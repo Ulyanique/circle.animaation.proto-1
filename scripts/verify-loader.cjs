@@ -32,6 +32,23 @@ const URL_ = process.env.URL || "http://localhost:5173/";
       fs.mkdirSync(path.dirname(process.env.OUT), { recursive: true });
       await page.screenshot({ path: process.env.OUT, type: "jpeg", quality: 88 });
     }
+    // В iframe предпросмотра может ломаться посторонний beacon Cloudflare.
+    // Его error не должен переводить работающую заставку в состояние отказа.
+    const externalIgnored = await page.evaluate(() => {
+      const script = document.createElement("script");
+      script.type = "application/json"; // не делает сетевого запроса
+      script.src = "https://static.cloudflareinsights.com/beacon.min.js/test";
+      document.body.appendChild(script);
+      script.dispatchEvent(new Event("error"));
+      script.remove();
+      const link = document.createElement("link");
+      link.rel = "alternate";
+      link.href = "https://static.cloudflareinsights.com/other.css";
+      document.head.appendChild(link);
+      link.dispatchEvent(new Event("error"));
+      link.remove();
+      return document.getElementById("boot-screen").dataset.state === "loading";
+    });
     await blockModule.abort();
     await navigation;
     await page.waitForFunction(() => document.getElementById("boot-screen")?.dataset.state === "error", { timeout: 5000 });
@@ -41,8 +58,8 @@ const URL_ = process.env.URL || "http://localhost:5173/";
       retryVisible: getComputedStyle(document.getElementById("boot-retry")).display !== "none",
       captionHidden: getComputedStyle(document.getElementById("caption")).visibility === "hidden",
     }));
-    console.log({ loading, failure });
-    if (!loading.captionHidden || !loading.screenVisible ||
+    console.log({ loading, externalIgnored, failure });
+    if (!externalIgnored || !loading.captionHidden || !loading.screenVisible ||
         !["rgb(5, 4, 3)", "rgb(0, 0, 0)"].includes(loading.background) ||
         failure.state !== "error" || !failure.retryVisible || !failure.captionHidden ||
         !failure.text.includes("файлы приложения")) process.exitCode = 1;

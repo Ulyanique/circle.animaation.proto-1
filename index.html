@@ -86,6 +86,11 @@
         window.addEventListener("error", (event) => {
           const target = event.target;
           if (target instanceof HTMLScriptElement || target instanceof HTMLLinkElement) {
+            // Прокси предпросмотра может вставить сторонний beacon (например,
+            // Cloudflare Insights). Его CORS/SRI-ошибка не означает, что
+            // модули заставки не загрузились: проверяем источник ресурса.
+            const resource = target instanceof HTMLScriptElement ? target.src : target.href;
+            if (!resource || new URL(resource, document.baseURI).origin !== location.origin) return;
             window.__bootFail("Не загрузились файлы приложения. Проверьте соединение и повторите загрузку.");
           } else if (event.message) {
             window.__bootFail(`Ошибка при запуске: ${event.message}`);
