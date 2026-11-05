@@ -2,7 +2,7 @@ import * as THREE from "three";
 import { OUTPUT } from "./scenes/catalog.js";
 import { plotSequence } from "./timeline.js";
 
-const START_ANGLE = Math.PI * 0.75; // верхняя левая точка — связь с первым кольцом
+export const START_ANGLE = Math.PI * 0.75; // верхняя левая точка — связь с первым кольцом
 const TAU = Math.PI * 2;
 const SAMPLES = 256;
 const VERT = /* glsl */ `

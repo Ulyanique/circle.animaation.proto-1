@@ -1,8 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { DEFAULTS } from "../src/config.js";
-import { computePhase, compositionFocus, heroGlint, openingAccent, plotSequence, ringSweep, seamCurtainOpacity } from "../src/timeline.js";
-import { captionLines, captionProgress, captionState, captionAccent, glyphReveal } from "../src/caption.js";
+import { computePhase, compositionFocus, heroGlint, openingAccent, plotSequence, plotTiming, ringSweep, seamCurtainOpacity } from "../src/timeline.js";
+import { CAP_MAX, captionLines, captionProgress, captionState, captionAccent, glyphReveal } from "../src/caption.js";
 import { seededRandom } from "../src/random.js";
 import { advanceTimeline } from "../src/playback.js";
 import { reviewMarkers } from "../src/review.js";
@@ -83,20 +83,37 @@ test("блик проходит один раз во время сборки н�
   assert.equal(heroGlint(at(cycle - 1 / 60), tl).intensity, 0);
 });
 
-test("интро даёт один световой импульс при появлении металла, не на титре и шве", () => {
-  const before = openingAccent(at(0.5), tl);
+test("три такта интро не заходят на удержание или пиксельный шов", () => {
+  const cold = openingAccent(at(0), tl);
+  const overture = openingAccent(at(0.2), tl);
+  const arrived = openingAccent(at(plotTiming(tl).start), tl);
   const transfer = openingAccent(at(tl.drawDuration + tl.emergeDuration * 0.15), tl);
-  const hold = openingAccent(at(tl.drawDuration + tl.emergeDuration + 1), tl);
+  const signature = openingAccent(at(tl.drawDuration + tl.emergeDuration * 0.5 + CAP_MAX - 0.45), tl);
+  const hold = openingAccent(at(tl.drawDuration + tl.emergeDuration + tl.holdDuration / 2), tl);
   const seam = openingAccent(at(cycle - 1 / 60), tl);
-  assert.equal(before.energy, 0);
+  for (const cue of [cold, hold, seam]) {
+    assert.equal(cue.energy, 0);
+    assert.equal(cue.dolly, 0);
+    assert.equal(cue.trace, 0);
+    assert.equal(cue.seal, 0);
+  }
+  assert.ok(overture.trace > 0.2 && overture.traceTravel > 0 && overture.traceTravel < 1);
+  assert.equal(overture.energy, 0);
+  assert.equal(overture.seal, 0);
+  assert.ok(Math.abs(arrived.traceTravel - 1) < 1e-9);
+  assert.ok(arrived.trace > 0.5);
+  assert.equal(arrived.energy, 0);
   assert.ok(transfer.energy > 0.05);
   assert.ok(transfer.dolly > 0);
-  assert.equal(hold.energy, 0);
-  assert.equal(hold.dolly, 0);
-  assert.equal(seam.energy, 0);
-  for (const local of [0.2, 1, 2.7, 3.4, 4.8, cycle - 1 / 60]) {
+  assert.equal(transfer.trace, 0);
+  assert.ok(signature.seal > 0.2 && signature.sealTravel > 0 && signature.sealTravel < 1);
+  assert.equal(signature.energy, 0);
+  assert.equal(signature.dolly, 0);
+  for (const local of [0, 0.42, 2.7, 3.4, 6.25, 8.4, cycle - 1 / 60]) {
     const a = openingAccent(at(local), tl), b = openingAccent(at(local + cycle), tl);
-    for (const key of ["energy", "travel", "dolly"]) assert.ok(Math.abs(a[key] - b[key]) < 1e-9);
+    for (const key of ["energy", "travel", "dolly", "trace", "traceTravel", "seal", "sealTravel"]) {
+      assert.ok(Math.abs(a[key] - b[key]) < 1e-9, `${key} @ ${local}`);
+    }
   }
 });
 

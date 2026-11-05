@@ -4,7 +4,8 @@ const smooth = (a, b, x) => {
   const k = clamp((x - a) / (b - a), 0, 1);
   return k * k * (3 - 2 * k);
 };
-const CAP_MAX = 2.9;
+/** Полная длина последовательности подписи в её собственных единицах. */
+export const CAP_MAX = 2.9;
 
 /** Общая для DOM и записи в canvas маска: каждая буква обводится, затем заполняется. */
 export function glyphReveal(line, index, count) {

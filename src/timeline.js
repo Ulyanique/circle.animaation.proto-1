@@ -1,4 +1,6 @@
 // Чистая модель фаз цикла; используется и в сцене, и в тестах.
+import { CAP_MAX } from "./caption.js";
+
 const clamp01 = (x) => Math.min(1, Math.max(0, x));
 const smooth = (a, b, x) => {
   const t = clamp01((x - a) / (b - a));
@@ -61,12 +63,18 @@ export function computePhase(t, tl) {
   return { name, draw, reveal, outline, fill, emergeT, grow, local, cycle, rings };
 }
 
-/** Фирменный жест: точка обводит орбиту и передаёт движение контуру логотипа. */
-export function plotSequence(phase, tl) {
+/** Общие такты построительной точки: игла интро приходит ровно в start. */
+export function plotTiming(tl) {
   const D = tl.drawDuration, E = tl.emergeDuration;
   const start = Math.min(0.32, D * 0.12);
   const end = Math.max(start + 0.1, D * 0.60);
   const transferEnd = Math.max(end + 0.05, D * 0.83);
+  return { D, E, start, end, transferEnd };
+}
+
+/** Фирменный жест: точка обводит орбиту и передаёт движение контуру логотипа. */
+export function plotSequence(phase, tl) {
+  const { D, E, start, end, transferEnd } = plotTiming(tl);
   const sweep = smooth(start, end, phase.local);
   const transfer = smooth(end, transferEnd, phase.local);
   const opacity = smooth(start, start + Math.min(0.35, D * 0.14), phase.local) *
@@ -88,9 +96,9 @@ export function heroGlint(phase, tl) {
   return { intensity, position };
 }
 
-/** Первый ролик: при передаче построительной линии знаку световая волна
- * разбегается по сцене и камера плавно входит в готовую композицию.
- * Огибающая тождественно нулевая на удержании и на пиксельном шве. */
+/** Первый ролик: три связанных такта — игла света находит точку чертежа,
+ * превращение в золото отпускает световую волну, а последняя буква запирает
+ * композицию коротким штрихом. Все огибающие нулевые на удержании и на шве. */
 export function openingAccent(phase, tl) {
   const start = tl.drawDuration * 0.92;
   const span = Math.max(0.25, tl.emergeDuration * 0.77);
@@ -98,7 +106,24 @@ export function openingAccent(phase, tl) {
   const energy = smooth(0, 0.18, travel) * (1 - smooth(0.60, 1, travel));
   const dolly = smooth(tl.drawDuration * 0.3, start, phase.local) *
     (1 - smooth(start, start + tl.emergeDuration * 0.95, phase.local));
-  return { travel, energy, dolly };
+  // Холодный старт: тонкая чертёжная игла входит из верхнего левого света
+  // и приходит в точку будущей окружности раньше, чем линия начинает движение.
+  const traceArrival = plotTiming(tl).start;
+  const traceSpan = Math.max(0.12, traceArrival - 0.06);
+  const traceTravel = clamp01((phase.local - 0.06) / traceSpan);
+  // Игла должна дойти до точки и только потом раствориться: огибающая гаснет
+  // по абсолютному времени после прибытия, а не до конца travel.
+  const trace = smooth(0.05, 0.25, traceTravel) *
+    (1 - smooth(traceArrival, traceArrival + tl.drawDuration * 0.12, phase.local));
+  // Финал: подпись заканчивается мягким проходом света по её строке. Такт
+  // привязан к общей длине подписи, а не к жёстко зашитому кадру.
+  const captionStart = tl.drawDuration + tl.emergeDuration * 0.5;
+  const sealEnd = captionStart + CAP_MAX;
+  const sealStart = sealEnd - Math.min(0.95, Math.max(0.3, tl.holdDuration * 0.14));
+  const sealTravel = clamp01((phase.local - sealStart) / (sealEnd - sealStart));
+  const seal = smooth(sealStart, sealStart + 0.14, phase.local) *
+    (1 - smooth(sealEnd - 0.28, sealEnd, phase.local));
+  return { travel, energy, dolly, trace, traceTravel, seal, sealTravel };
 }
 
 /** Угловой свет уступает внимание логотипу и тексту, пока дописывается название. */
