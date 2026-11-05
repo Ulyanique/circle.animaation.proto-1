@@ -161,7 +161,10 @@ export class LogoScene {
     this.tone = new ToneMappingEffect({ mode: ToneMappingMode.ACES_FILMIC });
     this.smaa = new SMAAEffect({ preset: SMAAPreset.ULTRA });
 
-    this.composer.addPass(new EffectPass(this.camera, this.dof));
+    // Сохраняем проход DOF: при нулевой прозрачности его можно полностью
+    // пропустить, не перестраивая цепочку renderToScreen (он не последний).
+    this.dofPass = new EffectPass(this.camera, this.dof);
+    this.composer.addPass(this.dofPass);
     this.composer.addPass(new EffectPass(this.camera, this.bloom, this.chroma, this.vignette, this.tone));
     this.composer.addPass(new EffectPass(this.camera, this.smaa));
   }
@@ -374,7 +377,13 @@ export class LogoScene {
   _applyPost(ph, cfg, t) {
     const p = cfg.post;
     this.smaa.blendMode.opacity.value = p.smaa ? 1 : 0;
-    this.dof.blendMode.opacity.value = p.dofEnabled ? 1 : 0;
+    const dofOpacity = p.dofEnabled ? 1 : 0;
+    this.dof.blendMode.opacity.value = dofOpacity;
+    // Полноэкранный DOF с нулевой прозрачностью всё равно стоил отдельного
+    // дорогого прохода. Пропускаем его, сохраняя остальные эффекты и порядок
+    // вывода на экран; при включении настройки проход возвращается сразу.
+    const dofActive = dofOpacity > 0;
+    if (this.dofPass.enabled !== dofActive) this.dofPass.enabled = dofActive;
     // размытие уходит в ноль, пока проявляется логотип (контур в начале остаётся чётким)
     this.dof.bokehScale = p.dofBokeh + p.dofStartBlur * 0.35 * (1 - ph.reveal);
     this.dof.circleOfConfusionMaterial.focusDistance = CAM_Z + p.dofFocusDistance;

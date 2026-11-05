@@ -86,6 +86,8 @@ const URL_ = process.env.URL || "http://localhost:5173/";
         L.scene.openingPulse.uniforms.uEnergy.value === 0 &&
         L.scene.openingPulse.uniforms.uTrace.value === 0 &&
         L.scene.openingPulse.uniforms.uSeal.value === 0;
+      const dofSkippedOnHold = !L.scene.dofPass.enabled &&
+        L.scene.dof.blendMode.opacity.value === 0;
       const cornersSettled = L.scene.corners.sides.left.layers[0].mesh.material.opacity < 0.7;
       state(tl.startDelay + tl.drawDuration * 0.83);
       const anchor = L.scene.logo.outline.localToWorld(L.scene.logo.root.position.clone().set(
@@ -122,7 +124,7 @@ const URL_ = process.env.URL || "http://localhost:5173/";
       }
       const compositeExport = withTitle.width === 1920 && withTitle.height === 1080 && titlePixels > 1000;
       return { cycle, plotLeads, ribbonReady, plotTouchesOutline, plotHandsOff, lastArc,
-        overtureVisible, openingImpact, signatureVisible, introAccentsGoneOnHold,
+        overtureVisible, openingImpact, signatureVisible, introAccentsGoneOnHold, dofSkippedOnHold,
         lightPassVisible, glintGoneOnHold, cornersSettled, captionMotionOk, ringsPartlyDrawn,
         compositeExport, titlePixels,
         seekStable: JSON.stringify(forward) === JSON.stringify(reverse),
@@ -156,7 +158,8 @@ const URL_ = process.env.URL || "http://localhost:5173/";
     if (errors.length) console.error("Ошибки браузера:", errors);
     if (errors.length || !result.plotLeads || !result.ribbonReady || !result.plotTouchesOutline || !result.plotHandsOff || !result.lastArc ||
         !result.overtureVisible || !result.openingImpact || !result.signatureVisible ||
-        !result.introAccentsGoneOnHold || !result.lightPassVisible || !result.glintGoneOnHold ||
+        !result.introAccentsGoneOnHold || !result.dofSkippedOnHold ||
+        !result.lightPassVisible || !result.glintGoneOnHold ||
         !result.cornersSettled || !result.captionMotionOk || !result.ringsPartlyDrawn ||
         !result.compositeExport || !result.seekStable || !result.captionPeriodic || !result.logoPeriodic ||
         changedPixels > first.width * first.height * 0.001 ||
