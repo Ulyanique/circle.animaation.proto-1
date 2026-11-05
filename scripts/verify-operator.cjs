@@ -43,8 +43,10 @@ const { launchBrowser } = require("./browser.cjs");
       return window.__logo.operator.auto;
     });
     await page.waitForFunction(() => window.__logo.activeScene.id === "photo-pause", { timeout: 120000 });
-    await page.waitForFunction(() => !document.querySelector(".transition-frame"), { timeout: 60000 });
+    // Выключаем авто сразу после первого перехода: на software WebGL один
+    // кадр может занимать секунды, и следующий цикл истечёт до конца wait.
     await page.evaluate(() => document.querySelector('[data-action="auto"]').click());
+    await page.waitForFunction(() => !document.querySelector(".transition-frame"), { timeout: 120000 });
     await page.evaluate(() => document.querySelector('[data-scene="finale"]').click());
     await page.waitForFunction(() => window.__logo.activeScene.id === "finale", { timeout: 120000 });
     await page.waitForFunction(() => !document.querySelector(".transition-frame"), { timeout: 60000 });
@@ -58,6 +60,7 @@ const { launchBrowser } = require("./browser.cjs");
     const returnState = await page.evaluate(() => ({
       title: document.querySelector(".cap-title").textContent.replaceAll("\u00a0", " "),
       settings: getComputedStyle(document.querySelector(".cfg-toggle")).display !== "none",
+      introUrl: location.search.includes("scene=intro"),
     }));
     await page.waitForFunction(() => document.body.classList.contains("operator-idle") &&
       Number(getComputedStyle(document.querySelector(".cfg-toggle")).opacity) < 0.01,
@@ -79,7 +82,7 @@ const { launchBrowser } = require("./browser.cjs");
         finalState.title !== "Янтарный циркуль" ||
         finalState.phrase !== "История продолжается" ||
         finalState.stage.join("x") !== "1920x1080" ||
-        returnState.title !== "Янтарный циркуль" || !returnState.settings ||
+        returnState.title !== "Янтарный циркуль" || !returnState.settings || !returnState.introUrl ||
         idle.cursor !== "auto" || Number(idle.buttonOpacity) > 0.01 ||
         Number(idle.panelOpacity) > 0.01 || !awakened) process.exitCode = 1;
   } finally { await browser.close(); }

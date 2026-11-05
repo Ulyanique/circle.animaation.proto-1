@@ -2,7 +2,7 @@ import "./styles.css";
 import "@fontsource/cormorant-garamond/cyrillic-400.css";
 import "@fontsource/cormorant-garamond/cyrillic-600.css";
 import { loadConfig, cloneDefaults, saveConfig } from "./config.js";
-import { LogoScene } from "./scene.js";
+import { IntroScene } from "./intro-scene.js";
 import { BrandScene } from "./brand-scene.js";
 import { PhotoPauseScene } from "./photo-pause-scene.js";
 import { FinaleScene } from "./finale-scene.js";
@@ -13,7 +13,10 @@ import { glyphReveal } from "./caption.js";
 import { createOperatorControls, crossedBoundary } from "./operator.js";
 import { exportPlan, outgoingOpacity } from "./export-plan.js";
 
-let sceneId = new URLSearchParams(location.search).get("scene") || "waiting";
+// Публичное имя первого ролика — intro. Старый ?scene=waiting сохраняем как
+// совместимый адрес; внутри не переименовываем id настроек и плана экспорта.
+const requestedScene = new URLSearchParams(location.search).get("scene") || "intro";
+let sceneId = requestedScene === "intro" ? "waiting" : requestedScene;
 let activeScene = sceneById(sceneId);
 if (!activeScene?.defaults || activeScene.status !== "ready") {
   throw new Error(`Сцена «${sceneId}» пока не подготовлена`);
@@ -68,7 +71,7 @@ function activateClasses(id) {
 activateClasses(sceneId);
 activateText(sceneId);
 
-const adapters = { waiting: LogoScene, brand: BrandScene,
+const adapters = { waiting: IntroScene, brand: BrandScene,
   "photo-pause": PhotoPauseScene, finale: FinaleScene };
 let scene = new adapters[sceneId](canvas, cfg);
 let runtime = new AnimationRuntime(scene, cfg, OUTPUT.fps);
@@ -312,7 +315,7 @@ function switchScene(id, source) {
   runtime.renderAt(cfg.timeline.startDelay, 1 / OUTPUT.fps);
   oldScene.dispose();
   const url = new URL(location.href);
-  url.searchParams.set("scene", id);
+  url.searchParams.set("scene", id === "waiting" ? "intro" : id);
   history.replaceState(null, "", url);
   if (snapshot) {
     transition = snapshot;

@@ -43,11 +43,16 @@ const URL_ = process.env.URL || "http://localhost:5173/";
         L.scene.plotter.line.geometry.getAttribute("aSide")?.count === 514 &&
         L.scene.plotter.line.geometry.index?.count === 1536 &&
         L.scene.plotter.uniforms.uRes.value.x === 1920;
+      state(tl.startDelay + tl.drawDuration + tl.emergeDuration * 0.20);
+      const openingImpact = L.scene.openingPulse.mesh.visible &&
+        L.scene.openingPulse.uniforms.uEnergy.value > 0.05 &&
+        L.scene.camera.position.z > 9.02;
       state(tl.startDelay + tl.drawDuration + tl.emergeDuration + 0.55);
       const lightPassVisible = L.scene.glintLight.intensity > 0.5;
       state(tl.startDelay + tl.drawDuration + tl.emergeDuration + tl.holdDuration / 2);
       const plotHandsOff = !L.scene.plotter.group.visible;
-      const glintGoneOnHold = L.scene.glintLight.intensity === 0;
+      const glintGoneOnHold = L.scene.glintLight.intensity === 0 &&
+        !L.scene.openingPulse.mesh.visible;
       const cornersSettled = L.scene.corners.sides.left.layers[0].mesh.material.opacity < 0.7;
       state(tl.startDelay + tl.drawDuration * 0.83);
       const anchor = L.scene.logo.outline.localToWorld(L.scene.logo.root.position.clone().set(
@@ -84,7 +89,7 @@ const URL_ = process.env.URL || "http://localhost:5173/";
       }
       const compositeExport = withTitle.width === 1920 && withTitle.height === 1080 && titlePixels > 1000;
       return { cycle, plotLeads, ribbonReady, plotTouchesOutline, plotHandsOff, lastArc,
-        lightPassVisible, glintGoneOnHold, cornersSettled, captionMotionOk, ringsPartlyDrawn,
+        openingImpact, lightPassVisible, glintGoneOnHold, cornersSettled, captionMotionOk, ringsPartlyDrawn,
         compositeExport, titlePixels,
         seekStable: JSON.stringify(forward) === JSON.stringify(reverse),
         captionPeriodic: forward.every((v, i) => JSON.stringify(v.caption) === JSON.stringify(periodic[i].caption)),
@@ -116,7 +121,7 @@ const URL_ = process.env.URL || "http://localhost:5173/";
     console.log(result);
     if (errors.length) console.error("Ошибки браузера:", errors);
     if (errors.length || !result.plotLeads || !result.ribbonReady || !result.plotTouchesOutline || !result.plotHandsOff || !result.lastArc ||
-        !result.lightPassVisible || !result.glintGoneOnHold || !result.cornersSettled || !result.captionMotionOk || !result.ringsPartlyDrawn || !result.compositeExport || !result.seekStable || !result.captionPeriodic || !result.logoPeriodic ||
+        !result.openingImpact || !result.lightPassVisible || !result.glintGoneOnHold || !result.cornersSettled || !result.captionMotionOk || !result.ringsPartlyDrawn || !result.compositeExport || !result.seekStable || !result.captionPeriodic || !result.logoPeriodic ||
         changedPixels > first.width * first.height * 0.001 ||
         result.resolution[0] !== 1920 || result.resolution[1] !== 1080) {
       process.exitCode = 1;

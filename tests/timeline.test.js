@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { DEFAULTS } from "../src/config.js";
-import { computePhase, compositionFocus, heroGlint, plotSequence, ringSweep, seamCurtainOpacity } from "../src/timeline.js";
+import { computePhase, compositionFocus, heroGlint, openingAccent, plotSequence, ringSweep, seamCurtainOpacity } from "../src/timeline.js";
 import { captionLines, captionProgress, captionState, captionAccent, glyphReveal } from "../src/caption.js";
 import { seededRandom } from "../src/random.js";
 import { advanceTimeline } from "../src/playback.js";
@@ -81,6 +81,23 @@ test("блик проходит один раз во время сборки н�
   assert.equal(heroGlint(at(settle + 1.25), tl).intensity, 0);
   assert.equal(heroGlint(at(settle + tl.holdDuration / 2), tl).intensity, 0);
   assert.equal(heroGlint(at(cycle - 1 / 60), tl).intensity, 0);
+});
+
+test("интро даёт один световой импульс при появлении металла, не на титре и шве", () => {
+  const before = openingAccent(at(0.5), tl);
+  const transfer = openingAccent(at(tl.drawDuration + tl.emergeDuration * 0.15), tl);
+  const hold = openingAccent(at(tl.drawDuration + tl.emergeDuration + 1), tl);
+  const seam = openingAccent(at(cycle - 1 / 60), tl);
+  assert.equal(before.energy, 0);
+  assert.ok(transfer.energy > 0.05);
+  assert.ok(transfer.dolly > 0);
+  assert.equal(hold.energy, 0);
+  assert.equal(hold.dolly, 0);
+  assert.equal(seam.energy, 0);
+  for (const local of [0.2, 1, 2.7, 3.4, 4.8, cycle - 1 / 60]) {
+    const a = openingAccent(at(local), tl), b = openingAccent(at(local + cycle), tl);
+    for (const key of ["energy", "travel", "dolly"]) assert.ok(Math.abs(a[key] - b[key]) < 1e-9);
+  }
 });
 
 test("угловой свет плавно уступает место собранной композиции", () => {

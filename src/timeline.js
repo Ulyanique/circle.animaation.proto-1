@@ -88,6 +88,19 @@ export function heroGlint(phase, tl) {
   return { intensity, position };
 }
 
+/** Первый ролик: при передаче построительной линии знаку световая волна
+ * разбегается по сцене и камера плавно входит в готовую композицию.
+ * Огибающая тождественно нулевая на удержании и на пиксельном шве. */
+export function openingAccent(phase, tl) {
+  const start = tl.drawDuration * 0.92;
+  const span = Math.max(0.25, tl.emergeDuration * 0.77);
+  const travel = clamp01((phase.local - start) / span);
+  const energy = smooth(0, 0.18, travel) * (1 - smooth(0.60, 1, travel));
+  const dolly = smooth(tl.drawDuration * 0.3, start, phase.local) *
+    (1 - smooth(start, start + tl.emergeDuration * 0.95, phase.local));
+  return { travel, energy, dolly };
+}
+
 /** Угловой свет уступает внимание логотипу и тексту, пока дописывается название. */
 export function compositionFocus(phase, tl) {
   const settle = tl.drawDuration + tl.emergeDuration;
