@@ -41,6 +41,7 @@
 нажмите «Сброс сцены» — сохранённые в браузере значения перекроют код до сброса.
 
 ### Основные группы параметров
+- `typography.font` — шрифт титров для текущей сцены: Cormorant Garamond, Playfair Display, Prata, PT Serif, Manrope или Unbounded. Выбор сохраняется в JSON; шрифты входят в сборку.
 - `logo.depth`, `logo.bevel`, `logo.outlineWidthPx` — толщина логотипа, скос и контур (логотип растёт во время проявления).
 - `lights.topGlow` — свечение над логотипом (центр кадра).
 - `background.lowerShade` — затемнение нижнего левого угла; `background.godRays`, `background.brushed`, `background.fog` — лучи, диагональная текстура и туман.

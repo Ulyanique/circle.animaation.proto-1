@@ -142,6 +142,18 @@ export function createSettingsUI({
             out.textContent = fmt(holder[f.key]);
             commit();
           });
+        } else if (f.type === "select") {
+          const input = document.createElement("select");
+          input.dataset.key = `${section.id}.${f.key}`;
+          for (const option of f.options) {
+            const el = document.createElement("option");
+            el.value = option.value; el.textContent = option.label;
+            input.appendChild(el);
+          }
+          input.value = holder[f.key];
+          input.addEventListener("change", () => { holder[f.key] = input.value; commit(); });
+          inputs.push({ set: () => { input.value = holder[f.key]; } });
+          row.appendChild(input);
         } else if (f.type === "color") {
           const input = document.createElement("input");
           input.type = "color";

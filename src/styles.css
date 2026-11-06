@@ -407,3 +407,8 @@ body.operator-idle:not(.ui-on) .cfg-toggle { opacity: .55; }
   text-transform: uppercase; -webkit-text-stroke: calc(var(--u) * 0.035) #d9b061;
 }
 .cap-date .cap-glyph::after { color: #d9b061; }
+.cfg-select select {
+  max-width: 180px; padding: 5px 8px; color: var(--text);
+  background: #252018; border: 1px solid rgba(217,176,97,.35);
+  border-radius: 5px; font: inherit; cursor: pointer;
+}

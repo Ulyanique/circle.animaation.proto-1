@@ -50,7 +50,7 @@ export function drawCaption(ctx, alpha, sceneId) {
   const cap = document.getElementById("caption");
   const scale = W / (parseFloat(cap?.style.width) || W);
   const drift = parseFloat(cap?.style.getPropertyValue("--drift")) || 0;
-  const font = (w, size) => `${w} ${size}px "Cormorant Garamond", Georgia, serif`;
+  const font = (w, size, family) => `${w} ${size}px ${family}`;
   ctx.save();
   ctx.translate(0, drift * scale);
   ctx.globalAlpha = alpha;
@@ -70,7 +70,7 @@ export function drawCaption(ctx, alpha, sceneId) {
     const y = centerY + lineBaseline(element, style, language) * scale;
     const glyphs = [...element.querySelectorAll(".cap-glyph")]
       .map((span) => transformGlyph(span.textContent, style.textTransform, language));
-    ctx.font = font(o.weight, o.size);
+    ctx.font = font(o.weight, o.size, style.fontFamily);
     // После uppercase одна графема может содержать несколько букв (например, ß → SS).
     // Межбуквенный интервал внутри неё должен совпадать с CSS, но reveal остаётся общим.
     const nativeSpacing = "letterSpacing" in ctx;

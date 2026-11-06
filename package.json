@@ -22,7 +22,8 @@
     "render:frames": "node scripts/render-loop.cjs",
     "render:storyboard": "node scripts/render-storyboard.cjs",
     "render:encode": "bash scripts/encode-loop.sh",
-    "verify:settings": "node scripts/verify-settings.cjs"
+    "verify:settings": "node scripts/verify-settings.cjs",
+    "verify:fonts": "node scripts/verify-fonts.cjs"
   },
   "dependencies": {
     "postprocessing": "^6.39.5",
@@ -30,6 +31,11 @@
   },
   "devDependencies": {
     "@fontsource/cormorant-garamond": "^5.3.0",
+    "@fontsource/manrope": "^5.3.0",
+    "@fontsource/playfair-display": "^5.3.0",
+    "@fontsource/prata": "^5.3.0",
+    "@fontsource/pt-serif": "^5.3.0",
+    "@fontsource/unbounded": "^5.3.0",
     "pngjs": "^7.0.0",
     "puppeteer-core": "^23.11.1",
     "typescript": "^5.9.3",

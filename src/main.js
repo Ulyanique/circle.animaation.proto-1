@@ -1,6 +1,6 @@
 import "./styles.css";
-import "@fontsource/cormorant-garamond/cyrillic-400.css";
-import "@fontsource/cormorant-garamond/cyrillic-600.css";
+import "./font-assets.js";
+import { fontName, loadFonts } from "./fonts.js";
 import {
   cloneDefaults, loadSceneConfig, saveSceneConfig, replaceConfig, mergeConfig, projectToJSON,
 } from "./config.js";
@@ -41,7 +41,7 @@ function applySceneConfig(id, next) {
   // Присланный фрагмент накладывается на умолчания сцены: частичный JSON не ломает рендер.
   replaceConfig(configFor(id), mergeConfig(sceneById(id).defaults, next));
   saveScene(id);
-  if (id === sceneId) runtime.renderAt(runtime.time, 1 / OUTPUT.fps);
+  if (id === sceneId) { applyTypography(); runtime.renderAt(runtime.time, 1 / OUTPUT.fps); }
 }
 let cfg = configFor(sceneId);
 let canvas = document.getElementById("stage");
@@ -86,6 +86,11 @@ function activateClasses(id) {
 }
 activateClasses(sceneId);
 activateText(sceneId);
+function applyTypography() {
+  const cap = document.getElementById("caption");
+  cap.style.fontFamily = `"${fontName(cfg.typography?.font)}", Georgia, serif`;
+}
+applyTypography();
 
 const adapters = { waiting: LogoScene, brand: BrandScene,
   "photo-pause": PhotoPauseScene, finale: FinaleScene };
@@ -103,7 +108,7 @@ const settings = createSettingsUI({
   setScene: (id) => switchScene(id),
   onConfigChange: (id) => {
     saveScene(id);
-    if (id === sceneId) runtime.renderAt(runtime.time, 1 / OUTPUT.fps);
+    if (id === sceneId) { applyTypography(); runtime.renderAt(runtime.time, 1 / OUTPUT.fps); }
   },
   onApplyScene: (id, next) => applySceneConfig(id, next),
   onApplyProject: (scenes) => {
@@ -214,6 +219,7 @@ function switchScene(id, source) {
   runtime = new AnimationRuntime(scene, cfg, OUTPUT.fps);
   activateClasses(id);
   activateText(id);
+  applyTypography();
   runtime.renderAt(cfg.timeline.startDelay, 1 / OUTPUT.fps);
   oldScene.dispose();
   // Панель настроек остаётся открытой и переключается на настройки новой сцены.
@@ -417,10 +423,7 @@ function frame(now) {
   // Это также защищает титр от вспышки системного шрифта при медленном запуске.
   if (!firstFrameRendered) {
     firstFrameRendered = true;
-    const fonts = document.fonts ? Promise.allSettled([
-      document.fonts.load('600 72px "Cormorant Garamond"', 'Янтарный циркуль'),
-      document.fonts.load('400 26px "Cormorant Garamond"', 'Вечер ретроспектива'),
-    ]) : Promise.resolve();
+    const fonts = loadFonts().catch((error) => console.warn("Не удалось загрузить шрифты", error));
     fonts.then(() => window.__bootReady?.());
   }
   operator.refresh();

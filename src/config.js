@@ -1,3 +1,4 @@
+import { FONTS } from "./fonts.js";
 import { WAITING_DEFAULTS } from "./scenes/waiting.js";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -10,6 +11,9 @@ export const DEFAULTS = WAITING_DEFAULTS;
 
 // Схема UI: группы → поля. type: range | color | bool
 export const SCHEMA = [
+  { id: "typography", title: "Типографика", fields: [
+    { key: "font", label: "Шрифт", type: "select", options: FONTS.map(({ id, name }) => ({ value: id, label: name })) },
+  ] },
   {
     id: "timeline", title: "Таймлайн (сек)", fields: [
       { key: "drawDuration", label: "Прорисовка контура", type: "range", min: 0.5, max: 8, step: 0.05 },
