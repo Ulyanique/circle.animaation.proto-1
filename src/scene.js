@@ -1,3 +1,4 @@
+import { editorViewport } from "./editor-layers.js";
 import * as THREE from "three";
 import { OUTPUT } from "./scenes/catalog.js";
 import {
@@ -180,14 +181,20 @@ export class LogoScene {
   resize() {
     // внутренний рендер фиксирован 1920×1080 (pixelRatio = 1); на экран кадр масштабируется с letterbox
     const RW = OUTPUT.width, RH = OUTPUT.height, ASPECT = RW / RH;
-    const W = window.innerWidth, H = window.innerHeight;
+    const view = editorViewport(window.innerWidth, window.innerHeight, document.body.classList.contains("editor-on"));
+    const W = view.width, H = view.height;
     let cw = W, ch = W / ASPECT;
     if (ch > H) { ch = H; cw = H * ASPECT; }
+    const centerX = view.left + W / 2, centerY = view.top + H / 2;
+    this.renderer.domElement.style.left = centerX + "px";
+    this.renderer.domElement.style.top = centerY + "px";
     this.renderer.domElement.style.width = Math.round(cw) + "px";
     this.renderer.domElement.style.height = Math.round(ch) + "px";
     // подпись повторяет рамку канваса: --u = 1% ширины кадра
     const cap = document.getElementById("caption");
     if (cap) {
+      cap.style.left = centerX + "px";
+      cap.style.top = centerY + "px";
       cap.style.width = Math.round(cw) + "px";
       cap.style.height = Math.round(ch) + "px";
       cap.style.setProperty("--u", (cw / 100).toFixed(3) + "px");

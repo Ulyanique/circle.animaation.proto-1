@@ -174,6 +174,7 @@ editor = createFrameEditor({
     return true;
   },
   onChange: () => { applyTypography(); saveScene(); settings.refresh(); },
+  onLayoutChange: () => { scene.resize(); applyTypography(true); },
   onSettings: (section) => settings.openSection(section),
   onHistoryConflict: () => toast("Настройка изменилась вне редактора; история сцены очищена", true),
 });

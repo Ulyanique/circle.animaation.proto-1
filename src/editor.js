@@ -2,9 +2,10 @@ import * as THREE from 'three';
 import { moveLogo, moveTitle, snapRect, resizeFromDistance } from './editor-math.js';
 import { EditorHistory } from './editor-history.js';
 import { validCustomColor } from './caption-content.js';
+import { EDITOR_LAYERS, layersForScene } from './editor-layers.js';
 
 /** Рамки редактора находятся только в DOM и не попадают в экспорт. */
-export function createFrameEditor({ getState, onEnable, onChange, onSettings, onHistoryConflict }) {
+export function createFrameEditor({ getState, onEnable, onChange, onLayoutChange, onSettings, onHistoryConflict }) {
   const toggle = document.createElement('button');
   toggle.type = 'button'; toggle.className = 'editor-toggle';
   toggle.textContent = 'Редактировать'; toggle.setAttribute('aria-pressed', 'false');
@@ -19,7 +20,7 @@ export function createFrameEditor({ getState, onEnable, onChange, onSettings, on
   const history = new EditorHistory();
   const historyBar = document.createElement('div');
   historyBar.className = 'editor-history';
-  historyBar.innerHTML = '<button type="button" data-history="undo" title="Отменить (Ctrl+Z)" aria-label="Отменить">↶ Отменить</button><button type="button" data-history="redo" title="Повторить (Ctrl+Shift+Z или Ctrl+Y)" aria-label="Повторить">↷ Повторить</button>';
+  historyBar.innerHTML = '<button type="button" data-history="undo" title="Отменить (Ctrl+Z)" aria-label="Отменить">↶ Отменить</button><button type="button" data-history="redo" title="Повторить (Ctrl+Shift+Z или Ctrl+Y)" aria-label="Повторить">↷ Повторить</button><button type="button" class="editor-panel-toggle" data-panel="layers" aria-expanded="false">Слои</button><button type="button" class="editor-panel-toggle" data-panel="inspector" aria-expanded="false">Свойства</button>';
   layer.appendChild(historyBar);
   const undoButton = historyBar.querySelector('[data-history="undo"]');
   const redoButton = historyBar.querySelector('[data-history="redo"]');
@@ -30,7 +31,7 @@ export function createFrameEditor({ getState, onEnable, onChange, onSettings, on
     layer.appendChild(guide); guides[axis] = guide;
   }
   const boxes = {};
-  for (const [id, label] of [['logo', 'Логотип'], ['title', 'Название'], ['subtitle', 'Подзаголовок'], ['date', 'Дата'], ['photoLabel', 'Надпись по кругу'], ['brandDecor', 'Построительная окружность']]) {
+  for (const {id, label} of EDITOR_LAYERS) {
     const box = document.createElement('button');
     box.type = 'button'; box.className = 'editor-box'; box.dataset.element = id;
     box.setAttribute('aria-label', `${label}: перетащить, переместить стрелками или изменить размер клавишами плюс и минус`);
@@ -38,9 +39,34 @@ export function createFrameEditor({ getState, onEnable, onChange, onSettings, on
     if (id === 'photoLabel' || id === 'brandDecor') box.classList.add('editor-handle');
     layer.appendChild(box); boxes[id] = box;
   }
+  const layersPanel = document.createElement('aside');
+  layersPanel.className = 'editor-sidebar editor-layers';
+  layersPanel.setAttribute('aria-label', 'Элементы сцены');
+  layersPanel.innerHTML = '<div class="editor-sidebar-heading"><span>СЦЕНА</span><h2>Элементы</h2></div><div class="editor-layers-list"></div><p class="editor-sidebar-note">Доступные для редактирования элементы шаблона</p>';
+  const layerList = layersPanel.querySelector('.editor-layers-list');
+  const rows = {};
+  for (const item of EDITOR_LAYERS) {
+    const button = document.createElement('button');
+    button.type = 'button'; button.className = 'editor-layer-row'; button.dataset.layer = item.id;
+    button.setAttribute('aria-pressed', 'false');
+    const icon = document.createElement('span'); icon.className = 'editor-layer-icon';
+    icon.textContent = item.kind === 'Текст' ? 'Т' : item.kind === 'Декор' ? '◯' : '◇';
+    const text = document.createElement('span'); text.className = 'editor-layer-name';
+    const title = document.createElement('strong'); title.textContent = item.label;
+    const kind = document.createElement('small'); kind.textContent = item.kind;
+    text.append(title, kind); button.append(icon, text); layerList.appendChild(button);
+    rows[item.id] = button;
+    button.addEventListener('click', () => select(item.id, true));
+  }
+  layer.appendChild(layersPanel);
+  const inspector = document.createElement('aside');
+  inspector.className = 'editor-sidebar editor-inspector';
+  inspector.setAttribute('aria-label', 'Свойства элемента');
+  inspector.innerHTML = '<div class="editor-sidebar-heading"><span>РЕДАКТОР</span><h2>Свойства</h2></div><p class="editor-empty">Выберите элемент на кадре или в списке слева</p>';
+  const empty = inspector.querySelector('.editor-empty');
   const menu = document.createElement('div');
   menu.className = 'editor-menu'; menu.hidden = true;
-  menu.innerHTML = `<div class="editor-appearance">
+  menu.innerHTML = `<div class="editor-selected-label" data-selected-label></div><div class="editor-appearance">
     <label data-field="text">Текст <input type="text" data-appearance="text" maxlength="120" autocomplete="off"></label>
     <label data-field="color"><span data-color-label>Цвет</span> <input type="color" data-appearance="color"></label>
     <div class="editor-appearance-reset"><button type="button" data-action="reset-text">Исходный текст</button><button type="button" data-action="reset-color">Исходный цвет</button></div>
@@ -49,7 +75,18 @@ export function createFrameEditor({ getState, onEnable, onChange, onSettings, on
   const colorInput = menu.querySelector('[data-appearance="color"]');
   const textRow = menu.querySelector('[data-field="text"]');
   const resetTextButton = menu.querySelector('[data-action="reset-text"]');
-  layer.appendChild(menu); document.body.appendChild(layer);
+  inspector.appendChild(menu); layer.appendChild(inspector); document.body.appendChild(layer);
+  const panelToggles = Object.fromEntries([...historyBar.querySelectorAll('[data-panel]')].map(button => [button.dataset.panel, button]));
+  function setCompactPanel(name) {
+    for (const [key, panel] of [['layers', layersPanel], ['inspector', inspector]]) {
+      const open = key === name;
+      panel.classList.toggle('compact-open', open);
+      panelToggles[key].setAttribute('aria-expanded', String(open));
+    }
+  }
+  for (const [name, button] of Object.entries(panelToggles)) {
+    button.addEventListener('click', () => setCompactPanel(button.getAttribute('aria-expanded') === 'true' ? null : name));
+  }
 
   const bbox = new THREE.Box3(), point = new THREE.Vector3(), ray = new THREE.Raycaster();
   const plane = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0);
@@ -137,7 +174,7 @@ export function createFrameEditor({ getState, onEnable, onChange, onSettings, on
     finishInput();
     const state = getState();
     const result = history.apply(state.id, state.config, direction);
-    if (result === 'applied') { menu.hidden = true; onChange(); refresh(); }
+    if (result === 'applied') { onChange(); if (selected) populateAppearance(selected); refresh(); }
     if (result === 'conflict') onHistoryConflict?.();
     updateHistory();
   }
@@ -165,17 +202,35 @@ export function createFrameEditor({ getState, onEnable, onChange, onSettings, on
     return ray.ray.intersectPlane(plane, new THREE.Vector3());
   }
   function select(id, showMenu) {
+    if (!layersForScene(getState().id).some(item => item.id === id)) return;
     finishInput();
     selected = id;
     for (const [name, box] of Object.entries(boxes)) box.classList.toggle('selected', name === id);
-    menu.hidden = !showMenu;
-    if (showMenu) populateAppearance(id);
+    for (const [name, row] of Object.entries(rows)) row.setAttribute('aria-pressed', String(name === id));
+    menu.hidden = false; empty.hidden = true;
+    menu.querySelector('[data-selected-label]').textContent = EDITOR_LAYERS.find(item => item.id === id).label;
+    populateAppearance(id);
+    if (showMenu && window.matchMedia('(max-width: 999px)').matches) setCompactPanel('inspector');
     refresh();
   }
   function refresh() {
     if (!enabled) return;
     updateHistory();
-    const { scene, canvas, id } = getState();
+    const { scene, canvas, id, config } = getState();
+    const available = new Set(layersForScene(id).map(item => item.id));
+    for (const item of EDITOR_LAYERS) {
+      const row = rows[item.id];
+      row.hidden = !available.has(item.id);
+      const isOff = item.id === 'photoLabel' ? config.photo?.textEnabled === false : item.id === 'brandDecor' ? config.decor?.enabled === false : false;
+      const status = isOff ? `${item.kind} · выключен в настройках` : item.kind;
+      if (row.querySelector('small').textContent !== status) row.querySelector('small').textContent = status;
+    }
+    if (selected && !available.has(selected)) {
+      finishInput(); selected = null; menu.hidden = true; empty.hidden = false;
+      for (const row of Object.values(rows)) row.setAttribute('aria-pressed', 'false');
+      for (const box of Object.values(boxes)) box.classList.remove('selected');
+    }
+    if (selected && !inputSession && !menu.contains(document.activeElement)) populateAppearance(selected);
     snapRects = {};
     const rect = canvas.getBoundingClientRect();
     scene.logo.root.updateWorldMatrix(true, true);
@@ -226,11 +281,7 @@ export function createFrameEditor({ getState, onEnable, onChange, onSettings, on
     const decor = scene.brandDecor;
     handle('brandDecor', id === 'brand' && !!decor?.group.visible,
       decor?.group.position, getState().config.decor?.radius ?? 0);
-    if (selected && !menu.hidden && !boxes[selected].hidden) {
-      const r = boxes[selected].getBoundingClientRect();
-      menu.style.left = `${Math.max(4, Math.min(window.innerWidth - menu.offsetWidth - 4, r.left))}px`;
-      menu.style.top = `${Math.max(4, Math.min(window.innerHeight - menu.offsetHeight - 4, r.bottom + 6))}px`;
-    }
+
   }
   function disable() {
     finishInput();
@@ -238,7 +289,13 @@ export function createFrameEditor({ getState, onEnable, onChange, onSettings, on
       record(drag.sceneId, drag.config, drag.before);
       drag = null;
     }
-    enabled = false; selected = null; drag = null; layer.hidden = true; menu.hidden = true;
+    if (!enabled) return;
+    enabled = false; selected = null; drag = null; layer.hidden = true; menu.hidden = true; empty.hidden = false;
+    document.body.classList.remove('editor-on');
+    setCompactPanel(null);
+    for (const row of Object.values(rows)) row.setAttribute('aria-pressed', 'false');
+    for (const box of Object.values(boxes)) box.classList.remove('selected');
+    onLayoutChange?.();
     guides.x.hidden = guides.y.hidden = true;
     toggle.textContent = 'Редактировать'; toggle.setAttribute('aria-pressed', 'false');
   }
@@ -246,6 +303,8 @@ export function createFrameEditor({ getState, onEnable, onChange, onSettings, on
     if (enabled) { disable(); return; }
     if (!onEnable()) return;
     enabled = true; layer.hidden = false;
+    document.body.classList.add('editor-on');
+    onLayoutChange?.();
     toggle.textContent = 'Готово'; toggle.setAttribute('aria-pressed', 'true');
     refresh();
   });
@@ -314,7 +373,7 @@ export function createFrameEditor({ getState, onEnable, onChange, onSettings, on
     box.addEventListener('pointercancel', cancelDrag);
     box.addEventListener('lostpointercapture', () => { if (drag) cancelDrag(); });
     box.addEventListener('contextmenu', (event) => { event.preventDefault(); select(id, true); });
-    box.addEventListener('keydown', (event) => {
+    const handleElementKey = (event) => {
       if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); event.stopPropagation(); select(id, true); return; }
       if (event.key === '+' || event.key === '=' || event.key === '-') {
         event.preventDefault(); event.stopPropagation();
@@ -338,7 +397,9 @@ export function createFrameEditor({ getState, onEnable, onChange, onSettings, on
         cfg.caption[`${id}X`] = p.x; cfg.caption[`${id}Y`] = p.y;
       }
       record(state.id, cfg, before); select(id, false); onChange();
-    });
+    };
+    box.addEventListener('keydown', handleElementKey);
+    rows[id].addEventListener('keydown', handleElementKey);
   }
   menu.addEventListener('click', (event) => {
     const action = event.target.closest('button')?.dataset.action;
@@ -395,8 +456,7 @@ export function createFrameEditor({ getState, onEnable, onChange, onSettings, on
       }
       onChange();
     }
-    if (action !== 'settings') record(state.id, state.config, before);
-    menu.hidden = true;
+    if (action !== 'settings') { record(state.id, state.config, before); populateAppearance(selected); }
   });
   window.addEventListener('keydown', (event) => {
     if (!enabled) return;

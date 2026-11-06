@@ -579,3 +579,42 @@ body.operator-idle:not(.ui-on) .cfg-toggle { opacity: .55; }
 .editor-appearance input[type="color"] { width: 44px; height: 28px; border: 1px solid #7c6744; background: transparent; cursor: pointer; }
 .editor-appearance-reset { display: flex; gap: 4px; }
 .editor-appearance-reset button { padding: 5px; font-size: 10px; }
+
+/* Пространство редактора: панели вынесены из кадра, а инспектор остаётся открытым. */
+.editor-sidebar { position: fixed; top: 78px; bottom: 140px; pointer-events: auto; z-index: 4;
+  background: #141310; border: 1px solid rgba(217,176,97,.23); border-radius: 6px;
+  color: #ddd7c9; overflow-y: auto; font: 12px/1.4 system-ui, sans-serif; }
+.editor-layers { left: 12px; width: 196px; }
+.editor-inspector { right: 12px; width: 266px; }
+.editor-sidebar-heading { padding: 17px 15px 13px; border-bottom: 1px solid #38342d; }
+.editor-sidebar-heading span { color: #97866a; font-size: 9px; letter-spacing: .14em; font-weight: 600; }
+.editor-sidebar-heading h2 { margin: 5px 0 0; font-size: 15px; color: #f0e8d8; font-weight: 600; }
+.editor-sidebar-note, .editor-empty { padding: 0 15px; color: #9b9488; font-size: 11px; line-height: 1.5; }
+.editor-layers-list { padding: 8px; display: grid; gap: 3px; }
+.editor-layer-row { display: flex; gap: 10px; align-items: center; width: 100%; min-width: 0; padding: 9px 8px;
+  background: transparent; border: 1px solid transparent; border-radius: 4px; color: #dfd8cb; text-align: left; cursor: pointer; }
+.editor-layer-row[hidden] { display: none; }
+.editor-layer-row:hover, .editor-layer-row:focus-visible { background: #25221c; }
+.editor-layer-row[aria-pressed="true"] { background: #30281b; border-color: #947744; color: #ffe3a6; }
+.editor-layer-icon { display: grid; place-items: center; flex: 0 0 30px; height: 30px; border: 1px solid #5e5038; border-radius: 4px; color: #d2b67d; font-size: 16px; }
+.editor-layer-name { display: grid; min-width: 0; gap: 2px; }
+.editor-layer-name strong { font-size: 12px; font-weight: 500; overflow-wrap: anywhere; }
+.editor-layer-name small { color: #91897b; font-size: 10px; }
+.editor-inspector .editor-menu { position: static; width: auto; min-width: 0; max-height: none; overflow: visible; padding: 8px;
+  border: 0; border-radius: 0; background: transparent; box-shadow: none; }
+.editor-selected-label { padding: 6px 7px 10px; color: #e9ce98; font-weight: 600; font-size: 13px; overflow-wrap: anywhere; }
+.editor-inspector .editor-appearance { padding: 8px 7px 12px; }
+.editor-inspector .editor-appearance input[type="text"] { flex: 1; width: auto; }
+.editor-panel-toggle { display: none; }
+body.editor-on.operator-idle:not(.ui-on) .operator-panel { opacity: 1; pointer-events: auto; }
+@media (max-width: 999px) {
+  .editor-hint { display: none; }
+  .editor-history { top: 58px; left: 12px; right: 12px; flex-wrap: wrap; }
+  .editor-history button { padding: 6px 8px; }
+  .editor-panel-toggle { display: block; }
+  .editor-sidebar { top: 100px; bottom: min(175px, 32vh); box-shadow: 0 8px 26px #000b; }
+  .editor-sidebar:not(.compact-open) { display: none; }
+  .editor-layers { width: min(230px, calc(100vw - 24px)); }
+  .editor-inspector { width: min(266px, calc(100vw - 24px)); }
+  body.editor-on .operator-panel { max-height: calc(min(175px, 32vh) - 18px); overflow-y: auto; }
+}

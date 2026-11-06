@@ -9,6 +9,7 @@ import * as THREE from 'three';
 import { createFrameEditor } from '/src/editor.js';
 import { drawCaption } from '/src/caption-compositor.js';
 import { syncCaptionContent } from '/src/caption-content.js';
+import { editorViewport } from '/src/editor-layers.js';
 const root = new THREE.Group();
 const mesh = new THREE.Mesh(new THREE.BoxGeometry(2, 2, 0.1), new THREE.MeshBasicMaterial());
 root.add(mesh); root.position.y = 1.1;
@@ -22,7 +23,17 @@ config.decor = {offsetX: 0, offsetY: 0, radius: 1.2, color: '#d9b268'};
 const state = { scene: { logo: { root, mesh }, camera, circularLabel, brandDecor: {group: brandGroup} }, canvas: document.querySelector('#stage'),
   config, defaults: structuredClone(config), id: 'waiting' };
 const cap = document.querySelector('#caption');
-const editor = createFrameEditor({ getState: () => state, onEnable: () => true, onChange: () => {
+function layout() {
+  const view = editorViewport(innerWidth, innerHeight, document.body.classList.contains('editor-on'));
+  const width = Math.min(view.width, view.height * 16 / 9), height = width * 9 / 16;
+  for (const el of [state.canvas, cap]) {
+    el.style.left = `${view.left + view.width / 2}px`; el.style.top = `${view.top + view.height / 2}px`;
+    el.style.width = `${Math.round(width)}px`; el.style.height = `${Math.round(height)}px`;
+  }
+  cap.style.setProperty('--u', `${width / 100}px`);
+}
+window.addEventListener('resize', () => { layout(); editor.refresh(); });
+const editor = createFrameEditor({ onLayoutChange: layout, getState: () => state, onEnable: () => true, onChange: () => {
   root.position.set(config.logo.offsetX, config.logo.offsetY, 0); root.scale.setScalar(config.logo.scale);
   circularLabel.position.set(root.position.x + config.photo.offsetX, root.position.y + config.photo.offsetY, 0.1);
   brandGroup.position.set(root.position.x + config.decor.offsetX, root.position.y + config.decor.offsetY, -0.25);
@@ -47,7 +58,7 @@ window.editorFixture = { editor, state, exportedTitle() {
   drawCaption(ctx, 1, 'waiting');
   return fontSize;
 }, activate(id) {
-  state.id = id; document.body.className = `scene-${id === 'photo-pause' ? 'photo' : id}`;
+  state.id = id; document.body.className = `scene-${id === 'photo-pause' ? 'photo' : id} editor-on`;
   config.logo.offsetX = 0; config.logo.offsetY = id === 'photo-pause' ? 0 : 0.6;
   root.position.set(config.logo.offsetX, config.logo.offsetY, 0);
   circularLabel.position.set(root.position.x + config.photo.offsetX, root.position.y + config.photo.offsetY, 0.1);

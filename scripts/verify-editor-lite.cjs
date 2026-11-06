@@ -3,7 +3,7 @@
 const assert = require('node:assert/strict');
 const { launchBrowser } = require('./browser.cjs');
 (async () => {
-  const browser = await launchBrowser({ width: 960, height: 540 });
+  const browser = await launchBrowser({ width: 1440, height: 900 });
   try {
     const page = await browser.newPage(), errors = [];
     page.on('pageerror', e => errors.push(e.message));
@@ -15,6 +15,20 @@ const { launchBrowser } = require('./browser.cjs');
     });
     assert.ok(descender.top < 0 && descender.bottom < 0 && descender.padding > 0, 'нет запаса для нижних элементов букв');
     await page.click('.editor-toggle');
+    const layout = await page.evaluate(() => {
+      const bounds = sel => { const r = document.querySelector(sel).getBoundingClientRect(); return {left:r.left, right:r.right, top:r.top, bottom:r.bottom}; };
+      return { frame: bounds('#stage'), layers: bounds('.editor-layers'), inspector: bounds('.editor-inspector') };
+    });
+    assert.ok(layout.layers.right <= layout.frame.left && layout.inspector.left >= layout.frame.right, 'панели перекрывают кадр');
+    assert.deepEqual(await page.$$eval('[data-layer]:not([hidden])', els => els.map(el => el.dataset.layer)), ['logo', 'title', 'subtitle', 'date']);
+    await page.click('[data-layer=title]');
+    assert.equal(await page.$eval('[data-element=title]', el => el.classList.contains('selected')), true);
+    assert.equal(await page.$eval('[data-selected-label]', el => el.textContent), 'Название');
+    await page.focus('[data-layer=title]'); await page.keyboard.press('ArrowRight');
+    assert.ok(await page.evaluate(() => window.editorFixture.state.config.caption.titleX) > 0, 'клавиатура не работает из списка');
+    await page.click('[data-history=undo]');
+    assert.equal(await page.evaluate(() => window.editorFixture.state.config.caption.titleX), 0);
+    assert.equal(await page.$eval('.editor-menu', el => el.hidden), false, 'инспектор закрылся после отмены');
     async function drag(selector, dx, dy) {
       const p = await page.$eval(selector, el => { const r = el.getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; });
       await page.mouse.move(p.x, p.y); await page.mouse.down();
@@ -108,6 +122,8 @@ const { launchBrowser } = require('./browser.cjs');
     await page.click('[data-action=reset]');
     assert.equal(await page.evaluate(() => window.editorFixture.state.config.caption.subtitleX), 0);
     await page.evaluate(() => window.editorFixture.activate('photo-pause'));
+    assert.deepEqual(await page.$$eval('[data-layer]:not([hidden])', els => els.map(el => el.dataset.layer)), ['logo', 'photoLabel']);
+    assert.equal(await page.$eval('.editor-empty', el => el.hidden), false, 'старый выбранный элемент остался в другой сцене');
     await page.click('[data-element=photoLabel]');
     await page.$eval('[data-appearance=text]', el => { el.focus(); el.value = 'КАДРЫ'; el.dispatchEvent(new Event('input', {bubbles:true})); el.dispatchEvent(new Event('change', {bubbles:true})); });
     await page.$eval('[data-appearance=color]', el => { el.focus(); el.value = '#33aa66'; el.dispatchEvent(new Event('input', {bubbles:true})); el.dispatchEvent(new Event('change', {bubbles:true})); });
@@ -137,6 +153,7 @@ const { launchBrowser } = require('./browser.cjs');
     await page.click('[data-action=reset]');
     assert.equal(await page.evaluate(() => window.editorFixture.state.config.photo.offsetX), 0);
     await page.evaluate(() => window.editorFixture.activate('brand'));
+    assert.deepEqual(await page.$$eval('[data-layer]:not([hidden])', els => els.map(el => el.dataset.layer)), ['logo', 'title', 'brandDecor']);
     await resize('brandDecor', 0, -25);
     assert.ok(await page.evaluate(() => window.editorFixture.state.config.decor.radius) > 1.2);
     await page.click('[data-element=brandDecor]'); await page.click('[data-action=reset-size]');
@@ -155,6 +172,20 @@ const { launchBrowser } = require('./browser.cjs');
     assert.equal(await page.$eval('[data-history=undo]', el => el.disabled), false, 'несвязанная настройка стёрла историю');
     await page.evaluate(() => window.editorFixture.editor.invalidateHistory('brand', 'decor', 'offsetX'));
     assert.equal(await page.$eval('[data-history=undo]', el => el.disabled), true, 'связанная внешняя правка не очистила историю');
+    await page.setViewport({width: 700, height: 700});
+    assert.equal(await page.$eval('.editor-layers', el => getComputedStyle(el).display), 'none');
+    await page.click('[data-panel=layers]');
+    assert.notEqual(await page.$eval('.editor-layers', el => getComputedStyle(el).display), 'none');
+    await page.click('[data-layer=title]');
+    assert.notEqual(await page.$eval('.editor-inspector', el => getComputedStyle(el).display), 'none');
+    assert.equal(await page.$eval('.editor-layers', el => getComputedStyle(el).display), 'none');
+    assert.equal(await page.$eval('[data-panel=inspector]', el => el.getAttribute('aria-expanded')), 'true');
+    await page.click('[data-panel=inspector]');
+    assert.equal(await page.$eval('.editor-inspector', el => getComputedStyle(el).display), 'none');
+    await page.click('.editor-toggle');
+    assert.equal(await page.evaluate(() => document.body.classList.contains('editor-on')), false);
+    const restored = await page.$eval('#stage', el => { const r = el.getBoundingClientRect(); return {x:r.left+r.width/2,y:r.top+r.height/2}; });
+    assert.ok(Math.abs(restored.x - 350) < 1 && Math.abs(restored.y - 350) < 1, 'кадр не вернулся после закрытия');
     assert.deepEqual(errors, []);
     console.log('Редактор: отмена и повтор, масштаб, экспорт, прилипание и перенос — OK; запас для букв — OK');
   } finally { await browser.close(); }
