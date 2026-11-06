@@ -546,3 +546,16 @@ body.operator-idle:not(.ui-on) .operator-panel:not(.operator-exporting):hover {
   .operator-scenes button { padding: 2px 4px; }
   .cfg-tools { flex-wrap: wrap; }
 }
+
+/* ── Фаза 1: единый canvas-титр ───────────────────────────────────────────── */
+/* DOM остаётся скрытым семантическим зеркалом для тестов и доступности. */
+#caption { visibility: hidden !important; }
+#caption-layer {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  display: block;
+  pointer-events: none;
+  z-index: 10;
+}

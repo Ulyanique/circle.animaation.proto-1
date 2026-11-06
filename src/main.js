@@ -13,6 +13,7 @@ import {
   loadProject, saveProject, mergeProject, projectToJSON, projectToURL,
 } from "./config.js";
 import { applyCaptionFont } from "./fonts.js";
+import { CaptionRenderer } from "./caption-renderer.js";
 import { IntroScene } from "./intro-scene.js";
 import { BrandScene } from "./brand-scene.js";
 import { PhotoPauseScene } from "./photo-pause-scene.js";
@@ -41,6 +42,9 @@ let scene = null;
 let runtime = null;
 let settings = null;
 let operator = null;
+let captionLayer = null;
+let captionLayerCtx = null;
+let captionRenderer = null;
 const toastEl = document.getElementById("toast");
 let toastTimer = 0;
 function toast(msg, isError = false) {
@@ -118,6 +122,7 @@ function applyCaptionConfig() {
     lastFontKey = key;
     applyCaptionFont(cfg).catch((e) => console.warn("Не удалось применить шрифт", e));
   }
+  drawLiveCaption();
 }
 
 /** Импорт JSON проекта без замены объектов сцен: ссылки scene.cfg остаются живыми. */
@@ -131,6 +136,7 @@ function applyProjectText(text, asDefaults = false) {
   applyCaptionConfig();
   scene?.applyStatic?.();
   runtime?.renderAt?.(runtime.time, 1 / OUTPUT.fps);
+  drawLiveCaption();
   settings?.refresh?.();
   operator?.refresh?.();
   return asDefaults;
@@ -144,6 +150,7 @@ settings = createSettingsUI(project, {
     applyCaptionConfig();
     scene?.applyStatic?.();
     runtime?.renderAt?.(runtime.time, 1 / OUTPUT.fps);
+    drawLiveCaption();
     operator?.refresh?.();
   },
   onImportProject: (text, asDefaults) => applyProjectText(text, asDefaults),
@@ -160,7 +167,7 @@ applyCaptionConfig();
 scene.invalidateCaptionCache();
 saveProject(project);
 
-window.addEventListener("resize", () => scene?.resize?.());
+window.addEventListener("resize", () => { scene?.resize?.(); resizeCaptionLayer(); drawLiveCaption(); });
 
 // презентация: F — полный экран
 window.addEventListener("keydown", (e) => {
@@ -200,160 +207,59 @@ operator = createOperatorControls({
 });
 
 const REC_W = OUTPUT.width, REC_H = OUTPUT.height;
+setupCaptionLayer();
 
-// подпись на канвасе повторяет DOM-макет (--u = 1% ширины кадра) и ту же анимацию:
-// прогресс обводки и заливки каждой строки читается из --p / --f на элементах #caption
-function capVal(sel, name) {
-  const el = document.querySelector(`#caption ${sel}`);
-  return el ? parseFloat(getComputedStyle(el).getPropertyValue(name)) || 0 : 0;
+// Типографика теперь рисуется одним CaptionRenderer для live-превью и WebM.
+// DOM #caption остаётся скрытым семантическим зеркалом для проверок и доступности.
+function captionOptions() {
+  const capEl = document.getElementById("caption");
+  return {
+    displayWidth: parseFloat(capEl?.style.width) || REC_W,
+    viewportHeight: window.innerHeight || REC_H,
+  };
 }
 
-function drawCaption(ctx, alpha) {
-  const W = REC_W, H = REC_H, u = W / 100;
-  const cap = document.getElementById("caption");
-  const scale = W / (parseFloat(cap?.style.width) || W);
-  const drift = parseFloat(cap?.style.getPropertyValue("--drift")) || 0;
-  const capCfg = cfg.caption || {};
-  const family = capCfg.fontFamily || "Cormorant Garamond";
-  const titleWeight = String(capCfg.fontWeight || "600");
-  const strokeScale = (capCfg.outlineWidth ?? 0.08) / 0.08;
-  const outlineLayers = Math.max(1, Math.round(capCfg.outlineLayers ?? 1));
-  const outlineOffset = (capCfg.outlineOffset ?? 0) * u;
-  const penGlow = capCfg.penGlow ?? 1;
-  const font = (w, size) => `${w} ${size}px "${family}", Georgia, serif`;
-  ctx.save();
-  ctx.translate(0, drift * scale);
-  ctx.globalAlpha = alpha;
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
+function setupCaptionLayer() {
+  captionLayer = document.getElementById("caption-layer");
+  if (!captionLayer) return;
+  captionLayer.width = REC_W;
+  captionLayer.height = REC_H;
+  captionLayerCtx = captionLayer.getContext("2d");
+  captionRenderer = new CaptionRenderer({ width: REC_W, height: REC_H });
+  resizeCaptionLayer();
+  drawLiveCaption();
+}
 
-  // Рендерим те же отдельные графемы, что и DOM: запись WebM не теряет
-  // посимвольную обводку/заливку (HTML-оверлей в captureStream не попадает).
-  const textLine = (sel, text, o) => {
-    const line = { outline: capVal(sel, "--p"), fill: capVal(sel, "--f") };
-    if (line.outline <= 0.001) return;
-    const y = o.y + capVal(sel, "--lift") * scale;
-    const glyphs = [...document.querySelectorAll(`#caption ${sel} .cap-glyph`)]
-      .map((span) => span.textContent === "\u00a0" ? " " : span.textContent);
-    ctx.font = font(o.weight, o.size);
-    ctx.letterSpacing = "0px";
-    const widths = glyphs.map((glyph) => ctx.measureText(glyph).width);
-    const w = widths.reduce((a, b) => a + b, 0) + o.ls * Math.max(0, glyphs.length - 1);
-    let x = (o.centerX ?? W / 2) - w / 2 + o.ls / 2; // то же центрирование, что padding-left в DOM
-    ctx.textAlign = "left";
-    ctx.strokeStyle = o.stroke; ctx.lineWidth = o.sw; ctx.lineJoin = "round";
-    const pen = capVal(sel, "--pen");
-    glyphs.forEach((glyph, i) => {
-      const reveal = glyphReveal(line, i, glyphs.length);
-      const width = widths[i];
-      if (glyph !== " " && reveal.outline > 0.001) {
-        ctx.save();
-        ctx.beginPath(); ctx.rect(x - o.sw, 0, (width + o.sw * 2) * reveal.outline, H); ctx.clip();
-        // Несколько контурных линий: каждая буква обрисовывается постепенно,
-        // как лого, а не одной готовой обводкой.
-        for (let layer = 0; layer < outlineLayers; layer++) {
-          const shift = (layer - (outlineLayers - 1) / 2) * outlineOffset;
-          ctx.strokeText(glyph, x + shift, y + shift);
-        }
-        ctx.restore();
-      }
-      if (glyph !== " " && reveal.fill > 0.001) {
-        ctx.save();
-        ctx.beginPath(); ctx.rect(x, 0, width * reveal.fill, H); ctx.clip();
-        if (o.shadow) { ctx.shadowColor = "rgba(0,0,0,0.7)"; ctx.shadowBlur = 0.5 * u; ctx.shadowOffsetY = 0.2 * u; }
-        ctx.fillStyle = typeof o.fill === "function" ? o.fill(y) : o.fill;
-        ctx.fillText(glyph, x, y);
-        ctx.restore();
-      }
-      const glowPower = Math.min(1, pen * Math.sin(Math.PI * reveal.outline) * penGlow);
-      if (glyph !== " " && glowPower > 0.001) {
-        const head = x + width * reveal.outline, spread = 0.225 * u;
-        const glow = ctx.createLinearGradient(head - spread, 0, head + spread, 0);
-        glow.addColorStop(0, "rgba(255,231,164,0)");
-        glow.addColorStop(0.5, "rgba(255,231,164,0.55)");
-        glow.addColorStop(1, "rgba(255,231,164,0)");
-        ctx.save(); ctx.globalAlpha *= glowPower;
-        ctx.fillStyle = glow;
-        ctx.fillRect(head - spread, y - o.size * 0.38, spread * 2, o.size * 0.8);
-        ctx.restore();
-      }
-      x += width + o.ls;
-    });
-    ctx.textAlign = "center";
-  };
+function resizeCaptionLayer() {
+  if (!captionLayer) return;
+  const capEl = document.getElementById("caption");
+  captionLayer.style.width = canvas.style.width || capEl?.style.width || `${REC_W}px`;
+  captionLayer.style.height = canvas.style.height || capEl?.style.height || `${REC_H}px`;
+}
 
-  // разделитель с ромбом: раскрывается от центра (--p), ромб появляется вместе с ним
-  const rule = (sel, y) => {
-    const p = capVal(sel, "--p");
-    if (p <= 0.001) return;
-    y += capVal(sel, "--lift") * scale;
-    const half = 17 * u, gap = 1 * u, d = 0.9 * u;
-    ctx.save();
-    ctx.beginPath(); ctx.rect(W / 2 - half * p, 0, 2 * half * p, H); ctx.clip();
-    const lg = ctx.createLinearGradient(W / 2 - half, 0, W / 2 + half, 0);
-    lg.addColorStop(0, "rgba(217,176,97,0)"); lg.addColorStop(0.5, "#d9b061"); lg.addColorStop(1, "rgba(217,176,97,0)");
-    ctx.fillStyle = lg;
-    ctx.fillRect(W / 2 - half, y - 0.5, half - d / 2 - gap, 1);
-    ctx.fillRect(W / 2 + d / 2 + gap, y - 0.5, half - d / 2 - gap, 1);
-    ctx.globalAlpha *= p;
-    ctx.save();
-    ctx.translate(W / 2, y); ctx.rotate(Math.PI / 4);
-    ctx.strokeStyle = "#e0b25a"; ctx.lineWidth = 1;
-    ctx.strokeRect(-d / 2, -d / 2, d, d);
-    ctx.restore();
-    ctx.restore();
-  };
+function drawLiveCaption(t = runtime.time) {
+  if (!captionLayerCtx || !captionRenderer) return;
+  captionLayerCtx.clearRect(0, 0, REC_W, REC_H);
+  captionRenderer.render(captionLayerCtx, t, cfg, sceneId, 1, captionOptions());
+}
 
-  const brand = activeScene.id === "brand";
-  const photo = activeScene.id === "photo-pause";
-  const finale = activeScene.id === "finale";
-  const tSize = (brand ? 6.2 : photo ? 6.7 : finale ? 6.6 : 7.2) * u;
-  const titleGrad = (y) => {
-    const g = ctx.createLinearGradient(0, y - tSize / 2, 0, y + tSize / 2);
-    g.addColorStop(0, "#fff3cc"); g.addColorStop(0.4, "#f0cc78");
-    g.addColorStop(0.75, "#c08c36"); g.addColorStop(1, "#e8c06a");
-    return g;
-  };
-  textLine(".cap-title", capCfg.title || "Янтарный циркуль", {
-    y: (brand || photo ? 0.69 : 0.55) * H, centerX: W / 2,
-    weight: titleWeight, size: tSize, ls: 0, stroke: "#e0b25a", sw: 0.08 * u * strokeScale,
-    shadow: true, fill: titleGrad,
-  });
-  if (finale) {
-    textLine(".cap-sub", (capCfg.phrase || capCfg.subtitle || "").toUpperCase(), {
-      y: 0.71 * H, weight: 400, size: 2.55 * u, ls: 0.18 * 2.55 * u,
-      stroke: "#d9b061", sw: 0.04 * u * strokeScale, fill: "#ecd08c",
-    });
-  }
-  if (!brand && !photo && !finale) {
-    rule(".r1", 0.66 * H);
-    rule(".r2", 0.79 * H);
-    textLine(".cap-sub", (capCfg.subtitle || "").toUpperCase(), {
-      y: 0.72 * H, weight: 400, size: 2.4 * u, ls: 0.32 * 2.4 * u,
-      stroke: "#d9b061", sw: 0.04 * u * strokeScale, fill: "#ecd08c",
-    });
-    textLine(".cap-date", (capCfg.date || "").toUpperCase(), {
-      y: 0.84 * H, weight: 400, size: 1.5 * u, ls: 0.28 * 1.5 * u,
-      stroke: "#d9b061", sw: 0.035 * u * strokeScale, fill: "#d9b061",
-    });
-  }
-  ctx.restore();
+function drawCaption(ctx, alpha, t = runtime.time) {
+  captionRenderer?.render(ctx, t, cfg, sceneId, alpha, captionOptions());
 }
 
 // Одна и та же сборка WebGL + типографики для MediaRecorder и контроля PNG.
-function drawCompositeFrame(ctx, includeCaption = true) {
+function drawCompositeFrame(ctx, includeCaption = true, t = runtime.time) {
   ctx.drawImage(canvas, 0, 0, REC_W, REC_H);
-  const cap = document.getElementById("caption");
-  const op = includeCaption && cap ? parseFloat(getComputedStyle(cap).opacity) : 0;
-  if (op > 0.001) drawCaption(ctx, op);
+  if (includeCaption) drawCaption(ctx, 1, t);
 }
 
 /** Тот же композит, что записывает MediaRecorder; includeCaption=false — эталон для теста. */
 function compositeFrameAt(time, dt = 1 / OUTPUT.fps, includeCaption = true) {
   runtime.renderAt(time, dt);
+  drawLiveCaption(time);
   const frame = document.createElement("canvas");
   frame.width = REC_W; frame.height = REC_H;
-  drawCompositeFrame(frame.getContext("2d"), includeCaption);
+  drawCompositeFrame(frame.getContext("2d"), includeCaption, time);
   return frame;
 }
 
@@ -406,6 +312,8 @@ function switchScene(id, source) {
   settings?.setActiveScene?.(id);
   saveProject(project);
   runtime.renderAt(cfg.timeline.startDelay, 1 / OUTPUT.fps);
+  resizeCaptionLayer();
+  drawLiveCaption();
   oldScene.dispose();
   const url = new URL(location.href);
   url.searchParams.set("scene", id === "waiting" ? "intro" : id);
@@ -694,11 +602,12 @@ function frame(now) {
       switchScene(RECORDING_CHAIN[(RECORDING_CHAIN.indexOf(sceneId) + 1) % RECORDING_CHAIN.length]);
     }
   }
+  drawLiveCaption();
   // Не снимаем заставку загрузки до реального WebGL-кадра и готовых шрифтов.
   // Это также защищает титр от вспышки системного шрифта при медленном запуске.
   if (!firstFrameRendered) {
     firstFrameRendered = true;
-    applyCaptionFont(cfg).catch(() => {}).then(() => window.__bootReady?.());
+    applyCaptionFont(cfg).catch(() => {}).then(() => { drawLiveCaption(); window.__bootReady?.(); });
   }
   operator.refresh();
   if (recording?.kind === "single") {
@@ -713,7 +622,7 @@ requestAnimationFrame(frame);
 window.__logo = {
   get time() { return runtime.time; },
   setTime(v) { runtime.time = v; },
-  renderAt(v, dt = 1 / OUTPUT.fps) { runtime.renderAt(v, dt); },
+  renderAt(v, dt = 1 / OUTPUT.fps) { runtime.renderAt(v, dt); drawLiveCaption(v); },
   compositeFrameAt,
   startRecording,
   startSequenceRecording,
@@ -732,9 +641,11 @@ window.__logo = {
     applyCaptionConfig();
     saveProject(project);
     runtime.renderAt(runtime.time, 1 / OUTPUT.fps);
+    drawLiveCaption();
   },
   get activeScene() { return activeScene; },
   get runtime() { return runtime; },
   get cfg() { return cfg; },
   get scene() { return scene; },
+  get captionRenderer() { return captionRenderer; },
 };
