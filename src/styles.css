@@ -47,7 +47,7 @@ body.scene-finale #caption .cap-title {
   left: calc(50% + var(--title-offset-x, 0%)); top: calc(65% + var(--title-offset-y, 0%)); font-size: calc(var(--u) * 6.6);
 }
 body.scene-finale #caption .cap-sub {
-  left: 50%; top: 79%; font-size: calc(var(--u) * 2.55);
+  left: calc(50% + var(--subtitle-offset-x, 0%)); top: calc(79% + var(--subtitle-offset-y, 0%)); font-size: calc(var(--u) * 2.55);
   letter-spacing: .18em; padding-left: .18em;
 }
 /* Мышь видна всегда. Только элементы пульта исчезают после бездействия. */
@@ -359,7 +359,7 @@ body.operator-idle:not(.ui-on) .cfg-toggle { opacity: .55; }
 }
 #caption .cap-glyph {
   display: inline-block; position: relative; white-space: pre; vertical-align: baseline;
-  clip-path: inset(0 calc((1 - var(--o, 0)) * 100%) 0 0);
+  clip-path: inset(-0.5em calc((1 - var(--o, 0)) * 100%) -0.5em 0);
 }
 /* Перед обводкой — короткий свет кончика пера, а не общий блик всей строки. */
 #caption .cap-glyph::before {
@@ -371,7 +371,9 @@ body.operator-idle:not(.ui-on) .cfg-toggle { opacity: .55; }
   pointer-events: none;
 }
 #caption .cap-glyph::after {
-  content: attr(data-glyph); position: absolute; inset: 0; -webkit-text-stroke: 0;
+  /* Запас по вертикали нужен шрифтам с выносными элементами «р», «у», «д». */
+  content: attr(data-glyph); position: absolute; inset: -0.5em 0;
+  box-sizing: border-box; padding-top: 0.5em; -webkit-text-stroke: 0;
   clip-path: inset(0 calc((1 - var(--f, 0)) * 100%) 0 0);
 }
 #caption .cap-title {
@@ -396,14 +398,14 @@ body.operator-idle:not(.ui-on) .cfg-toggle { opacity: .55; }
 }
 .r1 { top: 66%; }
 .r2 { top: 79%; }
-.cap-sub {
-  top: 72%; font-weight: 400;
+#caption .cap-sub {
+  left: calc(50% + var(--subtitle-offset-x, 0%)); top: calc(72% + var(--subtitle-offset-y, 0%)); font-weight: 400;
   font-size: calc(var(--u) * 2.4); letter-spacing: 0.32em; padding-left: 0.32em;
   text-transform: uppercase; -webkit-text-stroke: calc(var(--u) * 0.04) #d9b061;
 }
 .cap-sub .cap-glyph::after { color: #ecd08c; }
-.cap-date {
-  top: 84%; font-weight: 400;
+#caption .cap-date {
+  left: calc(50% + var(--date-offset-x, 0%)); top: calc(84% + var(--date-offset-y, 0%)); font-weight: 400;
   font-size: calc(var(--u) * 1.5); letter-spacing: 0.28em; padding-left: 0.28em;
   text-transform: uppercase; -webkit-text-stroke: calc(var(--u) * 0.035) #d9b061;
 }

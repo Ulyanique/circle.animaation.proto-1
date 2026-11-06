@@ -12,7 +12,7 @@ export function createFrameEditor({ getState, onEnable, onChange, onSettings }) 
   const layer = document.createElement('div');
   layer.className = 'editor-layer'; layer.hidden = true;
   const boxes = {};
-  for (const [id, label] of [['logo', 'Логотип'], ['title', 'Название']]) {
+  for (const [id, label] of [['logo', 'Логотип'], ['title', 'Название'], ['subtitle', 'Подзаголовок'], ['date', 'Дата']]) {
     const box = document.createElement('button');
     box.type = 'button'; box.className = 'editor-box'; box.dataset.element = id;
     box.setAttribute('aria-label', `${label}: перетащить или переместить стрелками`);
@@ -61,11 +61,13 @@ export function createFrameEditor({ getState, onEnable, onChange, onSettings }) 
     }
     boxes.logo.hidden = !Number.isFinite(minX);
     if (!boxes.logo.hidden) place(boxes.logo, { left: minX - 5, top: minY - 5, width: maxX - minX + 10, height: maxY - minY + 10 });
-    const title = document.querySelector('#caption .cap-title');
-    boxes.title.hidden = id === 'photo-pause' || !title || getComputedStyle(title).display === 'none';
-    if (!boxes.title.hidden) {
-      const r = title.getBoundingClientRect();
-      place(boxes.title, { left: r.left - 5, top: r.top - 5, width: r.width + 10, height: r.height + 10 });
+    for (const [name, selector] of [['title', '.cap-title'], ['subtitle', '.cap-sub'], ['date', '.cap-date']]) {
+      const line = document.querySelector(`#caption ${selector}`);
+      boxes[name].hidden = id === 'photo-pause' || !line || getComputedStyle(line).display === 'none';
+      if (!boxes[name].hidden) {
+        const r = line.getBoundingClientRect();
+        place(boxes[name], { left: r.left - 5, top: r.top - 5, width: r.width + 10, height: r.height + 10 });
+      }
     }
     if (selected && !menu.hidden && !boxes[selected].hidden) {
       const r = boxes[selected].getBoundingClientRect();
@@ -92,7 +94,7 @@ export function createFrameEditor({ getState, onEnable, onChange, onSettings }) 
       if (id === 'logo' && !world) return;
       select(id, false);
       drag = { id, pointerId: event.pointerId, x: event.clientX, y: event.clientY, world,
-        start: id === 'logo' ? { x: cfg.logo.offsetX, y: cfg.logo.offsetY } : { x: cfg.caption.titleX, y: cfg.caption.titleY }, moved: false };
+        start: id === 'logo' ? { x: cfg.logo.offsetX, y: cfg.logo.offsetY } : { x: cfg.caption[`${id}X`], y: cfg.caption[`${id}Y`] }, moved: false };
       box.setPointerCapture(event.pointerId); event.preventDefault();
     });
     box.addEventListener('pointermove', (event) => {
@@ -107,7 +109,7 @@ export function createFrameEditor({ getState, onEnable, onChange, onSettings }) 
         cfg.logo.offsetX = next.x; cfg.logo.offsetY = next.y;
       } else {
         const next = moveTitle(drag.start, dx, dy, rect.width, rect.height);
-        cfg.caption.titleX = next.x; cfg.caption.titleY = next.y;
+        cfg.caption[`${id}X`] = next.x; cfg.caption[`${id}Y`] = next.y;
       }
       onChange();
     });
@@ -128,8 +130,8 @@ export function createFrameEditor({ getState, onEnable, onChange, onSettings }) 
         const p = moveLogo({ x: cfg.logo.offsetX, y: cfg.logo.offsetY }, direction[0] * step, -direction[1] * step);
         cfg.logo.offsetX = p.x; cfg.logo.offsetY = p.y;
       } else {
-        const p = moveTitle({ x: cfg.caption.titleX, y: cfg.caption.titleY }, direction[0] * step, direction[1] * step, 1, 1);
-        cfg.caption.titleX = p.x; cfg.caption.titleY = p.y;
+        const p = moveTitle({ x: cfg.caption[`${id}X`], y: cfg.caption[`${id}Y`] }, direction[0] * step, direction[1] * step, 1, 1);
+        cfg.caption[`${id}X`] = p.x; cfg.caption[`${id}Y`] = p.y;
       }
       select(id, false); onChange();
     });
@@ -144,8 +146,8 @@ export function createFrameEditor({ getState, onEnable, onChange, onSettings }) 
         state.config.logo.offsetX = state.defaults.logo.offsetX;
         state.config.logo.offsetY = state.defaults.logo.offsetY;
       } else {
-        state.config.caption.titleX = state.defaults.caption.titleX;
-        state.config.caption.titleY = state.defaults.caption.titleY;
+        state.config.caption[`${selected}X`] = state.defaults.caption[`${selected}X`];
+        state.config.caption[`${selected}Y`] = state.defaults.caption[`${selected}Y`];
       }
       onChange();
     }

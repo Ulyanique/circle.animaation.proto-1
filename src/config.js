@@ -43,9 +43,13 @@ export const SCHEMA = [
     { key: "frameLength", label: "Длина уголков", type: "range", min: 0.02, max: 0.18, step: 0.005 },
     { key: "frameOpacity", label: "Прозрачность уголков", type: "range", min: 0, max: 1, step: 0.01 },
   ] },
-  { id: "caption", title: "Положение названия", fields: [
-    { key: "titleX", label: "Сдвиг по горизонтали (доля кадра)", type: "range", min: -0.45, max: 0.45, step: 0.005 },
-    { key: "titleY", label: "Сдвиг по вертикали (доля кадра)", type: "range", min: -0.45, max: 0.45, step: 0.005 },
+  { id: "caption", title: "Положение надписей", fields: [
+    { key: "titleX", label: "Название: горизонталь", type: "range", min: -0.45, max: 0.45, step: 0.005 },
+    { key: "titleY", label: "Название: вертикаль", type: "range", min: -0.45, max: 0.45, step: 0.005 },
+    { key: "subtitleX", label: "Подзаголовок: горизонталь", type: "range", min: -0.45, max: 0.45, step: 0.005 },
+    { key: "subtitleY", label: "Подзаголовок: вертикаль", type: "range", min: -0.45, max: 0.45, step: 0.005 },
+    { key: "dateX", label: "Дата: горизонталь", type: "range", min: -0.45, max: 0.45, step: 0.005 },
+    { key: "dateY", label: "Дата: вертикаль", type: "range", min: -0.45, max: 0.45, step: 0.005 },
   ] },
   { id: "typography", title: "Типографика", fields: [
     { key: "font", label: "Шрифт", type: "select", options: FONTS.map(({ id, name }) => ({ value: id, label: name })) },

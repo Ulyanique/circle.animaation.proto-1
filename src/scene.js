@@ -349,8 +349,10 @@ export class LogoScene {
     // Один и тот же t всегда даёт один и тот же кадр подписи, даже после seek.
     const capEl = document.getElementById("caption");
     if (capEl) {
-      setStyleIfChanged(capEl, "--title-offset-x", `${(cfg.caption?.titleX ?? 0) * 100}%`);
-      setStyleIfChanged(capEl, "--title-offset-y", `${(cfg.caption?.titleY ?? 0) * 100}%`);
+      for (const name of ["title", "subtitle", "date"]) {
+        setStyleIfChanged(capEl, `--${name}-offset-x`, `${(cfg.caption?.[`${name}X`] ?? 0) * 100}%`);
+        setStyleIfChanged(capEl, `--${name}-offset-y`, `${(cfg.caption?.[`${name}Y`] ?? 0) * 100}%`);
+      }
       const { progress, lines } = captionState(t, cfg.timeline, sequence?.captionStart, finale ? 0.5 : 1);
       const k = THREE.MathUtils.smoothstep(progress, 0.0, 0.8);
       capEl.style.opacity = "1";

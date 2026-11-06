@@ -1,0 +1,28 @@
+<!doctype html><html lang="ru"><head><link rel="stylesheet" href="/src/styles.css"></head>
+<body class="scene-waiting"><canvas id="stage" style="width:960px;height:540px"></canvas>
+<div id="caption" style="width:960px;height:540px;--u:9.6px">
+<div class="cap-title" data-text="Циркуль"><span class="cap-glyph" data-glyph="р" style="--f:1;--o:1">р</span>Циркуль</div>
+<div class="cap-sub" data-text="Подзаголовок">Подзаголовок</div>
+<div class="cap-date" data-text="Дата">Дата</div></div>
+<script type="module">
+import * as THREE from 'three';
+import { createFrameEditor } from '/src/editor.js';
+const root = new THREE.Group();
+const mesh = new THREE.Mesh(new THREE.BoxGeometry(2, 2, 0.1), new THREE.MeshBasicMaterial());
+root.add(mesh); root.position.y = 1.1;
+const camera = new THREE.PerspectiveCamera(30, 960 / 540, 0.1, 100);
+camera.position.set(0, 0, 9); camera.lookAt(0, 0, 0); camera.updateProjectionMatrix(); camera.updateMatrixWorld();
+const config = { logo: { offsetX: 0, offsetY: 1.1 }, caption: { titleX: 0, titleY: 0, subtitleX: 0, subtitleY: 0, dateX: 0, dateY: 0 } };
+const state = { scene: { logo: { root, mesh }, camera }, canvas: document.querySelector('#stage'),
+  config, defaults: structuredClone(config), id: 'waiting' };
+const cap = document.querySelector('#caption');
+const editor = createFrameEditor({ getState: () => state, onEnable: () => true, onChange: () => {
+  root.position.set(config.logo.offsetX, config.logo.offsetY, 0);
+  for (const name of ['title', 'subtitle', 'date']) {
+    cap.style.setProperty(`--${name}-offset-x`, `${config.caption[`${name}X`] * 100}%`);
+    cap.style.setProperty(`--${name}-offset-y`, `${config.caption[`${name}Y`] * 100}%`);
+  }
+  editor.refresh();
+}, onSettings: () => {} });
+window.editorFixture = { editor, state };
+</script></body></html>

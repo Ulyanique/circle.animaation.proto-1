@@ -11,6 +11,7 @@
     "typecheck": "tsc --noEmit",
     "verify:render": "node scripts/verify-render.cjs",
     "verify:intro": "node scripts/verify-intro.cjs",
+    "verify:editor:lite": "node scripts/verify-editor-lite.cjs",
     "verify:motion": "node scripts/verify-motion.cjs",
     "verify:caption": "node scripts/verify-caption.cjs",
     "verify:caption:export": "node scripts/verify-caption-export.cjs",

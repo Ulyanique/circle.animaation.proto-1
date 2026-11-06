@@ -182,17 +182,20 @@ export function drawCaption(ctx, alpha, sceneId) {
   };
   // У интро три строки, поэтому название остаётся выше; в фоновых сценах титр
   // опущен в нижнюю треть, чтобы под ним не оставалось пустого поля.
-  const title = cap?.querySelector(".cap-title");
-  const titleStyle = title ? getComputedStyle(title) : null;
-  const titleY = titleStyle ? parseFloat(titleStyle.top) * scale : ((brand || photo || finale) ? 0.65 * H : 0.55 * H);
-  const titleX = titleStyle ? parseFloat(titleStyle.left) * scale : W / 2;
+  const linePosition = (selector, fallbackY) => {
+    const element = cap?.querySelector(selector);
+    const style = element ? getComputedStyle(element) : null;
+    return { centerX: style ? parseFloat(style.left) * scale : W / 2,
+      y: style ? parseFloat(style.top) * scale : fallbackY };
+  };
+  const titlePosition = linePosition(".cap-title", (brand || photo || finale) ? 0.65 * H : 0.55 * H);
   textLine(".cap-title", {
-    y: titleY, centerX: titleX,
+    ...titlePosition,
     weight: 600, size: tSize, ls: 0, stroke: "#e0b25a", sw: 0.08 * u, shadow: true, fill: titleGrad,
   });
   if (finale) {
     textLine(".cap-sub", {
-      y: 0.79 * H, weight: 400, size: 2.55 * u, ls: 0.18 * 2.55 * u,
+      ...linePosition(".cap-sub", 0.79 * H), weight: 400, size: 2.55 * u, ls: 0.18 * 2.55 * u,
       stroke: "#d9b061", sw: 0.04 * u, fill: "#ecd08c",
     });
   }
@@ -200,10 +203,10 @@ export function drawCaption(ctx, alpha, sceneId) {
     rule(".r1", 0.66 * H);
     rule(".r2", 0.79 * H);
     textLine(".cap-sub", {
-      y: 0.72 * H, weight: 400, size: 2.4 * u, ls: 0.32 * 2.4 * u, stroke: "#d9b061", sw: 0.04 * u, fill: "#ecd08c",
+      ...linePosition(".cap-sub", 0.72 * H), weight: 400, size: 2.4 * u, ls: 0.32 * 2.4 * u, stroke: "#d9b061", sw: 0.04 * u, fill: "#ecd08c",
     });
     textLine(".cap-date", {
-      y: 0.84 * H, weight: 400, size: 1.5 * u, ls: 0.28 * 1.5 * u, stroke: "#d9b061", sw: 0.035 * u, fill: "#d9b061",
+      ...linePosition(".cap-date", 0.84 * H), weight: 400, size: 1.5 * u, ls: 0.28 * 1.5 * u, stroke: "#d9b061", sw: 0.035 * u, fill: "#d9b061",
     });
   }
   ctx.restore();

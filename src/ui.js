@@ -111,6 +111,8 @@ export function createSettingsUI({
       sum.textContent = section.title;
       det.appendChild(sum);
       for (const f of section.fields) {
+        if (section.id === "caption" && ((editing === "brand" && /^(subtitle|date)/.test(f.key)) ||
+            (editing === "finale" && f.key.startsWith("date")))) continue;
         const row = document.createElement("label");
         row.className = "cfg-row cfg-" + f.type;
         const name = document.createElement("span");
