@@ -21,13 +21,15 @@ camera.position.set(0, 0, 9); camera.lookAt(0, 0, 0); camera.updateProjectionMat
 const config = { rings: { enabled: true, cornerX: 0.44, cornerY: 0.42, leftVisible: true, rightVisible: true, leftOffsetX: 0, leftOffsetY: 0, rightOffsetX: 0, rightOffsetY: 0, leftScale: 1, rightScale: 1 }, timeline: {startDelay: 0, drawDuration: 5, emergeDuration: 5, holdDuration: 5, fadeDuration: 3, restDuration: 2}, textLayers: customTextDefaults(), logo: { visible: true, offsetX: 0, offsetY: 1.1, scale: 1 }, colors: {gold: '#c8962e', lightLeft: '#ffb55c', lightRight: '#ffcf7a'}, caption: { titleVisible: true, subtitleVisible: true, dateVisible: true, titleText: 'рЦиркуль', subtitleText: 'Подзаголовок', dateText: 'Дата', titleColor: null, subtitleColor: null, dateColor: null, titleX: 0, titleY: 0, titleScale: 1, subtitleX: 0, subtitleY: 0, subtitleScale: 1, dateX: 0, dateY: 0, dateScale: 1 } };
 const circularLabel = new THREE.Object3D(); circularLabel.position.z = 0.1;
 const brandGroup = new THREE.Group(); brandGroup.position.z = -0.25;
+const cloudGroup = new THREE.Group(); cloudGroup.position.z = -0.25; cloudGroup.visible = false;
 const ringLeft = new THREE.Group(), ringRight = new THREE.Group();
 const sides = {left: {group: ringLeft}, right: {group: ringRight}};
 function updateRings() { const halfH = Math.tan(Math.PI / 12) * 9, halfW = halfH * 16 / 9; for (const side of ['left', 'right']) { const p = ringSidePosition(side, config.rings, halfW, halfH); sides[side].group.position.set(p.x, p.y, 0); sides[side].group.visible = config.rings.enabled && config.rings[`${side}Visible`]; sides[side].group.scale.setScalar(config.rings[`${side}Scale`]); } }
 config.photo = {textEnabled: true, offsetX: 0, offsetY: 0, radius: 1.75, text: 'ФОТОПАУЗА', textColor: null, color: '#e8c77e'};
+config.particleCloud = {present: false, enabled: true, offsetX: 0, offsetY: 0, radius: 1.2, color: '#e8c77e', count: 180, size: 0.035, opacity: 0.65, speed: 0.08};
 config.decor = {present: false, enabled: true, followLogo: false, offsetX: 0, offsetY: 0, radius: 1.2, color: '#d9b268'};
 updateRings();
-const state = { scene: { logo: { root, mesh }, camera, circularLabel, corners: {sides}, brandDecor: {group: brandGroup} }, canvas: document.querySelector('#stage'),
+const state = { scene: { logo: { root, mesh }, camera, circularLabel, corners: {sides}, particleCloud: {group: cloudGroup}, brandDecor: {group: brandGroup} }, canvas: document.querySelector('#stage'),
   config, defaults: structuredClone(config), id: 'waiting', time: 10 };
 const cap = document.querySelector('#caption');
 function layout() {
@@ -54,6 +56,9 @@ function renderCustom() {
 }
 const editor = createFrameEditor({ onLayoutChange: layout, getState: () => state, onEnable: () => true, onChange: () => {
   updateRings();
+  cloudGroup.visible = config.particleCloud.present && config.particleCloud.enabled;
+  cloudGroup.position.set(config.particleCloud.offsetX, config.particleCloud.offsetY, -0.25);
+  cloudGroup.scale.setScalar(config.particleCloud.radius);
   root.visible = config.logo.visible; circularLabel.visible = config.photo.textEnabled; brandGroup.visible = config.decor.present && config.decor.enabled;
   root.position.set(config.logo.offsetX, config.logo.offsetY, 0); root.scale.setScalar(config.logo.scale);
   circularLabel.position.set(root.position.x + config.photo.offsetX, root.position.y + config.photo.offsetY, 0.1);
@@ -82,6 +87,7 @@ window.editorFixture = { editor, state, setTime(time) { state.time = time; rende
 }, activate(id) {
   state.id = id; document.body.className = `scene-${id === 'photo-pause' ? 'photo' : id} editor-on`;
   config.decor.present = id === 'brand'; config.decor.followLogo = id === 'brand'; brandGroup.visible = config.decor.present && config.decor.enabled;
+  config.particleCloud.present = false; cloudGroup.visible = false;
   config.logo.offsetX = 0; config.logo.offsetY = id === 'photo-pause' ? 0 : 0.6;
   root.position.set(config.logo.offsetX, config.logo.offsetY, 0);
   circularLabel.position.set(root.position.x + config.photo.offsetX, root.position.y + config.photo.offsetY, 0.1);

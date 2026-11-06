@@ -17,6 +17,7 @@ import {
   ToneMappingMode,
 } from "postprocessing";
 import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
+import { ParticleCloud } from "./particle-cloud.js";
 import { BrandDecor } from "./brand-decor.js";
 import { Logo, revealUniforms } from "./logo.js";
 import { ContourWaves } from "./contour-waves.js";
@@ -107,6 +108,8 @@ export class LogoScene {
     // Построительная окружность — опциональный элемент любой сцены.
     this.brandDecor = new BrandDecor();
     this.scene.add(this.brandDecor.group);
+    this.particleCloud = new ParticleCloud();
+    this.scene.add(this.particleCloud.group);
     // Волны включаются только сценой фотопаузы.
     this.contourWaves = contourWaves ? new ContourWaves(this.logo) : null;
     if (this.contourWaves) this.scene.add(this.contourWaves.group);
@@ -316,7 +319,9 @@ export class LogoScene {
     const cornerEnv = env * (1 - 0.44 * focus);
     const cpos = this.corners.update(t, cfg, this.halfW, this.halfH, env, focus);
     if (this.isIntro || this.hideCenterRing) this.corners.centerRing.visible = false;
-    this.brandDecor.update(t, computePhase(t, cfg.timeline), cfg, root);
+    const effectPhase = computePhase(t, cfg.timeline);
+    this.brandDecor.update(t, effectPhase, cfg, root);
+    this.particleCloud.update(t, effectPhase, cfg);
     this.solarBokeh.update(t, sequence ? { ...ph, rings: env } : ph, cfg, cpos);
     this.plotter.update(ph, cfg, (sequence || finale?.active) ? root.position.y : cfg.logo.offsetY, root.position.x);
     const tilt = THREE.MathUtils.degToRad(cfg.rings.tilt);
@@ -445,6 +450,7 @@ export class LogoScene {
 
   dispose() {
     this.contourWaves?.dispose();
+    this.particleCloud.dispose();
     this.logo.dispose();
     this.particles.dispose();
     this.plotter.dispose();

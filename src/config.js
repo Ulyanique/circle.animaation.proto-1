@@ -28,6 +28,18 @@ export const SCHEMA = [
     { key: "dustOpacity", label: "Яркость пыли", type: "range", min: 0, max: 1, step: 0.01 },
     { key: "dustSize", label: "Размер пыли", type: "range", min: 0.005, max: 0.06, step: 0.001 },
   ] },
+  { id: "particleCloud", title: "Облако частиц", fields: [
+    { key: "present", label: "Добавить облако в сцену", type: "bool" },
+    { key: "enabled", label: "Показывать облако", type: "bool" },
+    { key: "offsetX", label: "Положение по горизонтали", type: "range", min: -10, max: 10, step: 0.01 },
+    { key: "offsetY", label: "Положение по вертикали", type: "range", min: -10, max: 10, step: 0.01 },
+    { key: "radius", label: "Радиус облака", type: "range", min: 0.3, max: 3, step: 0.01 },
+    { key: "count", label: "Количество частиц", type: "range", min: 0, max: 2000, step: 10 },
+    { key: "size", label: "Размер частиц", type: "range", min: 0.005, max: 0.12, step: 0.005 },
+    { key: "opacity", label: "Яркость", type: "range", min: 0, max: 1, step: 0.01 },
+    { key: "speed", label: "Скорость вращения", type: "range", min: -0.5, max: 0.5, step: 0.01 },
+    { key: "color", label: "Цвет", type: "color" },
+  ] },
   { id: "finale", title: "Финальный уход", fields: [
     { key: "retreatDepth", label: "Глубина удаления", type: "range", min: 0, max: 5, step: 0.1 },
     { key: "retreatScale", label: "Конечный масштаб", type: "range", min: 0.2, max: 1, step: 0.01 },
