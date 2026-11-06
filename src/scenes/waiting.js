@@ -3,6 +3,7 @@
 // Здесь нет WebGL и DOM — описание сцены можно читать из тестов и экспортера.
 export const WAITING_DEFAULTS = {
   typography: { font: "cormorant-garamond" },
+  caption: { titleX: 0, titleY: 0 },
   intro: { cornerDuration: 1.1, liftDuration: 1.4, titleDelay: 0.15 },
   timeline: {
     // длительности фаз в секундах; цикл повторяется бесконечно
@@ -17,6 +18,7 @@ export const WAITING_DEFAULTS = {
   },
   logo: {
     scale: 0.47,           // лёгкий акцент на символе без потери пропорций
+    offsetX: 0,            // горизонтальная позиция
     offsetY: 1.1,          // сдвиг логотипа вверх (мировые единицы)
     depth: 0.18,           // толщина экструзии (тоньше, не такой жирный)
     bevel: 0.035,          // скос кромок — ловит блики

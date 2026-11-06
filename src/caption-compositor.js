@@ -182,9 +182,12 @@ export function drawCaption(ctx, alpha, sceneId) {
   };
   // У интро три строки, поэтому название остаётся выше; в фоновых сценах титр
   // опущен в нижнюю треть, чтобы под ним не оставалось пустого поля.
-  const titleY = (brand || photo || finale) ? 0.65 * H : 0.55 * H;
+  const title = cap?.querySelector(".cap-title");
+  const titleStyle = title ? getComputedStyle(title) : null;
+  const titleY = titleStyle ? parseFloat(titleStyle.top) * scale : ((brand || photo || finale) ? 0.65 * H : 0.55 * H);
+  const titleX = titleStyle ? parseFloat(titleStyle.left) * scale : W / 2;
   textLine(".cap-title", {
-    y: titleY, centerX: W / 2,
+    y: titleY, centerX: titleX,
     weight: 600, size: tSize, ls: 0, stroke: "#e0b25a", sw: 0.08 * u, shadow: true, fill: titleGrad,
   });
   if (finale) {

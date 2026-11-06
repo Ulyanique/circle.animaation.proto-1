@@ -17,6 +17,7 @@ import { AnimationRuntime } from "./runtime.js";
 import { OUTPUT, RECORDING_CHAIN, sceneById } from "./scenes/catalog.js";
 import { drawCaption } from "./caption-compositor.js";
 import { createOperatorControls, crossedBoundary } from "./operator.js";
+import { createFrameEditor } from "./editor.js";
 
 const requestedScene = new URLSearchParams(location.search).get("scene") || "intro";
 let activeScene = sceneById(requestedScene);
@@ -104,6 +105,7 @@ const adapters = { waiting: LogoScene, brand: BrandScene,
   "photo-pause": PhotoPauseScene, finale: FinaleScene };
 let scene = new adapters[sceneId](canvas, cfg);
 let runtime = new AnimationRuntime(scene, cfg, OUTPUT.fps);
+let editor;
 const settings = createSettingsUI({
   scenes: READY_IDS.map((id) => ({
     id,
@@ -174,6 +176,21 @@ const operator = createOperatorControls({
   recordChain: () => startSequenceRecording(),
 });
 
+editor = createFrameEditor({
+  getState: () => ({ id: sceneId, scene, canvas, config: cfg, defaults: activeScene.defaults }),
+  onEnable: () => {
+    if (recording || transition) { toast("Во время записи или перехода редактирование недоступно", true); return false; }
+    cfg.playback.paused = true;
+    const tl = cfg.timeline;
+    // Показываем собранную композицию, чтобы элементы можно было взять мышью.
+    runtime.renderAt(tl.startDelay + tl.drawDuration + tl.emergeDuration + tl.holdDuration / 2);
+    saveScene(); settings.refresh(); operator.refresh();
+    return true;
+  },
+  onChange: () => { saveScene(); settings.refresh(); },
+  onSettings: (section) => settings.openSection(section),
+});
+
 const REC_W = OUTPUT.width, REC_H = OUTPUT.height;
 
 // Одна и та же сборка WebGL + типографики для MediaRecorder и контроля PNG.
@@ -202,6 +219,7 @@ function switchScene(id, source) {
   id = sceneById(id)?.id || id;
   if (id === sceneId) return true;
   if (!adapters[id] || transition || (recording && !(source === SEQUENCE_SWITCH && recording.kind === "sequence"))) return false;
+  editor?.disable();
   const nextCfg = configFor(id);
   const nextCanvas = document.createElement("canvas");
   nextCanvas.setAttribute("aria-label", "Анимация логотипа");
@@ -251,6 +269,7 @@ function switchScene(id, source) {
 
 function startRecording() {
   if (recording || transition) return;
+  editor?.disable();
   if (typeof MediaRecorder === "undefined" || !HTMLCanvasElement.prototype.captureStream) {
     toast("Запись не поддерживается в этом браузере", true);
     return;
@@ -285,6 +304,7 @@ function startRecording() {
 /** Одна непрерывная MediaRecorder-сессия на четыре вида и три перехода. */
 function startSequenceRecording({ download = true } = {}) {
   if (recording) return false;
+  editor?.disable();
   // Запись всегда начинается с первого кадра 01; с любого другого вида
   // сначала выполняется обычный плавный переход к нему.
   if (sceneId !== RECORDING_CHAIN[0]) {
@@ -439,6 +459,7 @@ function frame(now) {
     const fonts = Promise.all([loadFonts(), loadContourFonts(contourSources, parseFont)]).catch((error) => console.warn("Не удалось загрузить контуры шрифтов", error));
     fonts.then(() => { applyTypography(true); scene.refreshTextTexture?.(); window.__bootReady?.(); });
   }
+  editor?.refresh();
   if (now - lastOperatorRefresh >= 120) {
     operator.refresh();
     lastOperatorRefresh = now;
@@ -464,6 +485,7 @@ window.__logo = {
   settings, // технический API тестов: изменить тайминги без смены художественных defaults
   switchScene,
   operator,
+  editor,
   get activeScene() { return activeScene; },
   get runtime() { return runtime; },
   get cfg() { return cfg; },

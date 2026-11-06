@@ -43,6 +43,10 @@ export const SCHEMA = [
     { key: "frameLength", label: "Длина уголков", type: "range", min: 0.02, max: 0.18, step: 0.005 },
     { key: "frameOpacity", label: "Прозрачность уголков", type: "range", min: 0, max: 1, step: 0.01 },
   ] },
+  { id: "caption", title: "Положение названия", fields: [
+    { key: "titleX", label: "Сдвиг по горизонтали (доля кадра)", type: "range", min: -0.45, max: 0.45, step: 0.005 },
+    { key: "titleY", label: "Сдвиг по вертикали (доля кадра)", type: "range", min: -0.45, max: 0.45, step: 0.005 },
+  ] },
   { id: "typography", title: "Типографика", fields: [
     { key: "font", label: "Шрифт", type: "select", options: FONTS.map(({ id, name }) => ({ value: id, label: name })) },
   ] },
@@ -61,6 +65,7 @@ export const SCHEMA = [
   {
     id: "logo", title: "Логотип", fields: [
       { key: "scale", label: "Размер", type: "range", min: 0.3, max: 2.5, step: 0.01 },
+      { key: "offsetX", label: "Положение по горизонтали", type: "range", min: -2, max: 2, step: 0.01 },
       { key: "offsetY", label: "Положение по высоте", type: "range", min: -2, max: 2, step: 0.01 },
       { key: "depth", label: "Толщина", type: "range", min: 0, max: 2, step: 0.01 },
       { key: "bevel", label: "Скос кромок", type: "range", min: 0, max: 0.3, step: 0.005 },

@@ -102,9 +102,10 @@ export function createSettingsUI({
     const current = cfg();
     const defaults = defs();
     for (const section of SCHEMA) {
-      if (!current[section.id]) continue;
+      if (!current[section.id] || (section.id === "caption" && editing === "photo-pause")) continue;
       const det = document.createElement("details");
       det.className = "cfg-sec";
+      det.dataset.section = section.id;
       det.open = false;
       const sum = document.createElement("summary");
       sum.textContent = section.title;
@@ -343,7 +344,12 @@ export function createSettingsUI({
   buildBody();
   refresh();
 
-  return { open, close, toggle, refresh, rebuild, syncScene };
+  function openSection(id) {
+    open();
+    const section = body.querySelector(`[data-section="${id}"]`);
+    if (section) { section.open = true; section.scrollIntoView({ block: "nearest" }); }
+  }
+  return { open, close, toggle, refresh, rebuild, syncScene, openSection };
 }
 
 function decimals(step) {

@@ -385,7 +385,7 @@ export class Corners {
     // центральный круг: позиция и размер от логотипа, вращение медленное, в плоскости фона
     const cr = this.centerRing;
     cr.visible = cfg.rings.enabled && env > 0.0005;
-    cr.position.set(0, cfg.logo.offsetY ?? 0, -0.05);
+    cr.position.set(cfg.logo.offsetX ?? 0, cfg.logo.offsetY ?? 0, -0.05);
     cr.rotation.z = t * 0.04;
     cr.scale.setScalar(cfg.rings.radius * (0.8 - 0.06 * focus));
     this.centerMat.opacity = 0.18 * env * (1 - 0.67 * focus);

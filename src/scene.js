@@ -282,7 +282,7 @@ export class LogoScene {
     const lift = sequence ? sequence.lift : 1;
     const sway = Math.sin(TAUt * quant(cfg.logo.swaySpeed * 0.5) * t) * 0.02;
     const y = (cfg.logo.offsetY ?? 0) * lift + sway * (sequence ? sequence.settled : 1);
-    root.position.set(0, y * (1 - (finale?.center ?? 0)), z);
+    root.position.set((cfg.logo.offsetX ?? 0) * lift * (1 - (finale?.center ?? 0)), y * (1 - (finale?.center ?? 0)), z);
     const retreatScale = 1 - retreat * (1 - (cfg.finale?.retreatScale ?? 1));
     root.scale.setScalar(cfg.logo.scale * scaleGrow * pulse * (0.55 + 0.45 * easeOutCubic(ph.reveal)) * retreatScale);  // сначала контур в малом размере, затем логотип растёт
     // У интро знак входит с небольшого ракурса и разворачивается к зрителю.
@@ -302,7 +302,7 @@ export class LogoScene {
     const cpos = this.corners.update(t, cfg, this.halfW, this.halfH, env, focus);
     if (this.isIntro) this.corners.centerRing.visible = false;
     this.solarBokeh.update(t, sequence ? { ...ph, rings: env } : ph, cfg, cpos);
-    this.plotter.update(ph, cfg, (sequence || finale?.active) ? root.position.y : cfg.logo.offsetY);
+    this.plotter.update(ph, cfg, (sequence || finale?.active) ? root.position.y : cfg.logo.offsetY, root.position.x);
     const tilt = THREE.MathUtils.degToRad(cfg.rings.tilt);
     this.particles.update(t, cfg, this.halfW, this.halfH, this.pixelRatio, this.viewportH, this.fovRad, cpos, cfg.rings.radius, tilt, cornerEnv);
     this.background.update(t, cfg);
@@ -349,6 +349,8 @@ export class LogoScene {
     // Один и тот же t всегда даёт один и тот же кадр подписи, даже после seek.
     const capEl = document.getElementById("caption");
     if (capEl) {
+      setStyleIfChanged(capEl, "--title-offset-x", `${(cfg.caption?.titleX ?? 0) * 100}%`);
+      setStyleIfChanged(capEl, "--title-offset-y", `${(cfg.caption?.titleY ?? 0) * 100}%`);
       const { progress, lines } = captionState(t, cfg.timeline, sequence?.captionStart, finale ? 0.5 : 1);
       const k = THREE.MathUtils.smoothstep(progress, 0.0, 0.8);
       capEl.style.opacity = "1";
