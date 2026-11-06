@@ -12,11 +12,12 @@ export function createFrameEditor({ getState, onEnable, onChange, onSettings }) 
   const layer = document.createElement('div');
   layer.className = 'editor-layer'; layer.hidden = true;
   const boxes = {};
-  for (const [id, label] of [['logo', 'Логотип'], ['title', 'Название'], ['subtitle', 'Подзаголовок'], ['date', 'Дата']]) {
+  for (const [id, label] of [['logo', 'Логотип'], ['title', 'Название'], ['subtitle', 'Подзаголовок'], ['date', 'Дата'], ['photoLabel', 'Надпись по кругу'], ['brandDecor', 'Построительная окружность']]) {
     const box = document.createElement('button');
     box.type = 'button'; box.className = 'editor-box'; box.dataset.element = id;
     box.setAttribute('aria-label', `${label}: перетащить или переместить стрелками`);
     box.innerHTML = `<span>${label}</span>`;
+    if (id === 'photoLabel' || id === 'brandDecor') box.classList.add('editor-handle');
     layer.appendChild(box); boxes[id] = box;
   }
   const menu = document.createElement('div');
@@ -31,11 +32,18 @@ export function createFrameEditor({ getState, onEnable, onChange, onSettings }) 
     el.style.left = `${r.left}px`; el.style.top = `${r.top}px`;
     el.style.width = `${Math.max(1, r.width)}px`; el.style.height = `${Math.max(1, r.height)}px`;
   };
-  function worldPoint(event, state) {
+  const worldSection = { logo: 'logo', photoLabel: 'photo', brandDecor: 'decor' };
+  function depth(id, scene) {
+    if (id === 'photoLabel') return scene.circularLabel.position.z;
+    if (id === 'brandDecor') return scene.brandDecor.group.position.z;
+    return 0;
+  }
+  function worldPoint(event, state, z = 0) {
     const r = state.canvas.getBoundingClientRect();
     if (!r.width || !r.height) return null;
     ray.setFromCamera({ x: ((event.clientX - r.left) / r.width) * 2 - 1,
       y: 1 - ((event.clientY - r.top) / r.height) * 2 }, state.scene.camera);
+    plane.constant = -z;
     return ray.ray.intersectPlane(plane, new THREE.Vector3());
   }
   function select(id, showMenu) {
@@ -69,6 +77,22 @@ export function createFrameEditor({ getState, onEnable, onChange, onSettings }) 
         place(boxes[name], { left: r.left - 5, top: r.top - 5, width: r.width + 10, height: r.height + 10 });
       }
     }
+    // Для круглых элементов используется небольшая ручка на верхней кромке,
+    // чтобы не перекрывать возможность выбрать находящийся внутри логотип.
+    const handle = (name, visible, position, radius) => {
+      boxes[name].hidden = !visible;
+      if (!visible) return;
+      point.set(position.x, position.y + radius, position.z).project(scene.camera);
+      const x = rect.left + (point.x + 1) * rect.width / 2;
+      const y = rect.top + (1 - point.y) * rect.height / 2;
+      place(boxes[name], { left: x - 9, top: y - 9, width: 18, height: 18 });
+    };
+    const photoLabel = scene.circularLabel;
+    handle('photoLabel', id === 'photo-pause' && !!photoLabel?.visible,
+      photoLabel?.position, getState().config.photo?.radius ?? 0);
+    const decor = scene.brandDecor;
+    handle('brandDecor', id === 'brand' && !!decor?.group.visible,
+      decor?.group.position, getState().config.decor?.radius ?? 0);
     if (selected && !menu.hidden && !boxes[selected].hidden) {
       const r = boxes[selected].getBoundingClientRect();
       menu.style.left = `${Math.min(window.innerWidth - 200, Math.max(4, r.left))}px`;
@@ -90,11 +114,12 @@ export function createFrameEditor({ getState, onEnable, onChange, onSettings }) 
     box.addEventListener('pointerdown', (event) => {
       if (event.button !== 0) return;
       const state = getState(), cfg = state.config;
-      const world = id === 'logo' ? worldPoint(event, state) : null;
-      if (id === 'logo' && !world) return;
+      const section = worldSection[id];
+      const world = section ? worldPoint(event, state, depth(id, state.scene)) : null;
+      if (section && !world) return;
       select(id, false);
       drag = { id, pointerId: event.pointerId, x: event.clientX, y: event.clientY, world,
-        start: id === 'logo' ? { x: cfg.logo.offsetX, y: cfg.logo.offsetY } : { x: cfg.caption[`${id}X`], y: cfg.caption[`${id}Y`] }, moved: false };
+        start: section ? { x: cfg[section].offsetX, y: cfg[section].offsetY } : { x: cfg.caption[`${id}X`], y: cfg.caption[`${id}Y`] }, moved: false };
       box.setPointerCapture(event.pointerId); event.preventDefault();
     });
     box.addEventListener('pointermove', (event) => {
@@ -102,11 +127,12 @@ export function createFrameEditor({ getState, onEnable, onChange, onSettings }) 
       const state = getState(), cfg = state.config, rect = state.canvas.getBoundingClientRect();
       const dx = event.clientX - drag.x, dy = event.clientY - drag.y;
       if (Math.hypot(dx, dy) > 3) drag.moved = true;
-      if (id === 'logo') {
-        const now = worldPoint(event, state);
+      if (worldSection[id]) {
+        const section = worldSection[id];
+        const now = worldPoint(event, state, depth(id, state.scene));
         if (!now) return;
         const next = moveLogo(drag.start, now.x - drag.world.x, now.y - drag.world.y);
-        cfg.logo.offsetX = next.x; cfg.logo.offsetY = next.y;
+        cfg[section].offsetX = next.x; cfg[section].offsetY = next.y;
       } else {
         const next = moveTitle(drag.start, dx, dy, rect.width, rect.height);
         cfg.caption[`${id}X`] = next.x; cfg.caption[`${id}Y`] = next.y;
@@ -126,9 +152,10 @@ export function createFrameEditor({ getState, onEnable, onChange, onSettings }) 
       if (!direction) return;
       event.preventDefault(); event.stopPropagation();
       const cfg = getState().config, step = event.shiftKey ? 0.1 : 0.01;
-      if (id === 'logo') {
-        const p = moveLogo({ x: cfg.logo.offsetX, y: cfg.logo.offsetY }, direction[0] * step, -direction[1] * step);
-        cfg.logo.offsetX = p.x; cfg.logo.offsetY = p.y;
+      if (worldSection[id]) {
+        const section = worldSection[id];
+        const p = moveLogo({ x: cfg[section].offsetX, y: cfg[section].offsetY }, direction[0] * step, -direction[1] * step);
+        cfg[section].offsetX = p.x; cfg[section].offsetY = p.y;
       } else {
         const p = moveTitle({ x: cfg.caption[`${id}X`], y: cfg.caption[`${id}Y`] }, direction[0] * step, direction[1] * step, 1, 1);
         cfg.caption[`${id}X`] = p.x; cfg.caption[`${id}Y`] = p.y;
@@ -140,11 +167,12 @@ export function createFrameEditor({ getState, onEnable, onChange, onSettings }) 
     const action = event.target.closest('button')?.dataset.action;
     if (!selected || !action) return;
     const state = getState();
-    if (action === 'settings') onSettings(selected === 'logo' ? 'logo' : 'caption');
+    if (action === 'settings') onSettings(worldSection[selected] || 'caption');
     if (action === 'reset') {
-      if (selected === 'logo') {
-        state.config.logo.offsetX = state.defaults.logo.offsetX;
-        state.config.logo.offsetY = state.defaults.logo.offsetY;
+      if (worldSection[selected]) {
+        const section = worldSection[selected];
+        state.config[section].offsetX = state.defaults[section].offsetX;
+        state.config[section].offsetY = state.defaults[section].offsetY;
       } else {
         state.config.caption[`${selected}X`] = state.defaults.caption[`${selected}X`];
         state.config.caption[`${selected}Y`] = state.defaults.caption[`${selected}Y`];

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { circularGlyphLayout, viewfinderSegments } from '../src/scenes/photo-layout.js';
+import { circularGlyphLayout, viewfinderSegments, photoLabelCenter } from '../src/scenes/photo-layout.js';
 import { PHOTO_PAUSE_DEFAULTS } from '../src/scenes/photo-pause.js';
 import { BRAND_DEFAULTS } from '../src/scenes/brand.js';
 import { mergeConfig, parseConfigJSON, configToJSON } from '../src/config.js';
@@ -62,4 +62,16 @@ test('старое стандартное смещение фотопаузы п
     data.set(sceneStorageKey('photo-pause'), JSON.stringify({logo: {offsetY: 0.86}}));
     assert.equal(loadSceneConfig('photo-pause', PHOTO_PAUSE_DEFAULTS).logo.offsetY, 0.86);
   } finally { globalThis.localStorage = prev; }
+});
+
+
+test('центр круговой надписи сдвигается независимо от логотипа', () => {
+  const center = photoLabelCenter({x: 0.5, y: -0.2}, {offsetX: 0.25, offsetY: 0.7});
+  assert.equal(center.x, 0.75);
+  assert.ok(Math.abs(center.y - 0.5) < 1e-9);
+  assert.deepEqual(photoLabelCenter({x: 0.5, y: -0.2}, {}), {x: 0.5, y: -0.2});
+  const cfg = mergeConfig(PHOTO_PAUSE_DEFAULTS, {photo: {offsetX: -0.7, offsetY: 0.4}});
+  const restored = parseConfigJSON(configToJSON(cfg), PHOTO_PAUSE_DEFAULTS);
+  assert.equal(restored.photo.offsetX, -0.7);
+  assert.equal(restored.photo.offsetY, 0.4);
 });

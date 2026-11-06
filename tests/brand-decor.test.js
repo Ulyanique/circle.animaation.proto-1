@@ -29,6 +29,10 @@ test('окружность следует знаку, вращается, гас
   assert.equal(decor.group.visible, true);
   assert.equal(decor.group.position.y, root.position.y);
   assert.equal(decor.group.scale.x, cfg.decor.radius);
+  cfg.decor.offsetX = 0.3; cfg.decor.offsetY = -0.2;
+  decor.update(6, hold, cfg, root);
+  assert.ok(Math.abs(decor.group.position.x - 0.3) < 1e-9);
+  assert.ok(Math.abs(decor.group.position.y - (root.position.y - 0.2)) < 1e-9);
   const angle = decor.ticks.rotation.z;
   decor.update(7, hold, cfg, root);
   assert.ok(decor.ticks.rotation.z > angle);
@@ -44,9 +48,11 @@ test('окружность следует знаку, вращается, гас
 });
 
 test('настройки декора сохраняются отдельно и не добавляются в другие сцены', () => {
-  const cfg = mergeConfig(BRAND_DEFAULTS, { decor: { radius: 1.4, speed: -0.02 } });
+  const cfg = mergeConfig(BRAND_DEFAULTS, { decor: { radius: 1.4, speed: -0.02, offsetX: 0.8, offsetY: -0.4 } });
   assert.equal(parseConfigJSON(configToJSON(cfg), BRAND_DEFAULTS).decor.radius, 1.4);
   assert.equal(parseConfigJSON(configToJSON(cfg), BRAND_DEFAULTS).decor.speed, -0.02);
+  assert.equal(parseConfigJSON(configToJSON(cfg), BRAND_DEFAULTS).decor.offsetX, 0.8);
+  assert.equal(parseConfigJSON(configToJSON(cfg), BRAND_DEFAULTS).decor.offsetY, -0.4);
   for (const other of [WAITING_DEFAULTS, PHOTO_PAUSE_DEFAULTS, FINALE_DEFAULTS]) assert.equal(other.decor, undefined);
   assert.ok(BRAND_DEFAULTS.logo.offsetY < WAITING_DEFAULTS.logo.offsetY);
 });

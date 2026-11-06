@@ -33,3 +33,9 @@ export function viewfinderSegments(halfW, halfH, margin, length) {
   }
   return vertices;
 }
+
+/** Центр надписи относительно знака; смещения нулевые для старых конфигов.
+ * @param {{x:number,y:number}} logo @param {{offsetX?:number,offsetY?:number}} photo */
+export function photoLabelCenter(logo, photo) {
+  return { x: logo.x + (photo.offsetX ?? 0), y: logo.y + (photo.offsetY ?? 0) };
+}

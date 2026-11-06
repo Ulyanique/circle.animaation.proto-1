@@ -32,7 +32,7 @@ export class BrandDecor {
     const visibility = phase.beforeStart ? 0 : phase.reveal * phase.rings;
     this.group.visible = d.enabled && visibility > 0.001;
     if (!this.group.visible) return;
-    this.group.position.set(root.position.x, root.position.y, -0.25);
+    this.group.position.set(root.position.x + (d.offsetX ?? 0), root.position.y + (d.offsetY ?? 0), -0.25);
     this.group.scale.setScalar(d.radius);
     this.ticks.rotation.z = time * d.speed;
     this.dust.rotation.z = -time * d.speed * 0.65;

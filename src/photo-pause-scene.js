@@ -3,7 +3,7 @@ import { BrandScene } from "./brand-scene.js";
 import { computePhase } from "./timeline.js";
 import { captionState } from "./caption.js";
 import { fontName } from "./fonts.js";
-import { circularGlyphLayout, viewfinderSegments } from "./scenes/photo-layout.js";
+import { circularGlyphLayout, viewfinderSegments, photoLabelCenter } from "./scenes/photo-layout.js";
 
 const TEX_SIZE = 1024;
 const FRAME_DEPTH = 5;
@@ -76,7 +76,8 @@ export class PhotoPauseScene extends BrandScene {
     const phase = computePhase(t, cfg.timeline);
     const title = captionState(t, cfg.timeline).lines.title.outline;
     this.updateText(cfg);
-    this.circularLabel.position.set(this.logo.root.position.x, this.logo.root.position.y, 0.1);
+    const center = photoLabelCenter(this.logo.root.position, p);
+    this.circularLabel.position.set(center.x, center.y, 0.1);
     this.circularLabel.rotation.z = -phase.local * p.rotationSpeed;
     this.circularLabel.material.opacity = p.textOpacity * title;
     this.circularLabel.visible = p.textEnabled && this.circularLabel.material.opacity > 0.001;

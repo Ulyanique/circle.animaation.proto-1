@@ -13,16 +13,29 @@ root.add(mesh); root.position.y = 1.1;
 const camera = new THREE.PerspectiveCamera(30, 960 / 540, 0.1, 100);
 camera.position.set(0, 0, 9); camera.lookAt(0, 0, 0); camera.updateProjectionMatrix(); camera.updateMatrixWorld();
 const config = { logo: { offsetX: 0, offsetY: 1.1 }, caption: { titleX: 0, titleY: 0, subtitleX: 0, subtitleY: 0, dateX: 0, dateY: 0 } };
-const state = { scene: { logo: { root, mesh }, camera }, canvas: document.querySelector('#stage'),
+const circularLabel = new THREE.Object3D(); circularLabel.position.z = 0.1;
+const brandGroup = new THREE.Group(); brandGroup.position.z = -0.25;
+config.photo = {offsetX: 0, offsetY: 0, radius: 1.75};
+config.decor = {offsetX: 0, offsetY: 0, radius: 1.2};
+const state = { scene: { logo: { root, mesh }, camera, circularLabel, brandDecor: {group: brandGroup} }, canvas: document.querySelector('#stage'),
   config, defaults: structuredClone(config), id: 'waiting' };
 const cap = document.querySelector('#caption');
 const editor = createFrameEditor({ getState: () => state, onEnable: () => true, onChange: () => {
   root.position.set(config.logo.offsetX, config.logo.offsetY, 0);
+  circularLabel.position.set(root.position.x + config.photo.offsetX, root.position.y + config.photo.offsetY, 0.1);
+  brandGroup.position.set(root.position.x + config.decor.offsetX, root.position.y + config.decor.offsetY, -0.25);
   for (const name of ['title', 'subtitle', 'date']) {
     cap.style.setProperty(`--${name}-offset-x`, `${config.caption[`${name}X`] * 100}%`);
     cap.style.setProperty(`--${name}-offset-y`, `${config.caption[`${name}Y`] * 100}%`);
   }
   editor.refresh();
-}, onSettings: () => {} });
-window.editorFixture = { editor, state };
+}, onSettings: (section) => { state.settingsSection = section; } });
+window.editorFixture = { editor, state, activate(id) {
+  state.id = id; document.body.className = `scene-${id === 'photo-pause' ? 'photo' : id}`;
+  config.logo.offsetX = 0; config.logo.offsetY = id === 'photo-pause' ? 0 : 0.6;
+  root.position.set(config.logo.offsetX, config.logo.offsetY, 0);
+  circularLabel.position.set(root.position.x + config.photo.offsetX, root.position.y + config.photo.offsetY, 0.1);
+  brandGroup.position.set(root.position.x + config.decor.offsetX, root.position.y + config.decor.offsetY, -0.25);
+  editor.refresh();
+} };
 </script></body></html>

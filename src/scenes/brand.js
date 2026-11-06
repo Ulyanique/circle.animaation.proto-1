@@ -7,6 +7,6 @@ export const BRAND_DEFAULTS = createSharedSceneConfig(createSceneTimeline(24));
 
 // Декор только фирменного фона; не наследуется фотопаузой и финалом.
 BRAND_DEFAULTS.decor = {
-  enabled: true, radius: 1.2, opacity: 0.22, color: "#d9b268",
+  enabled: true, radius: 1.2, offsetX: 0, offsetY: 0, opacity: 0.22, color: "#d9b268",
   speed: 0.055, dustOpacity: 0.38, dustSize: 0.018,
 };

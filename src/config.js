@@ -19,6 +19,8 @@ export const SCHEMA = [
   { id: "decor", title: "Построительная окружность", fields: [
     { key: "enabled", label: "Показать декор", type: "bool" },
     { key: "radius", label: "Радиус", type: "range", min: 0.4, max: 2.5, step: 0.01 },
+    { key: "offsetX", label: "Сдвиг от логотипа по горизонтали", type: "range", min: -2, max: 2, step: 0.01 },
+    { key: "offsetY", label: "Сдвиг от логотипа по вертикали", type: "range", min: -2, max: 2, step: 0.01 },
     { key: "opacity", label: "Прозрачность линий", type: "range", min: 0, max: 1, step: 0.01 },
     { key: "color", label: "Цвет", type: "color" },
     { key: "speed", label: "Скорость вращения", type: "range", min: -0.3, max: 0.3, step: 0.005 },
@@ -34,6 +36,8 @@ export const SCHEMA = [
     { key: "text", label: "Текст", type: "text", maxLength: 40 },
     { key: "repeats", label: "Повторений", type: "range", min: 1, max: 8, step: 1 },
     { key: "radius", label: "Радиус надписи", type: "range", min: 1.1, max: 2.15, step: 0.05 },
+    { key: "offsetX", label: "Сдвиг надписи по горизонтали", type: "range", min: -2, max: 2, step: 0.01 },
+    { key: "offsetY", label: "Сдвиг надписи по вертикали", type: "range", min: -2, max: 2, step: 0.01 },
     { key: "fontSize", label: "Размер букв", type: "range", min: 0.08, max: 0.35, step: 0.01 },
     { key: "rotationSpeed", label: "Скорость вращения", type: "range", min: -0.2, max: 0.2, step: 0.005 },
     { key: "textOpacity", label: "Прозрачность надписи", type: "range", min: 0, max: 1, step: 0.01 },
