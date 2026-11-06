@@ -1,7 +1,10 @@
+import { customTextDefaults } from "../custom-text.js";
+
 // Стартовое интро: художественные значения по умолчанию.
 // Имя файла сохранено для совместимости; это первый ролик, не экран ожидания.
 // Здесь нет WebGL и DOM — описание сцены можно читать из тестов и экспортера.
 export const WAITING_DEFAULTS = {
+  textLayers: customTextDefaults(),
   typography: { font: "cormorant-garamond" },
   caption: {
     titleText: "Янтарный циркуль", subtitleText: "Вечер ретроспектива", dateText: "20 ноября 2026 года",

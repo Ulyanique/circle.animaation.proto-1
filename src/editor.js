@@ -3,6 +3,7 @@ import { moveLogo, moveTitle, snapRect, resizeFromDistance } from './editor-math
 import { EditorHistory } from './editor-history.js';
 import { validCustomColor } from './caption-content.js';
 import { EDITOR_LAYERS, layersForScene, layerVisible } from './editor-layers.js';
+import { CUSTOM_TEXT_IDS, customTextKeys } from './custom-text.js';
 
 /** Рамки редактора находятся только в DOM и не попадают в экспорт. */
 export function createFrameEditor({ getState, onEnable, onChange, onLayoutChange, onSettings, onHistoryConflict }) {
@@ -42,7 +43,7 @@ export function createFrameEditor({ getState, onEnable, onChange, onLayoutChange
   const layersPanel = document.createElement('aside');
   layersPanel.className = 'editor-sidebar editor-layers';
   layersPanel.setAttribute('aria-label', 'Элементы сцены');
-  layersPanel.innerHTML = '<div class="editor-sidebar-heading"><span>СЦЕНА</span><h2>Элементы</h2></div><div class="editor-layers-list"></div><p class="editor-sidebar-note">Доступные для редактирования элементы шаблона</p>';
+  layersPanel.innerHTML = '<div class="editor-sidebar-heading"><span>СЦЕНА</span><h2>Элементы</h2></div><div class="editor-layers-list"></div><button type="button" class="editor-add-text" data-add-text>＋ Добавить текст</button><p class="editor-sidebar-note">До 8 дополнительных надписей в каждой сцене</p>';
   const layerList = layersPanel.querySelector('.editor-layers-list');
   const rows = {}, visibilityButtons = {}, entries = {};
   for (const item of EDITOR_LAYERS) {
@@ -83,7 +84,7 @@ export function createFrameEditor({ getState, onEnable, onChange, onLayoutChange
     <label data-field="text">Текст <input type="text" data-appearance="text" maxlength="120" autocomplete="off"></label>
     <label data-field="color"><span data-color-label>Цвет</span> <input type="color" data-appearance="color"></label>
     <div class="editor-appearance-reset"><button type="button" data-action="reset-text">Исходный текст</button><button type="button" data-action="reset-color">Исходный цвет</button></div>
-  </div><button type="button" data-action="align-x">По центру по горизонтали</button><button type="button" data-action="align-y">По центру по вертикали</button><button type="button" data-action="settings">Настройки элемента</button><button type="button" data-action="reset">Сбросить положение</button><button type="button" data-action="reset-size">Сбросить размер</button>`;
+  </div><button type="button" data-action="align-x">По центру по горизонтали</button><button type="button" data-action="align-y">По центру по вертикали</button><button type="button" data-action="settings">Настройки элемента</button><button type="button" data-action="reset">Сбросить положение</button><button type="button" data-action="reset-size">Сбросить размер</button><button type="button" class="editor-delete-text" data-action="delete-text" hidden>Удалить текст</button>`;
   const textInput = menu.querySelector('[data-appearance="text"]');
   const colorInput = menu.querySelector('[data-appearance="color"]');
   const textRow = menu.querySelector('[data-field="text"]');
@@ -109,6 +110,7 @@ export function createFrameEditor({ getState, onEnable, onChange, onLayoutChange
     el.style.width = `${Math.max(1, r.width)}px`; el.style.height = `${Math.max(1, r.height)}px`;
   };
   const worldSection = { logo: 'logo', photoLabel: 'photo', brandDecor: 'decor' };
+  const textSection = id => CUSTOM_TEXT_IDS.includes(id) ? 'textLayers' : 'caption';
   const sizeInfo = {
     logo: { section: 'logo', key: 'scale', min: 0.3, max: 2.5 },
     photoLabel: { section: 'photo', key: 'radius', min: 1.1, max: 2.15 },
@@ -125,6 +127,11 @@ export function createFrameEditor({ getState, onEnable, onChange, onLayoutChange
     subtitle: { text: {section: 'caption', key: 'subtitleText'}, color: {section: 'caption', key: 'subtitleColor'}, fallback: '#ecd08c' },
     date: { text: {section: 'caption', key: 'dateText'}, color: {section: 'caption', key: 'dateColor'}, fallback: '#d9b061' },
   };
+  for (const id of CUSTOM_TEXT_IDS) {
+    sizeInfo[id] = { section: 'textLayers', key: `${id}Scale`, min: 0.5, max: 2 };
+    appearance[id] = { text: {section: 'textLayers', key: `${id}Text`},
+      color: {section: 'textLayers', key: `${id}Color`}, fallback: '#ecd08c' };
+  }
   function appearanceFields(id, kind) {
     const field = appearance[id]?.[kind];
     return field ? [field] : [];
@@ -137,6 +144,8 @@ export function createFrameEditor({ getState, onEnable, onChange, onLayoutChange
   function populateAppearance(id) {
     const info = appearance[id], cfg = getState().config;
     menu.querySelector('[data-color-label]').textContent = id === 'logo' ? 'Общий цвет золота' : 'Цвет';
+    menu.querySelector('[data-action=delete-text]').hidden = !CUSTOM_TEXT_IDS.includes(id);
+    menu.querySelector('[data-action=settings]').hidden = CUSTOM_TEXT_IDS.includes(id);
     textRow.hidden = !info.text; resetTextButton.hidden = !info.text;
     if (info.text) {
       textInput.value = cfg[info.text.section][info.text.key] ?? '';
@@ -167,7 +176,7 @@ export function createFrameEditor({ getState, onEnable, onChange, onLayoutChange
   function positionFields(id) {
     const section = worldSection[id];
     return section ? [{section, key: 'offsetX'}, {section, key: 'offsetY'}]
-      : [{section: 'caption', key: `${id}X`}, {section: 'caption', key: `${id}Y`}];
+      : [{section: textSection(id), key: `${id}X`}, {section: textSection(id), key: `${id}Y`}];
   }
   const sizeFields = (id) => [{ section: sizeInfo[id].section, key: sizeInfo[id].key }];
   function snapshot(config, fields) {
@@ -215,7 +224,7 @@ export function createFrameEditor({ getState, onEnable, onChange, onLayoutChange
     return ray.ray.intersectPlane(plane, new THREE.Vector3());
   }
   function select(id, showMenu) {
-    if (!layersForScene(getState().id).some(item => item.id === id)) return;
+    if (!layersForScene(getState().id, getState().config).some(item => item.id === id)) return;
     finishInput();
     selected = id;
     for (const [name, box] of Object.entries(boxes)) box.classList.toggle('selected', name === id);
@@ -230,7 +239,7 @@ export function createFrameEditor({ getState, onEnable, onChange, onLayoutChange
     if (!enabled) return;
     updateHistory();
     const { scene, canvas, id, config } = getState();
-    const available = new Set(layersForScene(id).map(item => item.id));
+    const available = new Set(layersForScene(id, config).map(item => item.id));
     for (const item of EDITOR_LAYERS) {
       const row = rows[item.id];
       row.hidden = entries[item.id].hidden = !available.has(item.id);
@@ -249,6 +258,10 @@ export function createFrameEditor({ getState, onEnable, onChange, onLayoutChange
     }
     if (selected) menu.querySelector('.editor-hidden-note').hidden = layerVisible(config, EDITOR_LAYERS.find(item => item.id === selected));
     if (selected && !inputSession && !menu.contains(document.activeElement)) populateAppearance(selected);
+    const addButton = layersPanel.querySelector('[data-add-text]');
+    addButton.disabled = CUSTOM_TEXT_IDS.every(key => config.textLayers?.[`${key}Present`] === true);
+    addButton.title = addButton.disabled ? 'Максимум 8 дополнительных надписей' : 'Добавить надпись в сцену';
+    addButton.textContent = addButton.disabled ? 'Лимит: 8 надписей' : '＋ Добавить текст';
     snapRects = {};
     const rect = canvas.getBoundingClientRect();
     scene.logo.root.updateWorldMatrix(true, true);
@@ -274,6 +287,15 @@ export function createFrameEditor({ getState, onEnable, onChange, onLayoutChange
         const r = line.getBoundingClientRect();
         snapRects[name] = { left: r.left, top: r.top, width: r.width, height: r.height };
         place(boxes[name], { left: r.left - 5, top: r.top - 5, width: r.width + 10, height: r.height + 10 });
+      }
+    }
+    for (const customId of CUSTOM_TEXT_IDS) {
+      const line = document.querySelector(`#caption [data-custom="${customId}"]`);
+      boxes[customId].hidden = !available.has(customId) || !line || config.textLayers?.[`${customId}Visible`] === false;
+      if (!boxes[customId].hidden) {
+        const r = line.getBoundingClientRect();
+        snapRects[customId] = { left: r.left, top: r.top, width: r.width, height: r.height };
+        place(boxes[customId], { left: r.left - 5, top: r.top - 5, width: r.width + 10, height: r.height + 10 });
       }
     }
     // Для круглых элементов используется небольшая ручка на верхней кромке,
@@ -317,6 +339,17 @@ export function createFrameEditor({ getState, onEnable, onChange, onLayoutChange
     guides.x.hidden = guides.y.hidden = true;
     toggle.textContent = 'Редактировать'; toggle.setAttribute('aria-pressed', 'false');
   }
+  layersPanel.querySelector('[data-add-text]').addEventListener('click', () => {
+    finishInput();
+    const state = getState(), cfg = state.config;
+    const id = CUSTOM_TEXT_IDS.find(key => cfg.textLayers[`${key}Present`] !== true);
+    if (!id) return;
+    const fields = customTextKeys(id).map(key => ({section: 'textLayers', key}));
+    const before = snapshot(cfg, fields);
+    for (const {key} of fields) cfg.textLayers[key] = state.defaults.textLayers[key];
+    cfg.textLayers[`${id}Present`] = true;
+    record(state.id, cfg, before); onChange(); select(id, true);
+  });
   toggle.addEventListener('click', () => {
     if (enabled) { disable(); return; }
     if (!onEnable()) return;
@@ -347,7 +380,7 @@ export function createFrameEditor({ getState, onEnable, onChange, onLayoutChange
         startDistance: Math.hypot(event.clientX - centerX, event.clientY - centerY),
         startSize: cfg[size.section][size.key],
         rect: { ...bounds }, targets, frame: { left: frame.left, top: frame.top, width: frame.width, height: frame.height }, pointerId: event.pointerId, x: event.clientX, y: event.clientY, world,
-        start: section ? { x: cfg[section].offsetX, y: cfg[section].offsetY } : { x: cfg.caption[`${id}X`], y: cfg.caption[`${id}Y`] }, moved: false };
+        start: section ? { x: cfg[section].offsetX, y: cfg[section].offsetY } : { x: cfg[textSection(id)][`${id}X`], y: cfg[textSection(id)][`${id}Y`] }, moved: false };
       box.setPointerCapture(event.pointerId); event.preventDefault();
     });
     box.addEventListener('pointermove', (event) => {
@@ -376,7 +409,7 @@ export function createFrameEditor({ getState, onEnable, onChange, onLayoutChange
         cfg[section].offsetX = next.x; cfg[section].offsetY = next.y;
       } else {
         const next = moveTitle(drag.start, dx, dy, rect.width, rect.height);
-        cfg.caption[`${id}X`] = next.x; cfg.caption[`${id}Y`] = next.y;
+        cfg[textSection(id)][`${id}X`] = next.x; cfg[textSection(id)][`${id}Y`] = next.y;
       }
       onChange();
     });
@@ -411,8 +444,9 @@ export function createFrameEditor({ getState, onEnable, onChange, onLayoutChange
         const p = moveLogo({ x: cfg[section].offsetX, y: cfg[section].offsetY }, direction[0] * step, -direction[1] * step);
         cfg[section].offsetX = p.x; cfg[section].offsetY = p.y;
       } else {
-        const p = moveTitle({ x: cfg.caption[`${id}X`], y: cfg.caption[`${id}Y`] }, direction[0] * step, direction[1] * step, 1, 1);
-        cfg.caption[`${id}X`] = p.x; cfg.caption[`${id}Y`] = p.y;
+        const target = cfg[textSection(id)];
+        const p = moveTitle({ x: target[`${id}X`], y: target[`${id}Y`] }, direction[0] * step, direction[1] * step, 1, 1);
+        target[`${id}X`] = p.x; target[`${id}Y`] = p.y;
       }
       record(state.id, cfg, before); select(id, false); onChange();
     };
@@ -424,6 +458,12 @@ export function createFrameEditor({ getState, onEnable, onChange, onLayoutChange
     if (!selected || !action) return;
     finishInput();
     const state = getState();
+    if (action === 'delete-text' && CUSTOM_TEXT_IDS.includes(selected)) {
+      const key = `${selected}Present`, before = snapshot(state.config, [{section: 'textLayers', key}]);
+      state.config.textLayers[key] = false;
+      record(state.id, state.config, before); onChange(); refresh();
+      return;
+    }
     const fields = action === 'reset-size' ? sizeFields(selected)
       : action === 'reset-color' ? appearanceFields(selected, 'color')
       : action === 'reset-text' ? appearanceFields(selected, 'text') : positionFields(selected);
@@ -438,14 +478,15 @@ export function createFrameEditor({ getState, onEnable, onChange, onLayoutChange
         const value = selected === 'logo' ? state.config.logo[key] - position : -position;
         state.config[section][key] = Math.max(-2, Math.min(2, value));
       } else {
-        const selector = { title: '.cap-title', subtitle: '.cap-sub', date: '.cap-date' }[selected];
+        const selector = CUSTOM_TEXT_IDS.includes(selected) ? `[data-custom="${selected}"]` : { title: '.cap-title', subtitle: '.cap-sub', date: '.cap-date' }[selected];
         const element = document.querySelector(`#caption ${selector}`);
         const cap = document.getElementById('caption');
         const size = xAxis ? cap.clientWidth : cap.clientHeight;
         const current = parseFloat(getComputedStyle(element)[xAxis ? 'left' : 'top']);
         const key = `${selected}${xAxis ? 'X' : 'Y'}`;
         if (size > 0 && Number.isFinite(current)) {
-          state.config.caption[key] = Math.max(-0.45, Math.min(0.45, state.config.caption[key] + 0.5 - current / size));
+          const target = state.config[textSection(selected)];
+          target[key] = Math.max(-0.45, Math.min(0.45, target[key] + 0.5 - current / size));
         }
       }
       onChange();
@@ -469,8 +510,9 @@ export function createFrameEditor({ getState, onEnable, onChange, onLayoutChange
         state.config[section].offsetX = state.defaults[section].offsetX;
         state.config[section].offsetY = state.defaults[section].offsetY;
       } else {
-        state.config.caption[`${selected}X`] = state.defaults.caption[`${selected}X`];
-        state.config.caption[`${selected}Y`] = state.defaults.caption[`${selected}Y`];
+        const section = textSection(selected);
+        state.config[section][`${selected}X`] = state.defaults[section][`${selected}X`];
+        state.config[section][`${selected}Y`] = state.defaults[section][`${selected}Y`];
       }
       onChange();
     }

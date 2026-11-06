@@ -76,7 +76,7 @@ function applyTypography(force = false) {
   const font = cfg.typography?.font || "cormorant-garamond";
   const sizes = ["title", "subtitle", "date"].map(name => cfg.caption?.[`${name}Scale`] ?? 1);
   const signature = `${font}:${sizes.join(":")}`;
-  const textChanged = syncCaptionContent(cap, cfg.caption);
+  const textChanged = syncCaptionContent(cap, cfg.caption, cfg.textLayers);
   const changed = cap.dataset.fontSignature !== signature;
   for (const [i, name] of ["title", "subtitle", "date"].entries()) cap.style.setProperty(`--${name}-scale`, sizes[i]);
   cap.dataset.fontSignature = signature;

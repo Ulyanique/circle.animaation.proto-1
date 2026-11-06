@@ -1,3 +1,5 @@
+import { CUSTOM_TEXT_IDS } from './custom-text.js';
+
 /** Реестр редактируемых элементов готовых шаблонов. Это пока не произвольные слои. */
 export const EDITOR_LAYERS = [
   { id: 'logo', label: 'Логотип', kind: 'Знак', visibility: { section: 'logo', key: 'visible' }, scenes: ['waiting', 'brand', 'photo-pause', 'finale'] },
@@ -6,8 +8,12 @@ export const EDITOR_LAYERS = [
   { id: 'date', label: 'Дата', kind: 'Текст', visibility: { section: 'caption', key: 'dateVisible' }, scenes: ['waiting'] },
   { id: 'photoLabel', label: 'Надпись по кругу', kind: 'Текст', visibility: { section: 'photo', key: 'textEnabled' }, scenes: ['photo-pause'] },
   { id: 'brandDecor', label: 'Построительная окружность', kind: 'Декор', visibility: { section: 'decor', key: 'enabled' }, scenes: ['brand'] },
+  ...CUSTOM_TEXT_IDS.map((id, i) => ({ id, label: `Текст ${i + 1}`, kind: 'Текст', custom: true,
+    visibility: { section: 'textLayers', key: `${id}Visible` }, scenes: ['waiting', 'brand', 'photo-pause', 'finale'] })),
 ];
-export function layersForScene(id) { return EDITOR_LAYERS.filter(layer => layer.scenes.includes(id)); }
+export function layersForScene(id, config) {
+  return EDITOR_LAYERS.filter(layer => layer.scenes.includes(id) && (!layer.custom || config?.textLayers?.[`${layer.id}Present`] === true));
+}
 
 /** Место под панели редактора; пропорции самого кадра не меняются. */
 export function editorViewport(width, height, editing) {

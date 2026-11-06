@@ -636,3 +636,14 @@ body.editor-on.operator-idle:not(.ui-on) .operator-panel { opacity: 1; pointer-e
 .editor-visibility[aria-pressed="false"] .eye-slash { display: block; }
 .editor-hidden-note { margin: 0 7px 8px; padding: 8px; border-radius: 4px; background: #30281b; color: #d7c39b; font-size: 11px; }
 .editor-hidden-note[hidden] { display: none; }
+#caption .cap-custom { font-weight: 600; font-size: calc(var(--u) * 3.5 * var(--custom-scale, 1));
+  -webkit-text-stroke: calc(var(--u) * .04) var(--custom-color, #ecd08c); }
+#caption .cap-custom .cap-glyph::after { color: var(--custom-color, #ecd08c); }
+#caption .cap-custom .glyph-contour path { stroke: var(--custom-color, #ecd08c); }
+.editor-add-text { display: block; width: calc(100% - 16px); margin: 4px 8px 0; padding: 9px;
+  border: 1px dashed #776541; border-radius: 4px; background: transparent; color: #e1c58f;
+  text-align: left; cursor: pointer; font: 12px system-ui, sans-serif; }
+.editor-add-text:hover, .editor-add-text:focus-visible { background: #30281b; border-color: #d9b061; }
+.editor-add-text:disabled { opacity: .45; cursor: default; }
+.editor-menu .editor-delete-text { margin-top: 8px; color: #e9ad98; border-top: 1px solid #5f4135; }
+.editor-menu button[hidden] { display: none; }

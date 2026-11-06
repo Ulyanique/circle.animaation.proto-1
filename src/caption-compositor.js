@@ -47,7 +47,6 @@ function capVal(sel, name) {
 }
 
 export function drawCaption(ctx, alpha, sceneId) {
-  if (sceneId === "photo-pause") return; // круговой текст уже находится в WebGL-кадре
   const W = REC_W, H = REC_H, u = W / 100;
   const cap = document.getElementById("caption");
   const scale = W / (parseFloat(cap?.style.width) || W);
@@ -199,7 +198,7 @@ export function drawCaption(ctx, alpha, sceneId) {
       y: style ? parseFloat(style.top) * scale : fallbackY };
   };
   const titlePosition = linePosition(".cap-title", (brand || photo || finale) ? 0.65 * H : 0.55 * H);
-  textLine(".cap-title", {
+  if (!photo) textLine(".cap-title", {
     ...titlePosition,
     weight: 600, size: tSize, ls: 0, stroke: titleColor || "#e0b25a", sw: 0.08 * u, shadow: true, fill: titleColor || titleGrad,
   });
@@ -218,6 +217,13 @@ export function drawCaption(ctx, alpha, sceneId) {
     textLine(".cap-date", {
       ...linePosition(".cap-date", 0.84 * H), weight: 400, size: dateSize, ls: 0.28 * dateSize, stroke: dateColor || "#d9b061", sw: 0.035 * u, fill: dateColor || "#d9b061",
     });
+  }
+  for (const el of cap?.querySelectorAll('.cap-custom') ?? []) {
+    const selector = `[data-custom="${el.dataset.custom}"]`;
+    const size = fontSize(selector, 3.5 * u);
+    const fill = getComputedStyle(el).getPropertyValue('--custom-color').trim() || '#ecd08c';
+    textLine(selector, { ...linePosition(selector, 0.75 * H), weight: 600, size, ls: 0,
+      stroke: fill, sw: 0.04 * u, fill });
   }
   ctx.restore();
 }
