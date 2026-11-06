@@ -133,7 +133,7 @@ test("описание сцены копируется для настроек, 
   const cfg = cloneDefaults(sceneById("waiting").defaults);
   cfg.timeline.speed = 2;
   assert.equal(DEFAULTS.timeline.speed, 1);
-  assert.ok(Math.abs(cycleDuration(cfg.timeline) - 18.6) < 1e-9);
+  assert.ok(Math.abs(cycleDuration(cfg.timeline) - 19.1) < 1e-9);
 });
 
 test("каждая сцена получает полный независимый конфиг со своей композицией", () => {
@@ -163,7 +163,7 @@ test("движок сохраняет точный seek, паузу и реал�
     render: (dt) => calls.push(["render", dt]),
   };
   const runtime = new AnimationRuntime(scene, cfg);
-  assert.ok(Math.abs(runtime.cycle - 18.6) < 1e-9);
+  assert.ok(Math.abs(runtime.cycle - 19.1) < 1e-9);
   runtime.renderAt(6.14);
   runtime.renderAt(2.86, 1 / OUTPUT.fps);
   assert.equal(runtime.time, 2.86);

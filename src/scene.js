@@ -275,7 +275,8 @@ export class LogoScene {
     const z = -cfg.logo.shadowDepth * (1 - ph.reveal) * (1 - ph.reveal);
     const root = this.logo.root;
     const lift = sequence ? sequence.lift : 1;
-    root.position.set(0, (Math.sin(TAUt * quant(cfg.logo.swaySpeed * 0.5) * t) * 0.02 + (cfg.logo.offsetY ?? 0)) * lift, z);
+    const sway = Math.sin(TAUt * quant(cfg.logo.swaySpeed * 0.5) * t) * 0.02;
+    root.position.set(0, (cfg.logo.offsetY ?? 0) * lift + sway * (sequence ? sequence.settled : 1), z);
     root.scale.setScalar(cfg.logo.scale * scaleGrow * pulse * (0.55 + 0.45 * easeOutCubic(ph.reveal)));  // сначала контур в малом размере, затем логотип растёт
     // У интро знак входит с небольшого ракурса и разворачивается к зрителю.
     root.rotation.set(

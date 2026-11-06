@@ -299,3 +299,18 @@ test("масштаб и заливка логотипа непрерывны н�
     assert.ok(Math.abs(at(boundary + epsilon).draw - at(boundary - epsilon).draw) < 1e-3);
   }
 });
+
+test("подъём логотипа разгоняется, затем замедляется до полной остановки", () => {
+  const cfg = DEFAULTS.intro;
+  const cue = (local) => introSequence(at(local), tl, cfg);
+  const start = cue(0).cornerEnd;
+  const end = start + cfg.liftDuration;
+  const step = cfg.liftDuration / 20;
+  const delta = (i) => cue(start + (i + 1) * step).lift - cue(start + i * step).lift;
+  assert.equal(cue(start).lift, 0);
+  assert.equal(cue(end).lift, 1);
+  assert.ok(delta(0) < delta(3) && delta(3) < delta(7), 'плавный разгон');
+  assert.ok(delta(12) > delta(16) && delta(16) > delta(19), 'плавное торможение');
+  assert.equal(cue(end).settled, 0);
+  assert.equal(cue(end + 0.8).settled, 1);
+});

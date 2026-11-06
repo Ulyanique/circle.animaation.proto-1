@@ -34,10 +34,13 @@ export function introSequence(phase, timeline, config) {
   const cornerEnd = cornerStart + Math.max(0.05, config.cornerDuration);
   const liftEnd = cornerEnd + Math.max(0.05, config.liftDuration);
   const captionStart = liftEnd + Math.max(0, config.titleDelay);
-  if (phase.beforeStart) return { corners: 0, lift: 0, captionStart, cornerStart, cornerEnd, liftEnd };
+  if (phase.beforeStart) return { corners: 0, lift: 0, settled: 0, captionStart, cornerStart, cornerEnd, liftEnd };
   return {
     corners: phase.rings * smooth(cornerStart, cornerEnd, phase.local),
+    // Плавный S-образный подъём: скорость нулевая на обоих концах.
     lift: smooth(cornerEnd, liftEnd, phase.local),
+    // Лёгкое покачивание включается уже после остановки, без толчка в конце.
+    settled: smooth(liftEnd, liftEnd + 0.8, phase.local),
     captionStart, cornerStart, cornerEnd, liftEnd,
   };
 }

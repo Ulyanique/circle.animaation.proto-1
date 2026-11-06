@@ -3,12 +3,12 @@
 // Здесь нет WebGL и DOM — описание сцены можно читать из тестов и экспортера.
 export const WAITING_DEFAULTS = {
   typography: { font: "cormorant-garamond" },
-  intro: { cornerDuration: 1.1, liftDuration: 0.9, titleDelay: 0.15 },
+  intro: { cornerDuration: 1.1, liftDuration: 1.4, titleDelay: 0.15 },
   timeline: {
     // длительности фаз в секундах; цикл повторяется бесконечно
     drawDuration: 2.6,     // прорисовка контура
     emergeDuration: 2.4,   // появление из тени (радиальное проявление)
-    holdDuration: 10.1,     // собранная заставка читается дольше между входом и уходом
+    holdDuration: 10.6,     // собранная заставка читается дольше между входом и уходом
     fadeDuration: 2.3,     // уходит обратно в тень
     restDuration: 1.2,     // пауза в тени перед следующим кругом
     startDelay: 0.15,      // короткая разовая пауза перед стартом интро
