@@ -21,7 +21,8 @@
     "verify:loader": "node scripts/verify-loader.cjs",
     "render:frames": "node scripts/render-loop.cjs",
     "render:storyboard": "node scripts/render-storyboard.cjs",
-    "render:encode": "bash scripts/encode-loop.sh"
+    "render:encode": "bash scripts/encode-loop.sh",
+    "verify:settings": "node scripts/verify-settings.cjs"
   },
   "dependencies": {
     "postprocessing": "^6.39.5",

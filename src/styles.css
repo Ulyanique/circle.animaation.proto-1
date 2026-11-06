@@ -51,10 +51,9 @@ body.scene-finale #caption .cap-sub {
 }
 /* Мышь видна всегда. Только элементы пульта исчезают после бездействия. */
 body, body.ui-on, body.review-on { cursor: auto; }
-body:not(.scene-waiting) .cfg-toggle,
-body:not(.scene-waiting) .cfg-panel { display: none; }
-body.operator-idle:not(.ui-on) .cfg-toggle,
+/* Настройки есть в каждой сцене. В простое кнопка приглушена, но кликабельна. */
 body.operator-idle:not(.ui-on) .operator-panel { opacity: 0; pointer-events: none; }
+body.operator-idle:not(.ui-on) .cfg-toggle { opacity: .55; }
 .cfg-toggle { transition: opacity .25s ease; }
 .operator-panel {
   position: fixed; z-index: 24; left: 50%; bottom: 16px;
@@ -142,7 +141,7 @@ body.operator-idle:not(.ui-on) .operator-panel { opacity: 0; pointer-events: non
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
   cursor: pointer;
-  opacity: 0.5;
+  opacity: 0.78;
 }
 .cfg-toggle.active, body.ui-on .cfg-toggle { border-color: var(--gold); opacity: 1; }
 
@@ -191,6 +190,35 @@ body.operator-idle:not(.ui-on) .operator-panel { opacity: 0; pointer-events: non
   background: none; border: 0; color: var(--muted); font-size: 20px; cursor: pointer; line-height: 1; padding: 0 4px;
 }
 .cfg-close:hover { color: var(--text); }
+.cfg-scene-name {
+  font-style: normal;
+  letter-spacing: .08em;
+  color: var(--muted);
+  margin-left: 4px;
+}
+
+/* вкладки сцен: у каждой свой набор настроек */
+.cfg-tabs {
+  display: flex;
+  gap: 6px;
+  padding: 10px 12px;
+  border-bottom: 1px solid rgba(217, 176, 97, 0.12);
+}
+.cfg-tab {
+  flex: 1;
+  font: inherit;
+  font-size: 12px;
+  letter-spacing: .06em;
+  color: var(--muted);
+  background: rgba(217, 176, 97, 0.05);
+  border: 1px solid rgba(217, 176, 97, 0.18);
+  border-radius: 8px;
+  padding: 6px 0;
+  cursor: pointer;
+  transition: color .18s, background .18s, border-color .18s;
+}
+.cfg-tab:hover { color: var(--text); border-color: var(--gold); }
+.cfg-tab.active { color: #120d05; background: var(--gold); border-color: var(--gold); }
 
 .cfg-tools {
   display: flex;
@@ -234,6 +262,7 @@ body.operator-idle:not(.ui-on) .operator-panel { opacity: 0; pointer-events: non
 }
 .cfg-textarea:focus { outline: none; border-color: var(--gold); }
 .cfg-io-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.cfg-io-hint { margin: 0 0 8px; color: var(--muted); font-size: 11px; line-height: 1.45; }
 
 .cfg-body {
   overflow-y: auto;

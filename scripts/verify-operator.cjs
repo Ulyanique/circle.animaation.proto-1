@@ -16,16 +16,26 @@ const { launchBrowser } = require("./browser.cjs");
       label: document.querySelector('[data-scene="waiting"]')?.textContent.trim(),
       isIntro: window.__logo.scene.isIntro && !window.__logo.scene.contourWaves,
     }));
-    await page.evaluate(() => document.querySelector('[data-scene="brand"]').click());
+    // Кадр перехода живёт ~1 с; на software-WebGL опрос может опоздать к его удалению,
+    // поэтому фиксируем появление оверлея наблюдателем, а не чтением DOM после ожидания.
+    await page.evaluate(() => {
+      window.__sawTransition = false;
+      new MutationObserver((records) => {
+        for (const record of records) for (const node of record.addedNodes) {
+          if (node.nodeType === 1 && node.classList?.contains("transition-frame")) window.__sawTransition = true;
+        }
+      }).observe(document.body, { childList: true });
+      document.querySelector('[data-scene="brand"]').click();
+    });
     await page.waitForFunction(() => window.__logo.activeScene.id === "brand", { timeout: 120000 });
     const crossfade = await page.evaluate(() => ({
-      overlay: !!document.querySelector(".transition-frame"),
+      overlay: window.__sawTransition,
       canvasCount: document.querySelectorAll("#stage").length,
       samePage: location.search.includes("scene=brand"),
       brandTitle: document.querySelector(".cap-title").textContent.replaceAll("\u00a0", " "),
       hasWaves: !!window.__logo.scene.contourWaves && !window.__logo.scene.isIntro,
     }));
-    await page.waitForFunction(() => !document.querySelector(".transition-frame"), { timeout: 60000 });
+    await page.waitForFunction(() => !document.querySelector(".transition-frame"), { timeout: 180000 });
     const edit = await page.evaluate(() => {
       const duration = document.querySelector('[data-action="duration"]');
       duration.value = "30";
@@ -43,11 +53,11 @@ const { launchBrowser } = require("./browser.cjs");
       return window.__logo.operator.auto;
     });
     await page.waitForFunction(() => window.__logo.activeScene.id === "photo-pause", { timeout: 120000 });
-    await page.waitForFunction(() => !document.querySelector(".transition-frame"), { timeout: 60000 });
+    await page.waitForFunction(() => !document.querySelector(".transition-frame"), { timeout: 180000 });
     await page.evaluate(() => document.querySelector('[data-action="auto"]').click());
     await page.evaluate(() => document.querySelector('[data-scene="finale"]').click());
     await page.waitForFunction(() => window.__logo.activeScene.id === "finale", { timeout: 120000 });
-    await page.waitForFunction(() => !document.querySelector(".transition-frame"), { timeout: 60000 });
+    await page.waitForFunction(() => !document.querySelector(".transition-frame"), { timeout: 180000 });
     const finalState = await page.evaluate(() => ({
       title: document.querySelector(".cap-title").textContent.replaceAll("\u00a0", " "),
       phrase: document.querySelector(".cap-sub").textContent.replaceAll("\u00a0", " "),
@@ -61,17 +71,33 @@ const { launchBrowser } = require("./browser.cjs");
       isIntro: window.__logo.scene.isIntro && !window.__logo.scene.contourWaves,
       introUrl: location.search.includes("scene=intro"),
     }));
-    await page.waitForFunction(() => document.body.classList.contains("operator-idle") &&
-      Number(getComputedStyle(document.querySelector(".cfg-toggle")).opacity) < 0.01,
-    { timeout: 15000 });
-    const idle = await page.evaluate(() => ({
-      cursor: getComputedStyle(document.body).cursor,
-      buttonOpacity: getComputedStyle(document.querySelector(".cfg-toggle")).opacity,
-      panelOpacity: getComputedStyle(document.querySelector(".operator-panel")).opacity,
-    }));
+    // Кнопка настроек в простое остаётся кликабельной, поэтому ждём приглушение,
+    // а не исчезновение: панель должна быть доступна в каждой сцене.
+    await page.waitForFunction(() => document.body.classList.contains("operator-idle"), { timeout: 15000 });
+    const idle = await page.evaluate(() => {
+      const btn = document.querySelector(".cfg-toggle");
+      // transition читаем без анимации: software-WebGL не успевает за кадрами.
+      btn.style.transition = "none";
+      const style = getComputedStyle(btn);
+      const buttonOpacity = style.opacity;
+      btn.style.transition = "";
+      return {
+        cursor: getComputedStyle(document.body).cursor,
+        buttonOpacity,
+        panelOpacity: getComputedStyle(document.querySelector(".operator-panel")).opacity,
+      };
+    });
+    // Пробуждение фиксируем наблюдателем: на software-WebGL кадры идут медленно,
+    // и опрос может застать уже повторно добавленный класс простоя.
+    await page.evaluate(() => {
+      window.__awakened = false;
+      new MutationObserver(() => {
+        if (!document.body.classList.contains("operator-idle")) window.__awakened = true;
+      }).observe(document.body, { attributes: true, attributeFilter: ["class"] });
+    });
     await page.mouse.move(200, 180);
-    await page.waitForFunction(() => !document.body.classList.contains("operator-idle"));
-    const awakened = await page.evaluate(() => !document.body.classList.contains("operator-idle"));
+    await page.waitForFunction(() => window.__awakened, { timeout: 20000 }).catch(() => {});
+    const awakened = await page.evaluate(() => window.__awakened);
     const result = { first, crossfade, edit, auto, finalState, returnState, idle, awakened, errors };
     console.log(result);
     if (errors.length || first.cursor !== "auto" || !first.panel || !first.settings ||
@@ -83,7 +109,7 @@ const { launchBrowser } = require("./browser.cjs");
         finalState.phrase !== "История продолжается" ||
         finalState.stage.join("x") !== "1920x1080" ||
         returnState.title !== "Янтарный циркуль" || !returnState.settings || !returnState.isIntro || !returnState.introUrl ||
-        idle.cursor !== "auto" || Number(idle.buttonOpacity) > 0.01 ||
+        idle.cursor !== "auto" || Number(idle.buttonOpacity) > 0.8 || Number(idle.buttonOpacity) < 0.3 ||
         Number(idle.panelOpacity) > 0.01 || !awakened) process.exitCode = 1;
   } finally { await browser.close(); }
 })().catch((e) => { console.error("FAIL", e); process.exitCode = 1; });

@@ -1,7 +1,9 @@
 import "./styles.css";
 import "@fontsource/cormorant-garamond/cyrillic-400.css";
 import "@fontsource/cormorant-garamond/cyrillic-600.css";
-import { loadConfig, cloneDefaults, saveConfig } from "./config.js";
+import {
+  cloneDefaults, loadSceneConfig, saveSceneConfig, replaceConfig, mergeConfig, projectToJSON,
+} from "./config.js";
 import { LogoScene } from "./scene.js";
 import { BrandScene } from "./brand-scene.js";
 import { PhotoPauseScene } from "./photo-pause-scene.js";
@@ -19,12 +21,27 @@ if (!activeScene?.defaults || activeScene.status !== "ready") {
 }
 // "waiting" остаётся внутренним идентификатором для старых ссылок и настроек.
 let sceneId = activeScene.id;
+// Настройки каждой готовой сцены живут отдельно: в браузере свой ключ на сцену.
+const READY_IDS = ["waiting", "brand", "photo-pause", "finale"];
 const configs = new Map();
-configs.set("waiting", loadConfig(sceneById("waiting").defaults));
+for (const id of READY_IDS) {
+  configs.set(id, loadSceneConfig(id, sceneById(id).defaults));
+}
 function configFor(id) {
   id = sceneById(id)?.id || id;
   if (!configs.has(id)) configs.set(id, cloneDefaults(sceneById(id).defaults));
   return configs.get(id);
+}
+function saveScene(id = sceneId) {
+  saveSceneConfig(sceneById(id)?.id || id, configFor(id));
+}
+/** Применить присланный JSON к сцене, не ломая ссылку, которую держит рендер. */
+function applySceneConfig(id, next) {
+  id = sceneById(id)?.id || id;
+  // Присланный фрагмент накладывается на умолчания сцены: частичный JSON не ломает рендер.
+  replaceConfig(configFor(id), mergeConfig(sceneById(id).defaults, next));
+  saveScene(id);
+  if (id === sceneId) runtime.renderAt(runtime.time, 1 / OUTPUT.fps);
 }
 let cfg = configFor(sceneId);
 let canvas = document.getElementById("stage");
@@ -74,16 +91,33 @@ const adapters = { waiting: LogoScene, brand: BrandScene,
   "photo-pause": PhotoPauseScene, finale: FinaleScene };
 let scene = new adapters[sceneId](canvas, cfg);
 let runtime = new AnimationRuntime(scene, cfg, OUTPUT.fps);
-const settings = createSettingsUI(configFor("waiting"), {
-  onChange: () => {},
+const settings = createSettingsUI({
+  scenes: READY_IDS.map((id) => ({
+    id,
+    label: ({ waiting: "01", brand: "02", "photo-pause": "08", finale: "09" })[id],
+    title: sceneById(id).title,
+  })),
+  getSceneId: () => sceneId,
+  getConfig: (id) => configFor(id),
+  getDefaults: (id) => sceneById(id).defaults,
+  setScene: (id) => switchScene(id),
+  onConfigChange: (id) => {
+    saveScene(id);
+    if (id === sceneId) runtime.renderAt(runtime.time, 1 / OUTPUT.fps);
+  },
+  onApplyScene: (id, next) => applySceneConfig(id, next),
+  onApplyProject: (scenes) => {
+    for (const [id, next] of Object.entries(scenes)) applySceneConfig(id, next);
+    settings.rebuild();
+  },
+  getProjectJSON: () => projectToJSON(
+    Object.fromEntries(READY_IDS.map((id) => [id, configFor(id)])), READY_IDS),
   onPauseToggle: () => {
-    if (sceneId !== "waiting") return;
     cfg.playback.paused = !cfg.playback.paused;
-    saveConfig(cfg);
+    saveScene();
   },
   onToast: toast,
-  onExportVideo: () => { if (sceneId === "waiting") startRecording(); },
-  isActive: () => sceneId === "waiting",
+  onExportVideo: () => startRecording(),
 });
 
 window.addEventListener("resize", () => scene.resize());
@@ -109,12 +143,14 @@ const operator = createOperatorControls({
     // не менее четырёх секунд фазы удержания и ограничение полного цикла.
     const minHold = sceneId === "waiting" ? 1 : 4;
     tl.holdDuration = Math.max(minHold, Math.min(300 - other, value - other));
-    if (sceneId === "waiting") { saveConfig(cfg); settings.refresh(); }
+    saveScene();
+    settings.refresh();
     runtime.renderAt(Math.min(runtime.time, tl.startDelay + runtime.cycle - 1 / OUTPUT.fps));
   },
   togglePause: () => {
     cfg.playback.paused = !cfg.playback.paused;
-    if (sceneId === "waiting") saveConfig(cfg);
+    saveScene();
+    settings.refresh();
   },
   switchScene: (id) => switchScene(id),
   record: () => startRecording(),
@@ -168,7 +204,6 @@ function switchScene(id, source) {
   document.body.appendChild(snapshot);
   const oldCanvas = canvas;
   const oldScene = scene;
-  settings.close();
   nextCanvas.id = "stage";
   oldCanvas.replaceWith(nextCanvas);
   canvas = nextCanvas;
@@ -181,6 +216,8 @@ function switchScene(id, source) {
   activateText(id);
   runtime.renderAt(cfg.timeline.startDelay, 1 / OUTPUT.fps);
   oldScene.dispose();
+  // Панель настроек остаётся открытой и переключается на настройки новой сцены.
+  settings.syncScene();
   const url = new URL(location.href);
   url.searchParams.set("scene", id === "waiting" ? "intro" : id);
   history.replaceState(null, "", url);
@@ -403,7 +440,9 @@ window.__logo = {
   compositeFrameAt,
   startRecording,
   startSequenceRecording,
-  getSceneConfig: configFor, // технический API тестов: изменить тайминги без смены художественных defaults
+  getSceneConfig: configFor,
+  saveScene,
+  settings, // технический API тестов: изменить тайминги без смены художественных defaults
   switchScene,
   operator,
   get activeScene() { return activeScene; },

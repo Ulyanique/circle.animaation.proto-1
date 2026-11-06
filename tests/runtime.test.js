@@ -4,7 +4,6 @@ import { AnimationRuntime, cycleDuration } from "../src/runtime.js";
 import { OUTPUT, RECORDING_CHAIN, SCENES, sceneById } from "../src/scenes/catalog.js";
 import { DEFAULTS, cloneDefaults } from "../src/config.js";
 import { WAITING_DEFAULTS } from "../src/scenes/waiting.js";
-import { createSharedSceneRenderConfig } from "../src/scenes/shared-visuals.js";
 import { BRAND_DEFAULTS } from "../src/scenes/brand.js";
 import { PHOTO_PAUSE_DEFAULTS } from "../src/scenes/photo-pause.js";
 import { FINALE_DEFAULTS } from "../src/scenes/finale.js";
@@ -137,22 +136,23 @@ test("описание сцены копируется для настроек, 
   assert.equal(cycleDuration(cfg.timeline), 15.3);
 });
 
-test("общий фон остальных сцен наследует оформление первой и не меняет его настройки", () => {
-  const cfg = createSharedSceneRenderConfig();
-  for (const key of ["background", "colors", "rings", "particles", "lights"]) {
+test("каждая сцена получает полный независимый конфиг со своей композицией", () => {
+  const cfg = cloneDefaults(BRAND_DEFAULTS);
+  for (const key of ["background", "colors", "rings", "particles", "lights", "sparks"]) {
     assert.deepEqual(cfg[key], WAITING_DEFAULTS[key], key);
     assert.notEqual(cfg[key], WAITING_DEFAULTS[key], key);
   }
-  assert.equal(cfg.rings.enabled, true);
-  assert.equal(cfg.particles.enabled, true);
-  assert.deepEqual(cfg.sparks, WAITING_DEFAULTS.sparks);
+  // Фоновые сцены крупнее и ниже интро, но это их собственные значения.
+  assert.equal(cfg.logo.scale, 0.58);
+  assert.equal(cfg.logo.offsetY, 0.86);
+  assert.equal(WAITING_DEFAULTS.logo.scale, 0.47);
   cfg.rings.radius = 123;
   assert.notEqual(WAITING_DEFAULTS.rings.radius, 123);
-  const timeline = { ...BRAND_DEFAULTS.timeline };
-  const animated = createSharedSceneRenderConfig(timeline);
-  assert.equal(animated.timeline, timeline);
-  timeline.holdDuration = 20;
-  assert.equal(animated.timeline.holdDuration, 20);
+  // Настройки трёх фоновых сцен не делят объекты между собой.
+  assert.notEqual(BRAND_DEFAULTS.logo, PHOTO_PAUSE_DEFAULTS.logo);
+  assert.notEqual(PHOTO_PAUSE_DEFAULTS.logo, FINALE_DEFAULTS.logo);
+  assert.notEqual(BRAND_DEFAULTS.timeline, FINALE_DEFAULTS.timeline);
+  assert.equal(cycleDuration(BRAND_DEFAULTS.timeline), 24);
 });
 
 test("движок сохраняет точный seek, паузу и реальное время без привязки к кадрам", () => {

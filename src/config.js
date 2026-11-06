@@ -142,7 +142,15 @@ export const SCHEMA = [
   },
 ];
 
-const STORAGE_KEY = "circle-anim-settings-v1";
+// Настройки хранятся отдельно для каждой сцены: правка фона не меняет интро.
+const STORAGE_PREFIX = "circle-anim-settings-v2";
+// Старый единственный ключ читаем один раз, чтобы не потерять настройки интро.
+const LEGACY_KEY = "circle-anim-settings-v1";
+export const PROJECT_VERSION = 2;
+
+export function sceneStorageKey(sceneId) {
+  return `${STORAGE_PREFIX}:${sceneId}`;
+}
 
 function deepMerge(target, source) {
   for (const k of Object.keys(source)) {
@@ -161,33 +169,69 @@ export function cloneDefaults(defaults = DEFAULTS) {
   return JSON.parse(JSON.stringify(defaults));
 }
 
-/** Текущая конфигурация: defaults + сохранённые в localStorage (если есть). */
-export function loadConfig(defaults = DEFAULTS) {
+/** Заменить содержимое объекта, не ломая ссылку, которую держит живая сцена. */
+export function replaceConfig(target, source) {
+  for (const key of Object.keys(target)) {
+    if (!(key in source)) delete target[key];
+  }
+  for (const key of Object.keys(source)) {
+    const value = source[key];
+    target[key] = value && typeof value === "object" && !Array.isArray(value)
+      ? deepMerge({}, cloneDefaults(value))
+      : value;
+  }
+  return target;
+}
+
+/** Умолчания сцены + присланный фрагмент: недостающие ключи остаются дефолтными. */
+export function mergeConfig(defaults, patch) {
   const cfg = cloneDefaults(defaults);
+  if (patch && typeof patch === "object") deepMerge(cfg, patch);
+  return cfg;
+}
+
+/** Настройки сцены: её умолчания + сохранённое в браузере (если есть). */
+export function loadSceneConfig(sceneId, defaults) {
+  const cfg = cloneDefaults(defaults);
+  let raw = null;
   try {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved) deepMerge(cfg, JSON.parse(saved));
+    raw = localStorage.getItem(sceneStorageKey(sceneId));
+    if (!raw && sceneId === "waiting") raw = localStorage.getItem(LEGACY_KEY);
   } catch (e) {
     console.warn("Не удалось прочитать настройки", e);
+    return cfg;
+  }
+  if (!raw) return cfg;
+  try {
+    deepMerge(cfg, JSON.parse(raw));
+  } catch (e) {
+    console.warn("Сохранённые настройки повреждены, взяты умолчания", e);
   }
   return cfg;
 }
 
-export function saveConfig(cfg) {
+export function saveSceneConfig(sceneId, cfg) {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(cfg));
+    localStorage.setItem(sceneStorageKey(sceneId), JSON.stringify(cfg));
   } catch (e) {
     /* localStorage может быть недоступен */
   }
 }
 
-export function resetStoredConfig() {
-  try { localStorage.removeItem(STORAGE_KEY); } catch (e) { /* noop */ }
+export function resetSceneConfig(sceneId) {
+  try {
+    localStorage.removeItem(sceneStorageKey(sceneId));
+    if (sceneId === "waiting") localStorage.removeItem(LEGACY_KEY);
+  } catch (e) { /* noop */ }
 }
 
-/** Разбор присланного JSON; неизвестные ключи игнорируются, значения приводятся к дефолтным типам. */
+/** Разбор присланного JSON одной сцены; неизвестные ключи игнорируются. */
 export function parseConfigJSON(text, defaults = DEFAULTS) {
   const data = JSON.parse(text);
+  // Присланный файл проекта (со «scenes») тоже принимаем, взяв из него свою сцену.
+  if (data && data.scenes && typeof data.scenes === "object") {
+    throw new Error("Это настройки всего проекта — используйте «Импорт проекта»");
+  }
   const cfg = cloneDefaults(defaults);
   deepMerge(cfg, data);
   return cfg;
@@ -195,4 +239,25 @@ export function parseConfigJSON(text, defaults = DEFAULTS) {
 
 export function configToJSON(cfg) {
   return JSON.stringify(cfg, null, 2);
+}
+
+/** Один файл на все четыре сцены: удобно прислать комплект настроек целиком. */
+export function projectToJSON(configs, order) {
+  const scenes = {};
+  for (const id of order) scenes[id] = configs[id];
+  return JSON.stringify({ version: PROJECT_VERSION, scenes }, null, 2);
+}
+
+/** Читает файл проекта; возвращает только известные сцены. */
+export function parseProjectJSON(text, order) {
+  const data = JSON.parse(text);
+  if (!data || typeof data !== "object" || !data.scenes || typeof data.scenes !== "object") {
+    throw new Error("В файле нет объекта scenes");
+  }
+  const scenes = {};
+  for (const id of order) {
+    if (data.scenes[id]) scenes[id] = data.scenes[id];
+  }
+  if (!Object.keys(scenes).length) throw new Error("В файле нет настроек известных сцен");
+  return { version: data.version ?? 1, scenes };
 }
