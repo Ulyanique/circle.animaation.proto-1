@@ -8,19 +8,15 @@ export class FinaleScene extends BrandScene {
   update(t, dt) {
     super.update(t, dt);
     const cue = finaleCues(t, this.brandConfig.timeline.holdDuration);
-    this.logo.root.position.y = 1.00;
+    const L = this.cfg.layout;
+    this.logo.root.position.x = L.logoX;
     this.logo.root.scale.multiplyScalar(cue.symbol);
-    // Не обнуляем живой поворот и туман от BrandScene — у финала тот же
-    // световой язык, только другие тайминги и собственная фраза.
-    this.background.uniforms.uEnvL.value *= 0.94 * cue.light;
-    this.background.uniforms.uEnvR.value *= 0.93 * cue.light;
+    // Множители фона, верхнего свечения и волн уже пришли из layout в BrandScene;
+    // здесь поверх них работает только общая огибающая финального ухода.
+    this.background.uniforms.uEnvL.value *= cue.light;
+    this.background.uniforms.uEnvR.value *= cue.light;
     this.topGlow.material.opacity *= cue.light;
-    // В финале название ближе к циркулю: силуэты волн меньше, чтобы
-    // графические штрихи никогда не пересекали строку титра.
-    this.waves.pulses.forEach(({ group, material }) => {
-      group.scale.multiplyScalar(0.72);
-      material.opacity *= 0.68 * cue.light;
-    });
+    this.waves.pulses.forEach(({ material }) => { material.opacity *= cue.light; });
     this.seamCurtain.material.opacity = Math.max(this.seamCurtain.material.opacity, 1 - cue.symbol);
     this.seamCurtain.visible = this.seamCurtain.material.opacity > 0.001;
     this._letterLine(".cap-title", cue.titleOutline, cue.titleFill, 0.72);

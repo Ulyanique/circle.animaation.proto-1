@@ -1,4 +1,14 @@
 import { WAITING_DEFAULTS } from "./scenes/waiting.js";
+import {
+  SCENE_IDS, SCENE_LABELS, FONT_CHOICES, INTRO_PRESETS, FINAL_CIRCLES,
+  DECOR_PRESETS, ANIMATION_PRESETS, OUT_PRESETS, LOOP_PRESETS,
+  createDefaultProject, createSceneDefaults,
+} from "./scenes/defaults.js";
+
+export {
+  SCENE_IDS, SCENE_LABELS, FONT_CHOICES, INTRO_PRESETS, FINAL_CIRCLES,
+  DECOR_PRESETS, ANIMATION_PRESETS, OUT_PRESETS, LOOP_PRESETS,
+} from "./scenes/defaults.js";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Настройки активной сцены. ЭТО и есть «по умолчанию».
@@ -140,12 +150,80 @@ export const SCHEMA = [
       { key: "anamorphic", label: "Анаморфный блик", type: "range", min: 0, max: 2, step: 0.01 },
     ]
   },
+  {
+    id: "caption", title: "Текст и шрифт", fields: [
+      { key: "fontFamily", label: "Шрифт", type: "select", options: FONT_CHOICES },
+      { key: "fontWeight", label: "Начертание", type: "select", options: [
+        { value: "400", label: "400 · обычный" }, { value: "600", label: "600 · полужирный" },
+        { value: "700", label: "700 · жирный" },
+      ] },
+      { key: "customFontDataUrl", label: "Свой шрифт (.ttf/.woff2)", type: "font" },
+      { key: "title", label: "Название", type: "text" },
+      { key: "subtitle", label: "Подзаголовок", type: "text" },
+      { key: "date", label: "Дата", type: "text" },
+      { key: "phrase", label: "Фраза финала", type: "text" },
+      { key: "outlineLayers", label: "Слоёв контура", type: "range", min: 1, max: 4, step: 1 },
+      { key: "outlineWidth", label: "Толщина контура", type: "range", min: 0.01, max: 0.3, step: 0.005 },
+      { key: "outlineOffset", label: "Смещение линий", type: "range", min: 0, max: 0.05, step: 0.001 },
+      { key: "fillDelay", label: "Задержка заливки", type: "range", min: 0, max: 1, step: 0.01 },
+      { key: "penGlow", label: "Свет пера", type: "range", min: 0, max: 2, step: 0.01 },
+    ]
+  },
+  {
+    id: "layout", title: "Композиция", fields: [
+      { key: "logoX", label: "Лого: X", type: "range", min: -3, max: 3, step: 0.01 },
+      { key: "logoY", label: "Лого: Y", type: "range", min: -2, max: 2, step: 0.01 },
+      { key: "logoScale", label: "Лого: масштаб", type: "range", min: 0.3, max: 2, step: 0.005 },
+      { key: "logoRotation", label: "Лого: поворот", type: "range", min: -0.5, max: 0.5, step: 0.005 },
+      { key: "envL", label: "Свет левого круга", type: "range", min: 0, max: 2, step: 0.01 },
+      { key: "envR", label: "Свет правого круга", type: "range", min: 0, max: 2, step: 0.01 },
+      { key: "bgL", label: "Фон: левый множитель", type: "range", min: 0, max: 2, step: 0.01 },
+      { key: "bgR", label: "Фон: правый множитель", type: "range", min: 0, max: 2, step: 0.01 },
+      { key: "topGlowY", label: "Верхнее свечение: Y", type: "range", min: -2, max: 3, step: 0.01 },
+      { key: "topGlowScale", label: "Верхнее свечение: масштаб", type: "range", min: 0.2, max: 10, step: 0.05 },
+      { key: "topGlowOpacity", label: "Верхнее свечение: прозрачность", type: "range", min: 0, max: 1, step: 0.01 },
+      { key: "waveY", label: "Контурные волны: Y", type: "range", min: -2, max: 3, step: 0.01 },
+      { key: "waveScale", label: "Контурные волны: масштаб", type: "range", min: 0.2, max: 2, step: 0.01 },
+      { key: "waveOpacity", label: "Контурные волны: прозрачность", type: "range", min: 0, max: 1, step: 0.01 },
+      { key: "viewfinderY", label: "Видоискатель: Y", type: "range", min: -2, max: 3, step: 0.01 },
+      { key: "viewfinderScale", label: "Видоискатель: масштаб", type: "range", min: 0.5, max: 2, step: 0.01 },
+      { key: "viewfinderOpacity", label: "Видоискатель: прозрачность", type: "range", min: 0, max: 1, step: 0.01 },
+      { key: "cornerBrackets", label: "Уголки по краям", type: "bool" },
+    ]
+  },
+  {
+    id: "decor", title: "Декор фона", fields: [
+      { key: "preset", label: "Пресет", type: "select", options: DECOR_PRESETS },
+      { key: "opacity", label: "Прозрачность", type: "range", min: 0, max: 1, step: 0.01 },
+      { key: "speed", label: "Скорость", type: "range", min: 0, max: 3, step: 0.01 },
+      { key: "color", label: "Цвет", type: "color" },
+    ]
+  },
+  {
+    id: "intro", title: "Интро №1", fields: [
+      { key: "preset", label: "Раскадровка", type: "select", options: INTRO_PRESETS },
+    ]
+  },
+  {
+    id: "finale", title: "Финал №9", fields: [
+      { key: "finalCircle", label: "Финальный круг", type: "select", options: FINAL_CIRCLES },
+    ]
+  },
+  {
+    id: "animation", title: "Пресеты анимации", fields: [
+      { key: "inPreset", label: "Появление", type: "select", options: ANIMATION_PRESETS },
+      { key: "outPreset", label: "Исчезновение", type: "select", options: OUT_PRESETS },
+      { key: "loopPreset", label: "Движение на удержании", type: "select", options: LOOP_PRESETS },
+    ]
+  },
 ];
 
 const STORAGE_KEY = "circle-anim-settings-v1";
+const PROJECT_STORAGE_KEY = "circle-anim-settings-v2";
+const PROJECT_VERSION = 2;
 
-function deepMerge(target, source) {
-  for (const k of Object.keys(source)) {
+export function deepMerge(target, source) {
+  for (const k of Object.keys(source || {})) {
     const v = source[k];
     if (v && typeof v === "object" && !Array.isArray(v)) {
       if (!target[k] || typeof target[k] !== "object") target[k] = {};
@@ -195,4 +273,96 @@ export function parseConfigJSON(text, defaults = DEFAULTS) {
 
 export function configToJSON(cfg) {
   return JSON.stringify(cfg, null, 2);
+}
+
+/* ─────────────── Проект v2: настройки всех сцен одним JSON ─────────────── */
+
+/** Мержим присланный проект в существующий объект, сохраняя ссылки на cfg сцен. */
+export function mergeProject(target, source) {
+  if (!source || typeof source !== "object") return target;
+  if (source.scenes || Number(source.version) === PROJECT_VERSION) {
+    if (source.activeScene && SCENE_IDS.includes(source.activeScene)) target.activeScene = source.activeScene;
+    if (source.editor) deepMerge(target.editor, source.editor);
+    for (const id of SCENE_IDS) {
+      if (source.scenes?.[id]) deepMerge(target.scenes[id], source.scenes[id]);
+    }
+  } else {
+    // Старый JSON v1 был настройками только первого ролика.
+    deepMerge(target.scenes.waiting, source);
+  }
+  target.version = PROJECT_VERSION;
+  return target;
+}
+
+function decodeConfigParam(param) {
+  // URLSearchParams уже декодирует значение; поддерживаем и «сырой», и base64 JSON.
+  try { return JSON.parse(param); } catch (_) { /* пробуем следующий формат */ }
+  try { return JSON.parse(decodeURIComponent(param)); } catch (_) { /* пробуем base64 */ }
+  const binary = atob(param.replace(/ /g, "+"));
+  const bytes = Uint8Array.from(binary, (ch) => ch.charCodeAt(0));
+  return JSON.parse(new TextDecoder().decode(bytes));
+}
+
+/** Defaults + localStorage v2 (или миграция v1) + ?config=<URL-encoded JSON|base64>. */
+export function loadProject() {
+  const project = createDefaultProject();
+  try {
+    const savedV2 = typeof localStorage !== "undefined" && localStorage.getItem(PROJECT_STORAGE_KEY);
+    if (savedV2) mergeProject(project, JSON.parse(savedV2));
+    else {
+      const savedV1 = typeof localStorage !== "undefined" && localStorage.getItem(STORAGE_KEY);
+      if (savedV1) deepMerge(project.scenes.waiting, JSON.parse(savedV1));
+    }
+  } catch (e) {
+    console.warn("Не удалось прочитать настройки", e);
+  }
+  if (typeof location !== "undefined") {
+    const param = new URLSearchParams(location.search).get("config");
+    if (param) {
+      try { mergeProject(project, decodeConfigParam(param)); }
+      catch (e) { console.warn("Не удалось применить ?config", e); }
+    }
+  }
+  return project;
+}
+
+export function saveProject(project) {
+  try {
+    if (typeof localStorage !== "undefined") localStorage.setItem(PROJECT_STORAGE_KEY, JSON.stringify(project));
+  } catch (e) {
+    console.warn("Не удалось сохранить настройки", e);
+  }
+}
+
+export function resetStoredProject() {
+  try {
+    if (typeof localStorage !== "undefined") {
+      localStorage.removeItem(PROJECT_STORAGE_KEY);
+      localStorage.removeItem(STORAGE_KEY);
+    }
+  } catch (e) { /* noop */ }
+}
+
+export function parseProjectJSON(text, project = createDefaultProject()) {
+  mergeProject(project, JSON.parse(text));
+  return project;
+}
+
+export function projectToJSON(project) {
+  return JSON.stringify(project, null, 2);
+}
+
+export function projectToURL(project, base = typeof location !== "undefined" ? location.href : "http://localhost/") {
+  const url = new URL(base);
+  url.searchParams.set("config", JSON.stringify(project));
+  return url.toString();
+}
+
+/** Сброс одной сцены на месте, чтобы не рвать ссылку scene.cfg. */
+export function resetProjectScene(project, id) {
+  if (!SCENE_IDS.includes(id)) return project.scenes[id];
+  const current = project.scenes[id];
+  for (const key of Object.keys(current)) delete current[key];
+  Object.assign(current, createSceneDefaults(id));
+  return current;
 }

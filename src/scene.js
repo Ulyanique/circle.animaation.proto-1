@@ -257,6 +257,11 @@ export class LogoScene {
     el.style.setProperty(name, value);
   }
 
+  /** Вызывается после смены текста/шрифта: узлы глифов пересоздаются в main.js. */
+  invalidateCaptionCache() {
+    this._captionRefs = null;
+  }
+
   update(t, dt) {
     const cfg = this.cfg;
     const ph = computePhase(t, cfg.timeline);

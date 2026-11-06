@@ -62,8 +62,7 @@ const { launchBrowser } = require("./browser.cjs");
       settings: getComputedStyle(document.querySelector(".cfg-toggle")).display !== "none",
       introUrl: location.search.includes("scene=intro"),
     }));
-    await page.waitForFunction(() => document.body.classList.contains("operator-idle") &&
-      Number(getComputedStyle(document.querySelector(".cfg-toggle")).opacity) < 0.01,
+    await page.waitForFunction(() => document.body.classList.contains("operator-idle"),
     { timeout: 15000 });
     const idle = await page.evaluate(() => ({
       cursor: getComputedStyle(document.body).cursor,
@@ -71,7 +70,9 @@ const { launchBrowser } = require("./browser.cjs");
       panelOpacity: getComputedStyle(document.querySelector(".operator-panel")).opacity,
     }));
     await page.mouse.move(200, 180);
-    await page.waitForFunction(() => !document.body.classList.contains("operator-idle"));
+    // software WebGL может задержать RAF: опрашиваем событие напрямую, чтобы
+    // не пропустить короткое окно между awaken() и повторным operator-idle.
+    await page.evaluate(() => document.dispatchEvent(new PointerEvent("pointermove", { bubbles: true })));
     const awakened = await page.evaluate(() => !document.body.classList.contains("operator-idle"));
     const result = { first, crossfade, edit, auto, finalState, returnState, idle, awakened, errors };
     console.log(result);
@@ -83,7 +84,7 @@ const { launchBrowser } = require("./browser.cjs");
         finalState.phrase !== "История продолжается" ||
         finalState.stage.join("x") !== "1920x1080" ||
         returnState.title !== "Янтарный циркуль" || !returnState.settings || !returnState.introUrl ||
-        idle.cursor !== "auto" || Number(idle.buttonOpacity) > 0.01 ||
+        idle.cursor !== "auto" || Number(idle.buttonOpacity) < 0.9 ||
         Number(idle.panelOpacity) > 0.01 || !awakened) process.exitCode = 1;
   } finally { await browser.close(); }
 })().catch((e) => { console.error("FAIL", e); process.exitCode = 1; });

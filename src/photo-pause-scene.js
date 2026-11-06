@@ -19,6 +19,7 @@ function makeViewfinder() {
 
 /** №8: пауза для фотографий — ясный титр и тихая рамка видоискателя. */
 export class PhotoPauseScene extends BrandScene {
+  /** @param {HTMLCanvasElement} canvas @param {any} config */
   constructor(canvas, config) {
     super(canvas, config);
     this.viewfinder = makeViewfinder();
@@ -27,21 +28,18 @@ export class PhotoPauseScene extends BrandScene {
 
   update(t, dt) {
     super.update(t, dt);
+    const L = this.cfg.layout;
     const breathe = quietBreath(t, this.brandConfig.timeline.holdDuration);
-    // Те же ось и масштаб, что у №2: видоискатель обнимает символ,
-    // а «Фотопауза» стоит строго под ним, не смещая всю композицию.
-    this.logo.root.position.x = 0;
-    this.logo.root.position.y = 1.00;
-    this.viewfinder.position.set(0, 1.00, -0.22);
-    this.viewfinder.scale.setScalar(1 + 0.008 * breathe);
-    this.viewfinder.material.opacity = 0.24 * Math.min(1, this.logo.root.scale.x / 0.5) *
-      Math.min(1, this.background.uniforms.uEnvL.value / 0.48);
-    // Та же живая сцена, чуть мягче и симметричнее, чем у фирменного фона.
-    this.background.uniforms.uEnvL.value *= 0.83;
-    this.background.uniforms.uEnvR.value *= 0.91;
-    this.waves.pulses.forEach(({ material }) => { material.opacity *= 0.72; });
-    this.topGlow.position.set(0, 1.00, -0.65);
-    this.topGlow.material.opacity *= 0.88;
+    // Ось и масштаб логотипа задаются конфигом сцены; видоискатель следует за ним.
+    this.logo.root.position.x = L.logoX;
+    this.viewfinder.position.set(0, L.viewfinderY, -0.22);
+    this.viewfinder.scale.setScalar(L.viewfinderScale * (1 + 0.008 * breathe));
+    // uEnvL уже включает bgL; берём то же основание, чтобы прозрачность
+    // уголков совпадала с исходной сценой, где множитель применялся после неё.
+    const envL = Math.max(0.0001, L.envL * L.bgL);
+    this.viewfinder.material.opacity = L.viewfinderOpacity *
+      Math.min(1, this.logo.root.scale.x / 0.5) *
+      Math.min(1, this.background.uniforms.uEnvL.value / envL);
   }
 
   dispose() {

@@ -47,7 +47,10 @@ const URL_ = process.env.URL || "http://localhost:5173/?scene=brand";
           .every((el) => getComputedStyle(el).display === "none"),
         ambientField: L.scene.corners.group.visible && L.scene.particles.group.visible &&
           L.scene.background.uniforms.uEnvL.value > 0.3 && !L.scene.plotter.group.visible,
-        centeredSymbol: Math.abs(L.scene.logo.root.position.x) < 0.01 && L.scene.logo.root.position.y > 0.8,
+        // №2 намеренно получил логотип ниже, но по-прежнему по центру оси X.
+        centeredSymbol: Math.abs(L.scene.logo.root.position.x) < 0.01 &&
+          L.scene.logo.root.position.y > 0.3 && L.scene.logo.root.position.y < 0.8,
+        logoY: L.scene.logo.root.position.y,
         titleBelow: parseFloat(getComputedStyle(document.querySelector(".cap-title")).top) >
           0.65 * parseFloat(getComputedStyle(document.getElementById("caption")).height),
       };

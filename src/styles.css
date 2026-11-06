@@ -50,13 +50,11 @@ body.scene-finale #caption .cap-sub {
   left: 50%; top: 71%; font-size: calc(var(--u) * 2.55);
   letter-spacing: .18em; padding-left: .18em;
 }
-/* Мышь видна всегда. Только элементы пульта исчезают после бездействия. */
+/* Мышь видна всегда. Кнопка настроек видна во всех сценах и при бездействии;
+   скрывается только нижний пульт оператора. */
 body, body.ui-on, body.review-on { cursor: auto; }
-body:not(.scene-waiting) .cfg-toggle,
-body:not(.scene-waiting) .cfg-panel { display: none; }
-body.operator-idle:not(.ui-on) .cfg-toggle,
 body.operator-idle:not(.ui-on) .operator-panel:not(.operator-exporting) { opacity: 0; pointer-events: none; }
-.cfg-toggle { transition: opacity .25s ease; }
+.cfg-toggle { transition: opacity .25s ease; opacity: 1; }
 .operator-panel {
   position: fixed; z-index: 24; left: 50%; bottom: 16px;
   transform: translateX(-50%); width: min(1220px, calc(100vw - 32px));
@@ -148,7 +146,7 @@ body.operator-idle:not(.ui-on) .operator-panel:not(.operator-exporting) { opacit
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
   cursor: pointer;
-  opacity: 0.5;
+  opacity: 1;
 }
 .cfg-toggle.active, body.ui-on .cfg-toggle { border-color: var(--gold); opacity: 1; }
 
@@ -197,6 +195,18 @@ body.operator-idle:not(.ui-on) .operator-panel:not(.operator-exporting) { opacit
   background: none; border: 0; color: var(--muted); font-size: 20px; cursor: pointer; line-height: 1; padding: 0 4px;
 }
 .cfg-close:hover { color: var(--text); }
+
+.cfg-scenes {
+  display: flex; gap: 5px; padding: 9px 12px; overflow-x: auto;
+  border-bottom: 1px solid rgba(217, 176, 97, 0.12);
+}
+.cfg-scenes button {
+  font: inherit; font-size: 11px; white-space: nowrap; color: var(--muted);
+  background: rgba(217, 176, 97, 0.05); border: 1px solid rgba(217, 176, 97, 0.18);
+  border-radius: 999px; padding: 5px 9px; cursor: pointer;
+}
+.cfg-scenes button:hover { color: var(--text); border-color: var(--gold); }
+.cfg-scenes button.active { color: #120d05; background: var(--gold); border-color: var(--gold); }
 
 .cfg-tools {
   display: flex;
@@ -302,6 +312,16 @@ body.operator-idle:not(.ui-on) .operator-panel:not(.operator-exporting) { opacit
   width: 34px; height: 22px; padding: 0; border: 1px solid rgba(217,176,97,.3); border-radius: 6px; background: none; cursor: pointer;
 }
 .cfg-bool input[type="checkbox"] { accent-color: var(--gold); width: 16px; height: 16px; cursor: pointer; }
+.cfg-select select,
+.cfg-text input[type="text"] {
+  flex: 1; min-width: 0; font: inherit; font-size: 12px; color: var(--text);
+  background: rgba(0, 0, 0, 0.35); border: 1px solid rgba(217, 176, 97, 0.2);
+  border-radius: 6px; padding: 5px 7px; outline: none;
+}
+.cfg-select select:focus,
+.cfg-text input[type="text"]:focus { border-color: var(--gold); }
+.cfg-font input[type="file"] { flex: 1; min-width: 0; font-size: 11px; color: var(--muted); }
+.cfg-font .cfg-ctl output { min-width: 0; max-width: 110px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* ── тост ── */
 .toast {
@@ -326,7 +346,8 @@ body.operator-idle:not(.ui-on) .operator-panel:not(.operator-exporting) { opacit
 /* ── титр: каждая графема гравируется контуром, затем получает заливку. ── */
 #caption {
   position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%);
-  pointer-events: none; opacity: 1; font-family: "Cormorant Garamond", Georgia, serif;
+  pointer-events: none; opacity: 1;
+  font-family: var(--cap-font, "Cormorant Garamond", Georgia, serif);
   --u: 10px;
 }
 #caption > * { position: absolute; left: 50%; white-space: nowrap; line-height: 1; text-align: center; }
@@ -343,17 +364,18 @@ body.operator-idle:not(.ui-on) .operator-panel:not(.operator-exporting) { opacit
   left: calc(var(--o, 0) * 100%); width: calc(var(--u) * 0.45);
   transform: translateX(-50%);
   background: linear-gradient(90deg, transparent, rgba(255, 231, 164, 0.55), transparent);
-  filter: blur(calc(var(--u) * 0.10)); opacity: var(--gpen, 0);
+  filter: blur(calc(var(--u) * 0.10)); opacity: calc(var(--gpen, 0) * var(--cap-pen, 1));
   pointer-events: none;
 }
 #caption .cap-glyph::after {
   content: attr(data-glyph); position: absolute; inset: 0; -webkit-text-stroke: 0;
   clip-path: inset(0 calc((1 - var(--f, 0)) * 100%) 0 0);
+  text-shadow: none;
 }
 .cap-title {
-  top: 55%; font-weight: 600;
+  top: 55%; font-weight: var(--cap-weight, 600);
   font-size: calc(var(--u) * 7.2);
-  -webkit-text-stroke: calc(var(--u) * 0.08) #e0b25a;
+  -webkit-text-stroke: calc(var(--u) * var(--cap-stroke, 0.08)) var(--cap-stroke-color, #e0b25a);
   filter: drop-shadow(0 calc(var(--u) * 0.2) calc(var(--u) * 0.5) rgba(0, 0, 0, 0.7));
 }
 .cap-title .cap-glyph::after {
@@ -375,12 +397,14 @@ body.operator-idle:not(.ui-on) .operator-panel:not(.operator-exporting) { opacit
 .cap-sub {
   top: 72%; font-weight: 400;
   font-size: calc(var(--u) * 2.4); letter-spacing: 0.32em; padding-left: 0.32em;
-  text-transform: uppercase; -webkit-text-stroke: calc(var(--u) * 0.04) #d9b061;
+  text-transform: uppercase;
+  -webkit-text-stroke: calc(var(--u) * var(--cap-stroke, 0.08) * 0.5) #d9b061;
 }
 .cap-sub .cap-glyph::after { color: #ecd08c; }
 .cap-date {
   top: 84%; font-weight: 400;
   font-size: calc(var(--u) * 1.5); letter-spacing: 0.28em; padding-left: 0.28em;
-  text-transform: uppercase; -webkit-text-stroke: calc(var(--u) * 0.035) #d9b061;
+  text-transform: uppercase;
+  -webkit-text-stroke: calc(var(--u) * var(--cap-stroke, 0.08) * 0.4375) #d9b061;
 }
 .cap-date .cap-glyph::after { color: #d9b061; }

@@ -115,6 +115,61 @@ export const WAITING_DEFAULTS = {
     chromaticAberration: 0.0003,   // радиальная: сильнее у краёв кадра
     anamorphic: 0.45,       // анаморфный блик вдоль блика по золоту
   },
+  // Типографика, композиция и декоративные пресеты вынесены в конфиг, чтобы
+  // каждая сцена настраивалась и экспортировалась одним JSON.
+  caption: {
+    fontFamily: "Cormorant Garamond",
+    fontWeight: "600",
+    customFontName: "",
+    customFontDataUrl: "",
+    title: "Янтарный циркуль",
+    subtitle: "Вечер ретроспектива",
+    date: "20 ноября 2026 года",
+    phrase: "История продолжается",
+    outlineLayers: 1,
+    outlineWidth: 0.08,
+    outlineOffset: 0.0,
+    fillDelay: 0.0,
+    penGlow: 1.0,
+  },
+  layout: {
+    logoX: 0,
+    logoY: 1.1,
+    logoScale: 1,
+    logoRotation: 0,
+    envL: 1,
+    envR: 1,
+    bgL: 1,
+    bgR: 1,
+    topGlowY: 0,
+    topGlowScale: 1,
+    topGlowOpacity: 1,
+    waveY: 0,
+    waveScale: 1,
+    waveOpacity: 1,
+    viewfinderY: 1,
+    viewfinderScale: 1,
+    viewfinderOpacity: 0.24,
+    cornerBrackets: false,
+  },
+  decor: {
+    preset: "none",
+    opacity: 0,
+    speed: 1,
+    color: "#d9b061",
+  },
+  intro: {
+    preset: "three-acts",
+  },
+  finale: {
+    finalCircle: "center-construction",
+  },
+  animation: {
+    inPreset: "contour-to-fill",
+    outPreset: "reverse-contour",
+    loopPreset: "quiet-breath",
+  },
+  elements: {},
   playback: {
     paused: false,
   },

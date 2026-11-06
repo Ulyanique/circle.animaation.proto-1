@@ -1,7 +1,18 @@
 import "./styles.css";
 import "@fontsource/cormorant-garamond/cyrillic-400.css";
 import "@fontsource/cormorant-garamond/cyrillic-600.css";
-import { loadConfig, cloneDefaults, saveConfig } from "./config.js";
+import "@fontsource/pt-serif/cyrillic-400.css";
+import "@fontsource/pt-serif/cyrillic-700.css";
+import "@fontsource/playfair-display/cyrillic-400.css";
+import "@fontsource/playfair-display/cyrillic-600.css";
+import "@fontsource/playfair-display/cyrillic-700.css";
+import "@fontsource/montserrat/cyrillic-400.css";
+import "@fontsource/montserrat/cyrillic-600.css";
+import "@fontsource/montserrat/cyrillic-700.css";
+import {
+  loadProject, saveProject, mergeProject, projectToJSON, projectToURL,
+} from "./config.js";
+import { applyCaptionFont } from "./fonts.js";
 import { IntroScene } from "./intro-scene.js";
 import { BrandScene } from "./brand-scene.js";
 import { PhotoPauseScene } from "./photo-pause-scene.js";
@@ -21,14 +32,15 @@ let activeScene = sceneById(sceneId);
 if (!activeScene?.defaults || activeScene.status !== "ready") {
   throw new Error(`Сцена «${sceneId}» пока не подготовлена`);
 }
-const configs = new Map();
-configs.set("waiting", loadConfig(sceneById("waiting").defaults));
-function configFor(id) {
-  if (!configs.has(id)) configs.set(id, cloneDefaults(sceneById(id).defaults));
-  return configs.get(id);
-}
+const project = loadProject();
+project.activeScene = sceneId;
+function configFor(id) { return project.scenes[id]; }
 let cfg = configFor(sceneId);
 let canvas = document.getElementById("stage");
+let scene = null;
+let runtime = null;
+let settings = null;
+let operator = null;
 const toastEl = document.getElementById("toast");
 let toastTimer = 0;
 function toast(msg, isError = false) {
@@ -39,12 +51,8 @@ function toast(msg, isError = false) {
   toastTimer = setTimeout(() => toastEl.classList.remove("show"), 2200);
 }
 
-const sceneCopy = {
-  "photo-pause": { title: "Фотопауза" },
-  finale: { title: "Янтарный циркуль", subtitle: "История продолжается" },
-};
 function activateText(id) {
-  const copy = sceneCopy[id];
+  const copy = project.scenes[id]?.caption;
   for (const el of document.querySelectorAll("#caption [data-text]")) {
     const name = el.classList.contains("cap-title") ? "title" : el.classList.contains("cap-sub") ? "subtitle" : "date";
     const text = copy?.[name] ?? el.dataset.original;
@@ -60,6 +68,7 @@ function activateText(id) {
       return span;
     }));
   }
+  scene?.invalidateCaptionCache?.();
 }
 for (const el of document.querySelectorAll("#caption [data-text]")) el.dataset.original = el.textContent;
 function activateClasses(id) {
@@ -73,21 +82,85 @@ activateText(sceneId);
 
 const adapters = { waiting: IntroScene, brand: BrandScene,
   "photo-pause": PhotoPauseScene, finale: FinaleScene };
-let scene = new adapters[sceneId](canvas, cfg);
-let runtime = new AnimationRuntime(scene, cfg, OUTPUT.fps);
-const settings = createSettingsUI(configFor("waiting"), {
-  onChange: () => {},
+scene = new adapters[sceneId](canvas, cfg);
+runtime = new AnimationRuntime(scene, cfg, OUTPUT.fps);
+
+let lastFontKey = "";
+function applyCaptionConfig() {
+  const capEl = document.getElementById("caption");
+  const caption = cfg.caption || {};
+  const family = caption.fontFamily || "Cormorant Garamond";
+  const weight = String(caption.fontWeight || "600");
+  const stroke = caption.outlineWidth ?? 0.08;
+  const strokeColor = cfg.colors?.ringColor || "#e0b25a";
+  capEl?.style.setProperty("--cap-font", `"${family}", Georgia, serif`);
+  capEl?.style.setProperty("--cap-weight", weight);
+  capEl?.style.setProperty("--cap-stroke", String(stroke));
+  capEl?.style.setProperty("--cap-stroke-color", strokeColor);
+  capEl?.style.setProperty("--cap-pen", String(caption.penGlow ?? 1));
+  if (capEl) capEl.dataset.fontFamily = family;
+  activateText(sceneId);
+  // Несколько линий контура в DOM: дополнительные тени без размытия.
+  const layers = Math.max(1, Math.round(caption.outlineLayers ?? 1));
+  const offset = caption.outlineOffset ?? 0;
+  const u = parseFloat(capEl?.style.getPropertyValue("--u")) || 19.2;
+  const shadows = [];
+  if (layers > 1 && offset > 0) {
+    for (let i = 0; i < layers; i++) {
+      const shift = (i - (layers - 1) / 2) * offset * u;
+      shadows.push(`${shift.toFixed(2)}px ${shift.toFixed(2)}px 0 ${strokeColor}`);
+    }
+  }
+  const shadow = shadows.length ? shadows.join(", ") : "none";
+  for (const el of document.querySelectorAll("#caption .cap-glyph")) el.style.textShadow = shadow;
+  const key = [family, weight, caption.customFontName || "", caption.customFontDataUrl || ""].join("|");
+  if (key !== lastFontKey) {
+    lastFontKey = key;
+    applyCaptionFont(cfg).catch((e) => console.warn("Не удалось применить шрифт", e));
+  }
+}
+
+/** Импорт JSON проекта без замены объектов сцен: ссылки scene.cfg остаются живыми. */
+function applyProjectText(text, asDefaults = false) {
+  const parsed = JSON.parse(text);
+  mergeProject(project, parsed);
+  cfg = project.scenes[sceneId];
+  project.activeScene = sceneId;
+  saveProject(project);
+  scene?.setExternalConfig?.(cfg);
+  applyCaptionConfig();
+  scene?.applyStatic?.();
+  runtime?.renderAt?.(runtime.time, 1 / OUTPUT.fps);
+  settings?.refresh?.();
+  operator?.refresh?.();
+  return asDefaults;
+}
+
+settings = createSettingsUI(project, {
+  getActiveSceneId: () => sceneId,
+  onSelectScene: (id) => switchScene(id),
+  onProjectChange: () => {
+    saveProject(project);
+    applyCaptionConfig();
+    scene?.applyStatic?.();
+    runtime?.renderAt?.(runtime.time, 1 / OUTPUT.fps);
+    operator?.refresh?.();
+  },
+  onImportProject: (text, asDefaults) => applyProjectText(text, asDefaults),
+  onRenderWithConfig: () => startOfflineExport("single"),
   onPauseToggle: () => {
-    if (sceneId !== "waiting") return;
     cfg.playback.paused = !cfg.playback.paused;
-    saveConfig(cfg);
+    saveProject(project);
+    operator?.refresh?.();
   },
   onToast: toast,
-  onExportVideo: () => { if (sceneId === "waiting") startOfflineExport("single"); },
-  isActive: () => sceneId === "waiting",
+  onExportVideo: () => startOfflineExport("single"),
 });
+applyCaptionConfig();
+scene.invalidateCaptionCache();
+saveProject(project);
 
-window.addEventListener("resize", () => scene.resize());
+window.addEventListener("resize", () => scene?.resize?.());
 
 // презентация: F — полный экран
 window.addEventListener("keydown", (e) => {
@@ -99,7 +172,7 @@ window.addEventListener("keydown", (e) => {
 
 let last = performance.now();
 let recording = null; // один цикл текущей сцены, переключение на время записи заблокировано
-const operator = createOperatorControls({
+operator = createOperatorControls({
   getState: () => ({ id: sceneId, time: runtime.time, config: cfg, cycle: runtime.cycle,
     recording: !!recording, recordingKind: recording?.kind,
     exportDone: recording?.kind === "offline" ? recording.done : 0,
@@ -112,12 +185,13 @@ const operator = createOperatorControls({
     // Не даём укоротить цикл так, чтобы титр исчезал до появления.
     const minHold = sceneId === "finale" ? 16 : sceneId === "waiting" ? 1 : 11;
     tl.holdDuration = Math.max(minHold, Math.min(300, value - other));
-    if (sceneId === "waiting") { saveConfig(cfg); settings.refresh(); }
+    saveProject(project);
+    settings?.refresh?.();
     runtime.renderAt(Math.min(runtime.time, tl.startDelay + runtime.cycle - 1 / OUTPUT.fps));
   },
   togglePause: () => {
     cfg.playback.paused = !cfg.playback.paused;
-    if (sceneId === "waiting") saveConfig(cfg);
+    saveProject(project);
   },
   switchScene: (id) => switchScene(id),
   record: () => startOfflineExport("single"),
@@ -139,7 +213,14 @@ function drawCaption(ctx, alpha) {
   const cap = document.getElementById("caption");
   const scale = W / (parseFloat(cap?.style.width) || W);
   const drift = parseFloat(cap?.style.getPropertyValue("--drift")) || 0;
-  const font = (w, size) => `${w} ${size}px "Cormorant Garamond", Georgia, serif`;
+  const capCfg = cfg.caption || {};
+  const family = capCfg.fontFamily || "Cormorant Garamond";
+  const titleWeight = String(capCfg.fontWeight || "600");
+  const strokeScale = (capCfg.outlineWidth ?? 0.08) / 0.08;
+  const outlineLayers = Math.max(1, Math.round(capCfg.outlineLayers ?? 1));
+  const outlineOffset = (capCfg.outlineOffset ?? 0) * u;
+  const penGlow = capCfg.penGlow ?? 1;
+  const font = (w, size) => `${w} ${size}px "${family}", Georgia, serif`;
   ctx.save();
   ctx.translate(0, drift * scale);
   ctx.globalAlpha = alpha;
@@ -168,7 +249,12 @@ function drawCaption(ctx, alpha) {
       if (glyph !== " " && reveal.outline > 0.001) {
         ctx.save();
         ctx.beginPath(); ctx.rect(x - o.sw, 0, (width + o.sw * 2) * reveal.outline, H); ctx.clip();
-        ctx.strokeText(glyph, x, y);
+        // Несколько контурных линий: каждая буква обрисовывается постепенно,
+        // как лого, а не одной готовой обводкой.
+        for (let layer = 0; layer < outlineLayers; layer++) {
+          const shift = (layer - (outlineLayers - 1) / 2) * outlineOffset;
+          ctx.strokeText(glyph, x + shift, y + shift);
+        }
         ctx.restore();
       }
       if (glyph !== " " && reveal.fill > 0.001) {
@@ -179,7 +265,7 @@ function drawCaption(ctx, alpha) {
         ctx.fillText(glyph, x, y);
         ctx.restore();
       }
-      const glowPower = pen * Math.sin(Math.PI * reveal.outline);
+      const glowPower = Math.min(1, pen * Math.sin(Math.PI * reveal.outline) * penGlow);
       if (glyph !== " " && glowPower > 0.001) {
         const head = x + width * reveal.outline, spread = 0.225 * u;
         const glow = ctx.createLinearGradient(head - spread, 0, head + spread, 0);
@@ -228,24 +314,27 @@ function drawCaption(ctx, alpha) {
     g.addColorStop(0.75, "#c08c36"); g.addColorStop(1, "#e8c06a");
     return g;
   };
-  textLine(".cap-title", photo ? "Фотопауза" : "Янтарный циркуль", {
+  textLine(".cap-title", capCfg.title || "Янтарный циркуль", {
     y: (brand || photo ? 0.69 : 0.55) * H, centerX: W / 2,
-    weight: 600, size: tSize, ls: 0, stroke: "#e0b25a", sw: 0.08 * u, shadow: true, fill: titleGrad,
+    weight: titleWeight, size: tSize, ls: 0, stroke: "#e0b25a", sw: 0.08 * u * strokeScale,
+    shadow: true, fill: titleGrad,
   });
   if (finale) {
-    textLine(".cap-sub", "ИСТОРИЯ ПРОДОЛЖАЕТСЯ", {
+    textLine(".cap-sub", (capCfg.phrase || capCfg.subtitle || "").toUpperCase(), {
       y: 0.71 * H, weight: 400, size: 2.55 * u, ls: 0.18 * 2.55 * u,
-      stroke: "#d9b061", sw: 0.04 * u, fill: "#ecd08c",
+      stroke: "#d9b061", sw: 0.04 * u * strokeScale, fill: "#ecd08c",
     });
   }
   if (!brand && !photo && !finale) {
     rule(".r1", 0.66 * H);
     rule(".r2", 0.79 * H);
-    textLine(".cap-sub", "ВЕЧЕР РЕТРОСПЕКТИВА", {
-      y: 0.72 * H, weight: 400, size: 2.4 * u, ls: 0.32 * 2.4 * u, stroke: "#d9b061", sw: 0.04 * u, fill: "#ecd08c",
+    textLine(".cap-sub", (capCfg.subtitle || "").toUpperCase(), {
+      y: 0.72 * H, weight: 400, size: 2.4 * u, ls: 0.32 * 2.4 * u,
+      stroke: "#d9b061", sw: 0.04 * u * strokeScale, fill: "#ecd08c",
     });
-    textLine(".cap-date", "20 НОЯБРЯ 2026 ГОДА", {
-      y: 0.84 * H, weight: 400, size: 1.5 * u, ls: 0.28 * 1.5 * u, stroke: "#d9b061", sw: 0.035 * u, fill: "#d9b061",
+    textLine(".cap-date", (capCfg.date || "").toUpperCase(), {
+      y: 0.84 * H, weight: 400, size: 1.5 * u, ls: 0.28 * 1.5 * u,
+      stroke: "#d9b061", sw: 0.035 * u * strokeScale, fill: "#d9b061",
     });
   }
   ctx.restore();
@@ -301,17 +390,21 @@ function switchScene(id, source) {
   }
   const oldCanvas = canvas;
   const oldScene = scene;
-  settings.close();
+  settings?.close?.();
   nextCanvas.id = "stage";
   oldCanvas.replaceWith(nextCanvas);
   canvas = nextCanvas;
   sceneId = id;
   activeScene = sceneById(id);
   cfg = nextCfg;
+  project.activeScene = id;
   scene = nextScene;
   runtime = new AnimationRuntime(scene, cfg, OUTPUT.fps);
   activateClasses(id);
   activateText(id);
+  applyCaptionConfig();
+  settings?.setActiveScene?.(id);
+  saveProject(project);
   runtime.renderAt(cfg.timeline.startDelay, 1 / OUTPUT.fps);
   oldScene.dispose();
   const url = new URL(location.href);
@@ -605,11 +698,7 @@ function frame(now) {
   // Это также защищает титр от вспышки системного шрифта при медленном запуске.
   if (!firstFrameRendered) {
     firstFrameRendered = true;
-    const fonts = document.fonts ? Promise.allSettled([
-      document.fonts.load('600 72px "Cormorant Garamond"', 'Янтарный циркуль'),
-      document.fonts.load('400 26px "Cormorant Garamond"', 'Вечер ретроспектива'),
-    ]) : Promise.resolve();
-    fonts.then(() => window.__bootReady?.());
+    applyCaptionFont(cfg).catch(() => {}).then(() => window.__bootReady?.());
   }
   operator.refresh();
   if (recording?.kind === "single") {
@@ -632,6 +721,18 @@ window.__logo = {
   getSceneConfig: configFor, // технический API тестов: изменить тайминги без смены художественных defaults
   switchScene,
   operator,
+  settings,
+  get project() { return project; },
+  getProjectJSON: () => projectToJSON(project),
+  applyProjectJSON: (text, asDefaults = false) => applyProjectText(text, asDefaults),
+  getConfigURL: () => projectToURL(project),
+  setCaptionFont: (family, weight = cfg.caption?.fontWeight || "600") => {
+    cfg.caption.fontFamily = family;
+    cfg.caption.fontWeight = String(weight);
+    applyCaptionConfig();
+    saveProject(project);
+    runtime.renderAt(runtime.time, 1 / OUTPUT.fps);
+  },
   get activeScene() { return activeScene; },
   get runtime() { return runtime; },
   get cfg() { return cfg; },
