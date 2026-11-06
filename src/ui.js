@@ -41,12 +41,17 @@ export function createSettingsUI(project, options = {}) {
     <nav class="cfg-scenes" aria-label="Сцены"></nav>
     <div class="cfg-tools">
       <button type="button" data-act="pause">Пауза</button>
-      <button type="button" data-act="export">Экспорт JSON</button>
+      <button type="button" data-act="export">JSON</button>
       <button type="button" data-act="import">Импорт</button>
-      <button type="button" data-act="video">Экспорт видео</button>
-      <button type="button" data-act="render">Рендер с настройками</button>
-      <button type="button" data-act="reset-scene">Сброс сцены</button>
-      <button type="button" data-act="reset-all">Сброс всех</button>
+      <details class="cfg-more">
+        <summary aria-label="Дополнительные действия">···</summary>
+        <div class="cfg-more-menu">
+          <button type="button" data-act="video">Экспорт видео</button>
+          <button type="button" data-act="render">Рендер с настройками</button>
+          <button type="button" data-act="reset-scene">Сброс сцены</button>
+          <button type="button" data-act="reset-all">Сброс всех</button>
+        </div>
+      </details>
     </div>
     <div class="cfg-io" hidden>
       <textarea spellcheck="false" class="cfg-textarea"></textarea>
@@ -81,7 +86,9 @@ export function createSettingsUI(project, options = {}) {
     const tab = document.createElement("button");
     tab.type = "button";
     tab.dataset.scene = id;
-    tab.textContent = SCENE_LABELS[id] || id;
+    tab.textContent = (SCENE_LABELS[id] || id).split(" · ")[0];
+    tab.title = SCENE_LABELS[id] || id;
+    tab.setAttribute("aria-label", tab.title);
     tab.addEventListener("click", () => onSelectScene(id));
     tabs.appendChild(tab);
   }
@@ -247,6 +254,8 @@ export function createSettingsUI(project, options = {}) {
     panel.classList.remove("open");
     panel.setAttribute("aria-hidden", "true");
     btn.classList.remove("active");
+    const more = panel.querySelector(".cfg-more");
+    if (more) more.open = false;
   }
   function toggle() { panel.classList.contains("open") ? close() : open(); }
 
@@ -254,6 +263,8 @@ export function createSettingsUI(project, options = {}) {
   function showIO(mode) {
     io.hidden = false;
     io.dataset.mode = mode;
+    const more = panel.querySelector(".cfg-more");
+    if (more) more.open = false;
     for (const action of io.querySelectorAll("[data-io]")) {
       const key = action.dataset.io;
       action.hidden = mode === "export"

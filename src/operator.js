@@ -20,7 +20,7 @@ export function createOperatorControls({ getState, seek, setDuration, togglePaus
         <button type="button" data-scene="photo-pause" title="Фотопауза">08 <small>Фотопауза</small></button>
         <button type="button" data-scene="finale" title="Финал">09 <small>Финал</small></button>
       </nav>
-      <button type="button" data-action="auto" aria-pressed="false" title="Автоматическая цепочка 01 → 02 → 08 → 09">Авто: выкл.</button>
+      <button type="button" data-action="auto" aria-pressed="false" title="Автоматическая цепочка 01 → 02 → 08 → 09">A</button>
       <button type="button" data-action="pin" aria-pressed="false" title="Не скрывать пульт">◇</button>
     </div>
     <div class="operator-row operator-transport">
@@ -30,8 +30,13 @@ export function createOperatorControls({ getState, seek, setDuration, togglePaus
       <button type="button" data-action="next" title="Вперёд на кадр">+1</button>
       <output data-role="time" aria-live="off"></output>
       <label class="operator-duration">Цикл <input type="number" data-action="duration" min="1" max="300" step="0.1" aria-label="Длительность цикла в секундах"> с</label>
-      <button type="button" data-action="record" title="Записать один цикл текущей заставки">● Цикл</button>
-      <button type="button" data-action="record-chain" title="Покадровый WebM 01 → 02 → 08 → 09, 1920×1080 / 60 FPS">● Вся цепочка</button>
+      <details class="operator-more">
+        <summary aria-label="Запись">···</summary>
+        <div class="operator-more-menu">
+          <button type="button" data-action="record" title="Записать один цикл текущей заставки">● Цикл</button>
+          <button type="button" data-action="record-chain" title="Покадровый WebM 01 → 02 → 08 → 09, 1920×1080 / 60 FPS">● Вся цепочка</button>
+        </div>
+      </details>
     </div>
     <div class="operator-export" hidden role="status" aria-live="off">
       <span data-role="export-label">Подготовка экспорта…</span>
@@ -51,7 +56,7 @@ export function createOperatorControls({ getState, seek, setDuration, togglePaus
     if (!pinned) idleTimer = setTimeout(() => {
       if (!panel.contains(document.activeElement) && !document.body.classList.contains("ui-on"))
         document.body.classList.add("operator-idle");
-    }, 3200);
+    }, 1600);
   }
   document.addEventListener("pointermove", awaken, { passive: true });
   document.addEventListener("pointerdown", awaken, { passive: true });
@@ -72,9 +77,11 @@ export function createOperatorControls({ getState, seek, setDuration, togglePaus
     range.max = String(max);
     const local = localTime(state);
     if (!dragging) range.value = String(Math.min(local, max));
-    panel.querySelector('[data-role="time"]').textContent = `${local.toFixed(2)} / ${state.cycle.toFixed(2)} с`;
+    panel.querySelector('[data-role="time"]').textContent = `${local.toFixed(1)}/${state.cycle.toFixed(1)}`;
     if (!editing) duration.value = state.cycle.toFixed(1);
     panel.querySelector('[data-action="play"]').textContent = state.config.playback.paused ? "▶" : "Ⅱ";
+    autoButton.textContent = auto ? "A✓" : "A";
+    autoButton.setAttribute("aria-pressed", String(auto));
     for (const button of panel.querySelectorAll("[data-scene]")) {
       if (button.dataset.scene === state.id) button.setAttribute("aria-current", "page");
       else button.removeAttribute("aria-current");
@@ -122,7 +129,7 @@ export function createOperatorControls({ getState, seek, setDuration, togglePaus
     const action = button.dataset.action;
     if (action === "auto") {
       auto = !auto;
-      autoButton.textContent = auto ? "Авто: вкл." : "Авто: выкл.";
+      autoButton.textContent = auto ? "A✓" : "A";
       autoButton.setAttribute("aria-pressed", String(auto));
     } else if (action === "pin") {
       pinned = !pinned;

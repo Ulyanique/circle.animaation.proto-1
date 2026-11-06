@@ -408,3 +408,141 @@ body.operator-idle:not(.ui-on) .operator-panel:not(.operator-exporting) { opacit
   -webkit-text-stroke: calc(var(--u) * var(--cap-stroke, 0.08) * 0.4375) #d9b061;
 }
 .cap-date .cap-glyph::after { color: #d9b061; }
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Строгий минималистичный интерфейс: панели не спорят с кадром.
+   Поздние правила специально перекрывают более ранние «тяжёлые» стили.
+   ───────────────────────────────────────────────────────────────────────────── */
+
+.cfg-toggle {
+  top: 10px; right: 10px;
+  width: 28px; height: 28px;
+  color: rgba(217, 176, 97, 0.72);
+  background: rgba(8, 7, 6, 0.28);
+  border-color: rgba(217, 176, 97, 0.14);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+.cfg-toggle svg { width: 14px; height: 14px; }
+.cfg-toggle:hover, .cfg-toggle:focus-visible, .cfg-toggle.active, body.ui-on .cfg-toggle {
+  color: var(--gold); border-color: rgba(217, 176, 97, 0.42);
+  background: rgba(8, 7, 6, 0.58);
+}
+
+.cfg-panel {
+  top: 46px; right: 10px;
+  width: min(300px, calc(100vw - 20px));
+  max-height: calc(100vh - 56px);
+  border-radius: 8px;
+  background: rgba(8, 7, 6, 0.74);
+  border-color: rgba(217, 176, 97, 0.14);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+.cfg-panel.open { opacity: 0.9; }
+.cfg-panel.open:hover, .cfg-panel.open:focus-within { opacity: 1; }
+.cfg-head { padding: 7px 10px 5px; }
+.cfg-title { font-size: 10px; letter-spacing: .06em; text-transform: none; color: var(--muted); }
+.cfg-close { font-size: 16px; }
+.cfg-scenes { padding: 5px 8px; gap: 3px; }
+.cfg-scenes button {
+  font-size: 10px; padding: 3px 7px; border-radius: 4px;
+  background: transparent; border-color: rgba(217, 176, 97, 0.12);
+}
+.cfg-scenes button.active { color: var(--gold); background: rgba(217, 176, 97, 0.16); }
+.cfg-tools { padding: 5px 8px; gap: 3px; flex-wrap: nowrap; }
+.cfg-tools button, .cfg-io-actions button {
+  font-size: 10px; padding: 3px 7px; border-radius: 4px;
+  background: rgba(217, 176, 97, 0.03); border-color: rgba(217, 176, 97, 0.12);
+}
+.cfg-more { position: relative; margin-left: auto; }
+.cfg-more > summary, .operator-more > summary {
+  list-style: none; display: grid; place-items: center;
+  width: 24px; height: 22px; border: 1px solid rgba(217, 176, 97, 0.12);
+  border-radius: 4px; color: var(--muted); cursor: pointer; font-size: 12px;
+}
+.cfg-more > summary::-webkit-details-marker,
+.operator-more > summary::-webkit-details-marker { display: none; }
+.cfg-more > summary:hover, .operator-more > summary:hover { color: var(--gold); border-color: rgba(217, 176, 97, 0.35); }
+.cfg-more-menu, .operator-more-menu {
+  position: absolute; z-index: 5; right: 0;
+  display: flex; flex-direction: column; gap: 3px; min-width: 160px;
+  padding: 5px; background: rgba(8, 7, 6, 0.94);
+  border: 1px solid rgba(217, 176, 97, 0.16); border-radius: 6px;
+}
+.cfg-more-menu { top: calc(100% + 4px); }
+.cfg-more:not([open]) .cfg-more-menu,
+.operator-more:not([open]) .operator-more-menu { display: none; }
+.cfg-more-menu button, .operator-more-menu button { width: 100%; text-align: left; white-space: nowrap; }
+.cfg-io { padding: 5px 8px; }
+.cfg-textarea { height: 110px; font-size: 10px; padding: 6px; border-radius: 6px; }
+.cfg-io-actions { gap: 3px; margin-top: 5px; }
+.cfg-body { padding: 2px 4px 8px; }
+.cfg-sec > summary { padding: 6px 6px; font-size: 11px; letter-spacing: .03em; }
+.cfg-row { padding: 3px 6px 5px; font-size: 11px; gap: 3px 8px; }
+.cfg-ctl { gap: 6px; }
+.cfg-ctl output { min-width: 42px; font-size: 10px; }
+.cfg-range input[type="range"] { height: 2px; }
+.cfg-range input[type="range"]::-webkit-slider-thumb { width: 9px; height: 9px; }
+.cfg-range input[type="range"]::-moz-range-thumb { width: 9px; height: 9px; }
+.cfg-color input[type="color"] { width: 28px; height: 18px; }
+.cfg-bool input[type="checkbox"] { width: 13px; height: 13px; }
+.cfg-select select, .cfg-text input[type="text"] { font-size: 11px; padding: 3px 5px; border-radius: 4px; }
+.cfg-font input[type="file"] { font-size: 10px; }
+
+.operator-panel {
+  display: flex; align-items: center; gap: 5px;
+  bottom: 6px; width: min(860px, calc(100vw - 20px));
+  padding: 4px 7px; border-radius: 6px;
+  border-color: rgba(217, 176, 97, 0.14);
+  background: rgba(8, 7, 6, 0.55);
+  box-shadow: none; backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  font-size: 10px; opacity: 0.72;
+  transition: opacity .2s ease, transform .2s ease, background .2s ease;
+}
+.operator-panel:hover, .operator-panel:focus-within, body.ui-on .operator-panel {
+  opacity: 1; background: rgba(8, 7, 6, 0.82);
+}
+.operator-row { display: contents; }
+.operator-label, .operator-scenes small, .operator-duration { display: none; }
+.operator-scenes { flex: 0 0 auto; gap: 2px; }
+.operator-panel button {
+  padding: 2px 6px; font-size: 10px; border-radius: 4px;
+  background: rgba(217, 176, 97, 0.03); border-color: rgba(217, 176, 97, 0.14);
+}
+.operator-transport input[type="range"] { min-width: 70px; height: 2px; }
+.operator-transport output { min-width: 64px; font-size: 10px; }
+.operator-more { position: relative; }
+.operator-more-menu { bottom: calc(100% + 6px); min-width: 140px; }
+.operator-export {
+  position: absolute; left: 0; right: 0; bottom: calc(100% + 6px);
+  margin: 0; padding: 5px 7px; font-size: 10px;
+  background: rgba(8, 7, 6, 0.9); border: 1px solid rgba(217, 176, 97, 0.16); border-radius: 6px;
+}
+.operator-export progress { height: 4px; }
+body.operator-idle:not(.ui-on) .operator-panel:not(.operator-exporting) {
+  opacity: 0; pointer-events: auto; transform: translate(-50%, calc(100% - 3px));
+}
+body.operator-idle:not(.ui-on) .operator-panel:not(.operator-exporting):hover {
+  opacity: 1; transform: translate(-50%, 0);
+}
+
+.review-panel {
+  padding: 8px 10px; border-radius: 8px;
+  background: rgba(8, 7, 6, 0.78); border-color: rgba(217, 176, 97, 0.16);
+  box-shadow: none; backdrop-filter: blur(8px);
+}
+.review-header { font-size: 9px; letter-spacing: .08em; }
+.review-panel button { padding: 3px 6px; font-size: 10px; }
+.review-actions { margin: 6px 0; }
+.review-markers { margin-top: 5px; }
+.review-hint { display: none; }
+.toast { padding: 6px 10px; font-size: 11px; background: rgba(8, 7, 6, 0.82); border-color: rgba(217, 176, 97, 0.16); }
+
+@media (max-width: 780px) {
+  .operator-transport output { display: none; }
+  .operator-scenes button { padding: 2px 4px; }
+  .cfg-tools { flex-wrap: wrap; }
+}
