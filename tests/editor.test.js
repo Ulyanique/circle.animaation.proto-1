@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { moveLogo, moveTitle } from '../src/editor-math.js';
+import { moveLogo, moveTitle, snapRect } from '../src/editor-math.js';
 import { SCENES } from '../src/scenes/catalog.js';
 import { mergeConfig, configToJSON, parseConfigJSON } from '../src/config.js';
 
@@ -27,4 +27,25 @@ test('позиции принадлежат отдельной сцене и с�
     assert.equal(scene.defaults.logo.offsetX, 0);
     assert.equal(scene.defaults.caption.titleX, 0);
   }
+});
+
+
+test('умное прилипание выравнивает края и центры только в пределах порога', () => {
+  const rect = {left: 80, top: 50, width: 40, height: 20};
+  const targets = [{left: 0, top: 0, width: 200, height: 100}, {left: 145, top: 80, width: 20, height: 10}];
+  const centered = snapRect(rect, 4, -8, targets);
+  assert.equal(centered.dx, 0);
+  assert.equal(centered.guideX, 100);
+  assert.equal(centered.dy, -10);
+  assert.equal(centered.guideY, 50);
+  const edge = snapRect(rect, 23, 17, targets, 3);
+  assert.equal(edge.dx, 25);
+  assert.equal(edge.guideX, 145);
+  assert.equal(edge.dy, 15);
+  assert.equal(edge.guideY, 85);
+  const free = snapRect(rect, 13, 5, targets, 2);
+  assert.equal(free.dx, 13);
+  assert.equal(free.dy, 5);
+  assert.equal(free.guideX, null);
+  assert.equal(free.guideY, null);
 });

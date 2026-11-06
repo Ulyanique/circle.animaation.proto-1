@@ -20,6 +20,23 @@ const { launchBrowser } = require('./browser.cjs');
       await page.mouse.move(p.x, p.y); await page.mouse.down();
       await page.mouse.move(p.x + dx, p.y + dy, { steps: 3 }); await page.mouse.up();
     }
+    const titleCenter = await page.$eval('[data-element=title]', el => {
+      const r = el.getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
+    });
+    await page.mouse.move(titleCenter.x, titleCenter.y); await page.mouse.down();
+    await page.mouse.move(titleCenter.x + 4, titleCenter.y);
+    assert.equal(await page.$eval('.editor-guide-x', el => el.hidden), false, 'нет направляющей');
+    assert.ok(Math.abs(await page.evaluate(() => window.editorFixture.state.config.caption.titleX)) < 1e-6, 'центр не притянулся');
+    await page.mouse.up();
+    assert.equal(await page.$eval('.editor-guide-x', el => el.hidden), true, 'направляющая не скрылась');
+    await page.mouse.move(titleCenter.x, titleCenter.y); await page.keyboard.down('Alt'); await page.mouse.down();
+    await page.mouse.move(titleCenter.x + 4, titleCenter.y); await page.mouse.up(); await page.keyboard.up('Alt');
+    assert.ok(await page.evaluate(() => window.editorFixture.state.config.caption.titleX) > 0, 'Alt не отключает прилипание');
+    await page.click('[data-element=title]'); await page.click('[data-action=align-x]');
+    assert.ok(Math.abs(await page.evaluate(() => window.editorFixture.state.config.caption.titleX)) < 1e-6);
+    await page.click('[data-element=title]'); await page.click('[data-action=align-y]');
+    assert.ok(Math.abs(await page.evaluate(() => window.editorFixture.state.config.caption.titleY) + 0.05) < 1e-4);
+    await page.click('[data-element=title]'); await page.click('[data-action=reset]');
     await drag('[data-element=logo]', 60, 20);
     await drag('[data-element=subtitle]', 60, 10);
     await drag('[data-element=date]', -30, 15);
@@ -53,6 +70,6 @@ const { launchBrowser } = require('./browser.cjs');
     await page.click('[data-action=reset]');
     assert.equal(await page.evaluate(() => window.editorFixture.state.config.decor.offsetX), 0);
     assert.deepEqual(errors, []);
-    console.log('Редактор: перенос логотипа, текста и круговых элементов, сброс и запас для букв — OK');
+    console.log('Редактор: прилипание, направляющие, центрирование, перенос и сброс — OK; запас для букв — OK');
   } finally { await browser.close(); }
 })().catch(error => { console.error(error); process.exitCode = 1; });

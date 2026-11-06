@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { moveLogo, moveTitle } from './editor-math.js';
+import { moveLogo, moveTitle, snapRect } from './editor-math.js';
 
 /** Рамки редактора находятся только в DOM и не попадают в экспорт. */
 export function createFrameEditor({ getState, onEnable, onChange, onSettings }) {
@@ -11,6 +11,15 @@ export function createFrameEditor({ getState, onEnable, onChange, onSettings }) 
 
   const layer = document.createElement('div');
   layer.className = 'editor-layer'; layer.hidden = true;
+  const hint = document.createElement('div');
+  hint.className = 'editor-hint'; hint.textContent = 'Направляющие включены · Alt — без прилипания';
+  layer.appendChild(hint);
+  const guides = {};
+  for (const axis of ['x', 'y']) {
+    const guide = document.createElement('div');
+    guide.className = `editor-guide editor-guide-${axis}`; guide.hidden = true;
+    layer.appendChild(guide); guides[axis] = guide;
+  }
   const boxes = {};
   for (const [id, label] of [['logo', 'Логотип'], ['title', 'Название'], ['subtitle', 'Подзаголовок'], ['date', 'Дата'], ['photoLabel', 'Надпись по кругу'], ['brandDecor', 'Построительная окружность']]) {
     const box = document.createElement('button');
@@ -22,12 +31,12 @@ export function createFrameEditor({ getState, onEnable, onChange, onSettings }) 
   }
   const menu = document.createElement('div');
   menu.className = 'editor-menu'; menu.hidden = true;
-  menu.innerHTML = '<button type="button" data-action="settings">Настройки элемента</button><button type="button" data-action="reset">Сбросить положение</button>';
+  menu.innerHTML = '<button type="button" data-action="align-x">По центру по горизонтали</button><button type="button" data-action="align-y">По центру по вертикали</button><button type="button" data-action="settings">Настройки элемента</button><button type="button" data-action="reset">Сбросить положение</button>';
   layer.appendChild(menu); document.body.appendChild(layer);
 
   const bbox = new THREE.Box3(), point = new THREE.Vector3(), ray = new THREE.Raycaster();
   const plane = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0);
-  let enabled = false, selected = null, drag = null;
+  let enabled = false, selected = null, drag = null, snapRects = {};
   const place = (el, r) => {
     el.style.left = `${r.left}px`; el.style.top = `${r.top}px`;
     el.style.width = `${Math.max(1, r.width)}px`; el.style.height = `${Math.max(1, r.height)}px`;
@@ -55,6 +64,7 @@ export function createFrameEditor({ getState, onEnable, onChange, onSettings }) 
   function refresh() {
     if (!enabled) return;
     const { scene, canvas, id } = getState();
+    snapRects = {};
     const rect = canvas.getBoundingClientRect();
     scene.logo.root.updateWorldMatrix(true, true);
     scene.camera.updateMatrixWorld();
@@ -68,12 +78,16 @@ export function createFrameEditor({ getState, onEnable, onChange, onSettings }) 
       minY = Math.min(minY, py); maxY = Math.max(maxY, py);
     }
     boxes.logo.hidden = !Number.isFinite(minX);
-    if (!boxes.logo.hidden) place(boxes.logo, { left: minX - 5, top: minY - 5, width: maxX - minX + 10, height: maxY - minY + 10 });
+    if (!boxes.logo.hidden) {
+      snapRects.logo = { left: minX, top: minY, width: maxX - minX, height: maxY - minY };
+      place(boxes.logo, { left: minX - 5, top: minY - 5, width: maxX - minX + 10, height: maxY - minY + 10 });
+    }
     for (const [name, selector] of [['title', '.cap-title'], ['subtitle', '.cap-sub'], ['date', '.cap-date']]) {
       const line = document.querySelector(`#caption ${selector}`);
       boxes[name].hidden = id === 'photo-pause' || !line || getComputedStyle(line).display === 'none';
       if (!boxes[name].hidden) {
         const r = line.getBoundingClientRect();
+        snapRects[name] = { left: r.left, top: r.top, width: r.width, height: r.height };
         place(boxes[name], { left: r.left - 5, top: r.top - 5, width: r.width + 10, height: r.height + 10 });
       }
     }
@@ -82,9 +96,16 @@ export function createFrameEditor({ getState, onEnable, onChange, onSettings }) 
     const handle = (name, visible, position, radius) => {
       boxes[name].hidden = !visible;
       if (!visible) return;
-      point.set(position.x, position.y + radius, position.z).project(scene.camera);
-      const x = rect.left + (point.x + 1) * rect.width / 2;
-      const y = rect.top + (1 - point.y) * rect.height / 2;
+      let left = Infinity, right = -Infinity, top = Infinity, bottom = -Infinity;
+      for (const [dx, dy] of [[-radius, 0], [radius, 0], [0, -radius], [0, radius]]) {
+        point.set(position.x + dx, position.y + dy, position.z).project(scene.camera);
+        const x = rect.left + (point.x + 1) * rect.width / 2;
+        const y = rect.top + (1 - point.y) * rect.height / 2;
+        left = Math.min(left, x); right = Math.max(right, x);
+        top = Math.min(top, y); bottom = Math.max(bottom, y);
+      }
+      snapRects[name] = { left, top, width: right - left, height: bottom - top };
+      const x = (left + right) / 2, y = top;
       place(boxes[name], { left: x - 9, top: y - 9, width: 18, height: 18 });
     };
     const photoLabel = scene.circularLabel;
@@ -96,11 +117,12 @@ export function createFrameEditor({ getState, onEnable, onChange, onSettings }) 
     if (selected && !menu.hidden && !boxes[selected].hidden) {
       const r = boxes[selected].getBoundingClientRect();
       menu.style.left = `${Math.min(window.innerWidth - 200, Math.max(4, r.left))}px`;
-      menu.style.top = `${Math.max(4, Math.min(window.innerHeight - 90, r.bottom + 6))}px`;
+      menu.style.top = `${Math.max(4, Math.min(window.innerHeight - 170, r.bottom + 6))}px`;
     }
   }
   function disable() {
     enabled = false; selected = null; drag = null; layer.hidden = true; menu.hidden = true;
+    guides.x.hidden = guides.y.hidden = true;
     toggle.textContent = 'Редактировать'; toggle.setAttribute('aria-pressed', 'false');
   }
   toggle.addEventListener('click', () => {
@@ -118,18 +140,28 @@ export function createFrameEditor({ getState, onEnable, onChange, onSettings }) 
       const world = section ? worldPoint(event, state, depth(id, state.scene)) : null;
       if (section && !world) return;
       select(id, false);
-      drag = { id, pointerId: event.pointerId, x: event.clientX, y: event.clientY, world,
+      const frame = state.canvas.getBoundingClientRect();
+      const targets = [{ left: frame.left, top: frame.top, width: frame.width, height: frame.height },
+        ...Object.entries(snapRects).filter(([name]) => name !== id &&
+          !(id === 'logo' && (name === 'photoLabel' || name === 'brandDecor'))).map(([, rect]) => ({ ...rect }))];
+      drag = { id, rect: { ...snapRects[id] }, targets, frame: { left: frame.left, top: frame.top, width: frame.width, height: frame.height }, pointerId: event.pointerId, x: event.clientX, y: event.clientY, world,
         start: section ? { x: cfg[section].offsetX, y: cfg[section].offsetY } : { x: cfg.caption[`${id}X`], y: cfg.caption[`${id}Y`] }, moved: false };
       box.setPointerCapture(event.pointerId); event.preventDefault();
     });
     box.addEventListener('pointermove', (event) => {
       if (!drag || drag.pointerId !== event.pointerId) return;
       const state = getState(), cfg = state.config, rect = state.canvas.getBoundingClientRect();
-      const dx = event.clientX - drag.x, dy = event.clientY - drag.y;
-      if (Math.hypot(dx, dy) > 3) drag.moved = true;
+      const rawX = event.clientX - drag.x, rawY = event.clientY - drag.y;
+      if (Math.hypot(rawX, rawY) > 3) drag.moved = true;
+      const snap = event.altKey ? { dx: rawX, dy: rawY, guideX: null, guideY: null }
+        : snapRect(drag.rect, rawX, rawY, drag.targets);
+      const { dx, dy, guideX, guideY } = snap;
+      guides.x.hidden = guideX === null; guides.y.hidden = guideY === null;
+      if (guideX !== null) place(guides.x, { left: guideX, top: drag.frame.top, width: 1, height: drag.frame.height });
+      if (guideY !== null) place(guides.y, { left: drag.frame.left, top: guideY, width: drag.frame.width, height: 1 });
       if (worldSection[id]) {
         const section = worldSection[id];
-        const now = worldPoint(event, state, depth(id, state.scene));
+        const now = worldPoint({ clientX: drag.x + dx, clientY: drag.y + dy }, state, depth(id, state.scene));
         if (!now) return;
         const next = moveLogo(drag.start, now.x - drag.world.x, now.y - drag.world.y);
         cfg[section].offsetX = next.x; cfg[section].offsetY = next.y;
@@ -142,9 +174,10 @@ export function createFrameEditor({ getState, onEnable, onChange, onSettings }) 
     box.addEventListener('pointerup', (event) => {
       if (!drag || drag.pointerId !== event.pointerId) return;
       const moved = drag.moved; drag = null;
+      guides.x.hidden = guides.y.hidden = true;
       if (!moved) select(id, true);
     });
-    box.addEventListener('pointercancel', () => { drag = null; });
+    box.addEventListener('pointercancel', () => { drag = null; guides.x.hidden = guides.y.hidden = true; });
     box.addEventListener('contextmenu', (event) => { event.preventDefault(); select(id, true); });
     box.addEventListener('keydown', (event) => {
       if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); event.stopPropagation(); select(id, true); return; }
@@ -167,6 +200,28 @@ export function createFrameEditor({ getState, onEnable, onChange, onSettings }) 
     const action = event.target.closest('button')?.dataset.action;
     if (!selected || !action) return;
     const state = getState();
+    if (action === 'align-x' || action === 'align-y') {
+      const xAxis = action === 'align-x';
+      if (worldSection[selected]) {
+        const section = worldSection[selected];
+        const position = xAxis ? state.scene.logo.root.position.x : state.scene.logo.root.position.y;
+        const key = xAxis ? 'offsetX' : 'offsetY';
+        // Учитываем небольшое покачивание знака на текущем кадре.
+        const value = selected === 'logo' ? state.config.logo[key] - position : -position;
+        state.config[section][key] = Math.max(-2, Math.min(2, value));
+      } else {
+        const selector = { title: '.cap-title', subtitle: '.cap-sub', date: '.cap-date' }[selected];
+        const element = document.querySelector(`#caption ${selector}`);
+        const cap = document.getElementById('caption');
+        const size = xAxis ? cap.clientWidth : cap.clientHeight;
+        const current = parseFloat(getComputedStyle(element)[xAxis ? 'left' : 'top']);
+        const key = `${selected}${xAxis ? 'X' : 'Y'}`;
+        if (size > 0 && Number.isFinite(current)) {
+          state.config.caption[key] = Math.max(-0.45, Math.min(0.45, state.config.caption[key] + 0.5 - current / size));
+        }
+      }
+      onChange();
+    }
     if (action === 'settings') onSettings(worldSection[selected] || 'caption');
     if (action === 'reset') {
       if (worldSection[selected]) {

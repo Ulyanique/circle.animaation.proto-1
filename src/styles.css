@@ -550,3 +550,11 @@ body.operator-idle:not(.ui-on) .cfg-toggle { opacity: .55; }
 
 .editor-box.editor-handle { border: 1px solid #ffe1a4; border-radius: 50%; background: #21180b; }
 .editor-box.editor-handle span { left: 18px; top: -4px; border-radius: 3px; }
+
+.editor-guide { position: fixed; pointer-events: none; z-index: 3; }
+.editor-guide-x { border-left: 1px dashed #ffe8a1; }
+.editor-guide-y { border-top: 1px dashed #ffe8a1; }
+.editor-guide[hidden] { display: none; }
+
+.editor-hint { position: fixed; top: 60px; left: 18px; padding: 5px 8px;
+  border-radius: 4px; background: rgba(12,10,8,.8); color: #e8d3aa; font: 11px system-ui, sans-serif; }
