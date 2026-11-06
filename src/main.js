@@ -94,7 +94,11 @@ activateText(sceneId);
 function applyTypography(force = false) {
   const cap = document.getElementById("caption");
   const font = cfg.typography?.font || "cormorant-garamond";
-  const changed = cap.dataset.font !== font;
+  const sizes = ["title", "subtitle", "date"].map(name => cfg.caption?.[`${name}Scale`] ?? 1);
+  const signature = `${font}:${sizes.join(":")}`;
+  const changed = cap.dataset.fontSignature !== signature;
+  for (const [i, name] of ["title", "subtitle", "date"].entries()) cap.style.setProperty(`--${name}-scale`, sizes[i]);
+  cap.dataset.fontSignature = signature;
   cap.style.fontFamily = `"${fontName(font)}", Georgia, serif`;
   cap.dataset.font = font;
   if (changed || force || !cap.classList.contains("contours-ready")) refreshContours(font);
@@ -187,7 +191,7 @@ editor = createFrameEditor({
     saveScene(); settings.refresh(); operator.refresh();
     return true;
   },
-  onChange: () => { saveScene(); settings.refresh(); },
+  onChange: () => { applyTypography(); saveScene(); settings.refresh(); },
   onSettings: (section) => settings.openSection(section),
 });
 

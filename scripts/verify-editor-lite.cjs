@@ -20,6 +20,13 @@ const { launchBrowser } = require('./browser.cjs');
       await page.mouse.move(p.x, p.y); await page.mouse.down();
       await page.mouse.move(p.x + dx, p.y + dy, { steps: 3 }); await page.mouse.up();
     }
+    async function resize(id, dx, dy) {
+      const p = await page.$eval(`[data-element="${id}"] .editor-resize`, el => {
+        const r = el.getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
+      });
+      await page.mouse.move(p.x, p.y); await page.mouse.down();
+      await page.mouse.move(p.x + dx, p.y + dy, {steps: 3}); await page.mouse.up();
+    }
     const titleCenter = await page.$eval('[data-element=title]', el => {
       const r = el.getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
     });
@@ -37,6 +44,19 @@ const { launchBrowser } = require('./browser.cjs');
     await page.click('[data-element=title]'); await page.click('[data-action=align-y]');
     assert.ok(Math.abs(await page.evaluate(() => window.editorFixture.state.config.caption.titleY) + 0.05) < 1e-4);
     await page.click('[data-element=title]'); await page.click('[data-action=reset]');
+    const fontBefore = await page.evaluate(() => window.editorFixture.measureTitleFont());
+    await resize('title', 60, 30);
+    const titleScale = await page.evaluate(() => window.editorFixture.state.config.caption.titleScale);
+    const fontAfter = await page.evaluate(() => window.editorFixture.measureTitleFont());
+    assert.ok(titleScale > 1 && fontAfter > fontBefore);
+    assert.ok(Math.abs(fontAfter / fontBefore - titleScale) < 0.01, 'масштаб текста в экспорте отличается от превью');
+    await page.click('[data-element=title]'); await page.click('[data-action=reset-size]');
+    assert.equal(await page.evaluate(() => window.editorFixture.state.config.caption.titleScale), 1);
+    await page.click('[data-element=logo]');
+    await resize('logo', 40, 30);
+    assert.ok(await page.evaluate(() => window.editorFixture.state.config.logo.scale) > 1);
+    await page.click('[data-element=logo]'); await page.click('[data-action=reset-size]');
+    assert.equal(await page.evaluate(() => window.editorFixture.state.config.logo.scale), 1);
     await drag('[data-element=logo]', 60, 20);
     await drag('[data-element=subtitle]', 60, 10);
     await drag('[data-element=date]', -30, 15);
@@ -48,6 +68,10 @@ const { launchBrowser } = require('./browser.cjs');
     await page.click('[data-action=reset]');
     assert.equal(await page.evaluate(() => window.editorFixture.state.config.caption.subtitleX), 0);
     await page.evaluate(() => window.editorFixture.activate('photo-pause'));
+    await resize('photoLabel', 0, -25);
+    assert.ok(await page.evaluate(() => window.editorFixture.state.config.photo.radius) > 1.75);
+    await page.click('[data-element=photoLabel]'); await page.click('[data-action=reset-size]');
+    assert.equal(await page.evaluate(() => window.editorFixture.state.config.photo.radius), 1.75);
     await drag('[data-element=photoLabel]', 50, 20);
     const photo = await page.evaluate(() => window.editorFixture.state.config);
     assert.ok(photo.photo.offsetX > 0 && photo.photo.offsetY < 0);
@@ -59,6 +83,10 @@ const { launchBrowser } = require('./browser.cjs');
     await page.click('[data-action=reset]');
     assert.equal(await page.evaluate(() => window.editorFixture.state.config.photo.offsetX), 0);
     await page.evaluate(() => window.editorFixture.activate('brand'));
+    await resize('brandDecor', 0, -25);
+    assert.ok(await page.evaluate(() => window.editorFixture.state.config.decor.radius) > 1.2);
+    await page.click('[data-element=brandDecor]'); await page.click('[data-action=reset-size]');
+    assert.equal(await page.evaluate(() => window.editorFixture.state.config.decor.radius), 1.2);
     await drag('[data-element=brandDecor]', -45, 20);
     const brand = await page.evaluate(() => window.editorFixture.state.config);
     assert.ok(brand.decor.offsetX < 0 && brand.decor.offsetY < 0);
@@ -70,6 +98,6 @@ const { launchBrowser } = require('./browser.cjs');
     await page.click('[data-action=reset]');
     assert.equal(await page.evaluate(() => window.editorFixture.state.config.decor.offsetX), 0);
     assert.deepEqual(errors, []);
-    console.log('Редактор: прилипание, направляющие, центрирование, перенос и сброс — OK; запас для букв — OK');
+    console.log('Редактор: масштаб, экспорт, прилипание, перенос и сброс — OK; запас для букв — OK');
   } finally { await browser.close(); }
 })().catch(error => { console.error(error); process.exitCode = 1; });

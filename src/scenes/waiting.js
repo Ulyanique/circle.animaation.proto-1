@@ -3,7 +3,7 @@
 // Здесь нет WebGL и DOM — описание сцены можно читать из тестов и экспортера.
 export const WAITING_DEFAULTS = {
   typography: { font: "cormorant-garamond" },
-  caption: { titleX: 0, titleY: 0, subtitleX: 0, subtitleY: 0, dateX: 0, dateY: 0 },
+  caption: { titleX: 0, titleY: 0, titleScale: 1, subtitleX: 0, subtitleY: 0, subtitleScale: 1, dateX: 0, dateY: 0, dateScale: 1 },
   intro: { cornerDuration: 1.1, liftDuration: 1.4, titleDelay: 0.15 },
   timeline: {
     // длительности фаз в секундах; цикл повторяется бесконечно

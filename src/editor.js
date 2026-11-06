@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { moveLogo, moveTitle, snapRect } from './editor-math.js';
+import { moveLogo, moveTitle, snapRect, resizeFromDistance } from './editor-math.js';
 
 /** Рамки редактора находятся только в DOM и не попадают в экспорт. */
 export function createFrameEditor({ getState, onEnable, onChange, onSettings }) {
@@ -12,7 +12,7 @@ export function createFrameEditor({ getState, onEnable, onChange, onSettings }) 
   const layer = document.createElement('div');
   layer.className = 'editor-layer'; layer.hidden = true;
   const hint = document.createElement('div');
-  hint.className = 'editor-hint'; hint.textContent = 'Направляющие включены · Alt — без прилипания';
+  hint.className = 'editor-hint'; hint.textContent = 'Тяните уголок для размера · Alt — без прилипания';
   layer.appendChild(hint);
   const guides = {};
   for (const axis of ['x', 'y']) {
@@ -24,14 +24,14 @@ export function createFrameEditor({ getState, onEnable, onChange, onSettings }) 
   for (const [id, label] of [['logo', 'Логотип'], ['title', 'Название'], ['subtitle', 'Подзаголовок'], ['date', 'Дата'], ['photoLabel', 'Надпись по кругу'], ['brandDecor', 'Построительная окружность']]) {
     const box = document.createElement('button');
     box.type = 'button'; box.className = 'editor-box'; box.dataset.element = id;
-    box.setAttribute('aria-label', `${label}: перетащить или переместить стрелками`);
-    box.innerHTML = `<span>${label}</span>`;
+    box.setAttribute('aria-label', `${label}: перетащить, переместить стрелками или изменить размер клавишами плюс и минус`);
+    box.innerHTML = `<span class="editor-label">${label}</span><span class="editor-resize" title="Изменить размер" aria-hidden="true"></span>`;
     if (id === 'photoLabel' || id === 'brandDecor') box.classList.add('editor-handle');
     layer.appendChild(box); boxes[id] = box;
   }
   const menu = document.createElement('div');
   menu.className = 'editor-menu'; menu.hidden = true;
-  menu.innerHTML = '<button type="button" data-action="align-x">По центру по горизонтали</button><button type="button" data-action="align-y">По центру по вертикали</button><button type="button" data-action="settings">Настройки элемента</button><button type="button" data-action="reset">Сбросить положение</button>';
+  menu.innerHTML = '<button type="button" data-action="align-x">По центру по горизонтали</button><button type="button" data-action="align-y">По центру по вертикали</button><button type="button" data-action="settings">Настройки элемента</button><button type="button" data-action="reset">Сбросить положение</button><button type="button" data-action="reset-size">Сбросить размер</button>';
   layer.appendChild(menu); document.body.appendChild(layer);
 
   const bbox = new THREE.Box3(), point = new THREE.Vector3(), ray = new THREE.Raycaster();
@@ -42,6 +42,14 @@ export function createFrameEditor({ getState, onEnable, onChange, onSettings }) 
     el.style.width = `${Math.max(1, r.width)}px`; el.style.height = `${Math.max(1, r.height)}px`;
   };
   const worldSection = { logo: 'logo', photoLabel: 'photo', brandDecor: 'decor' };
+  const sizeInfo = {
+    logo: { section: 'logo', key: 'scale', min: 0.3, max: 2.5 },
+    photoLabel: { section: 'photo', key: 'radius', min: 1.1, max: 2.15 },
+    brandDecor: { section: 'decor', key: 'radius', min: 0.4, max: 2.5 },
+    title: { section: 'caption', key: 'titleScale', min: 0.5, max: 2 },
+    subtitle: { section: 'caption', key: 'subtitleScale', min: 0.5, max: 2 },
+    date: { section: 'caption', key: 'dateScale', min: 0.5, max: 2 },
+  };
   function depth(id, scene) {
     if (id === 'photoLabel') return scene.circularLabel.position.z;
     if (id === 'brandDecor') return scene.brandDecor.group.position.z;
@@ -117,7 +125,7 @@ export function createFrameEditor({ getState, onEnable, onChange, onSettings }) 
     if (selected && !menu.hidden && !boxes[selected].hidden) {
       const r = boxes[selected].getBoundingClientRect();
       menu.style.left = `${Math.min(window.innerWidth - 200, Math.max(4, r.left))}px`;
-      menu.style.top = `${Math.max(4, Math.min(window.innerHeight - 170, r.bottom + 6))}px`;
+      menu.style.top = `${Math.max(4, Math.min(window.innerHeight - 205, r.bottom + 6))}px`;
     }
   }
   function disable() {
@@ -140,11 +148,18 @@ export function createFrameEditor({ getState, onEnable, onChange, onSettings }) 
       const world = section ? worldPoint(event, state, depth(id, state.scene)) : null;
       if (section && !world) return;
       select(id, false);
+      const resizing = !!event.target.closest('.editor-resize');
+      const bounds = snapRects[id];
+      const centerX = bounds.left + bounds.width / 2, centerY = bounds.top + bounds.height / 2;
+      const size = sizeInfo[id];
       const frame = state.canvas.getBoundingClientRect();
       const targets = [{ left: frame.left, top: frame.top, width: frame.width, height: frame.height },
         ...Object.entries(snapRects).filter(([name]) => name !== id &&
           !(id === 'logo' && (name === 'photoLabel' || name === 'brandDecor'))).map(([, rect]) => ({ ...rect }))];
-      drag = { id, rect: { ...snapRects[id] }, targets, frame: { left: frame.left, top: frame.top, width: frame.width, height: frame.height }, pointerId: event.pointerId, x: event.clientX, y: event.clientY, world,
+      drag = { id, resizing, centerX, centerY,
+        startDistance: Math.hypot(event.clientX - centerX, event.clientY - centerY),
+        startSize: cfg[size.section][size.key],
+        rect: { ...bounds }, targets, frame: { left: frame.left, top: frame.top, width: frame.width, height: frame.height }, pointerId: event.pointerId, x: event.clientX, y: event.clientY, world,
         start: section ? { x: cfg[section].offsetX, y: cfg[section].offsetY } : { x: cfg.caption[`${id}X`], y: cfg.caption[`${id}Y`] }, moved: false };
       box.setPointerCapture(event.pointerId); event.preventDefault();
     });
@@ -153,6 +168,13 @@ export function createFrameEditor({ getState, onEnable, onChange, onSettings }) 
       const state = getState(), cfg = state.config, rect = state.canvas.getBoundingClientRect();
       const rawX = event.clientX - drag.x, rawY = event.clientY - drag.y;
       if (Math.hypot(rawX, rawY) > 3) drag.moved = true;
+      if (drag.resizing) {
+        const size = sizeInfo[id];
+        const distance = Math.hypot(event.clientX - drag.centerX, event.clientY - drag.centerY);
+        cfg[size.section][size.key] = resizeFromDistance(drag.startSize, drag.startDistance, distance, size.min, size.max);
+        onChange();
+        return;
+      }
       const snap = event.altKey ? { dx: rawX, dy: rawY, guideX: null, guideY: null }
         : snapRect(drag.rect, rawX, rawY, drag.targets);
       const { dx, dy, guideX, guideY } = snap;
@@ -181,6 +203,13 @@ export function createFrameEditor({ getState, onEnable, onChange, onSettings }) 
     box.addEventListener('contextmenu', (event) => { event.preventDefault(); select(id, true); });
     box.addEventListener('keydown', (event) => {
       if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); event.stopPropagation(); select(id, true); return; }
+      if (event.key === '+' || event.key === '=' || event.key === '-') {
+        event.preventDefault(); event.stopPropagation();
+        const size = sizeInfo[id], cfg = getState().config;
+        const multiplier = event.key === '-' ? 0.95 : 1.05;
+        cfg[size.section][size.key] = resizeFromDistance(cfg[size.section][size.key], 100, 100 * multiplier, size.min, size.max);
+        select(id, false); onChange(); return;
+      }
       const direction = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[event.key];
       if (!direction) return;
       event.preventDefault(); event.stopPropagation();
@@ -220,6 +249,11 @@ export function createFrameEditor({ getState, onEnable, onChange, onSettings }) 
           state.config.caption[key] = Math.max(-0.45, Math.min(0.45, state.config.caption[key] + 0.5 - current / size));
         }
       }
+      onChange();
+    }
+    if (action === 'reset-size') {
+      const size = sizeInfo[selected];
+      state.config[size.section][size.key] = state.defaults[size.section][size.key];
       onChange();
     }
     if (action === 'settings') onSettings(worldSection[selected] || 'caption');

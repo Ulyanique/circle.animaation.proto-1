@@ -49,10 +49,13 @@ export const SCHEMA = [
   ] },
   { id: "caption", title: "Положение надписей", fields: [
     { key: "titleX", label: "Название: горизонталь", type: "range", min: -0.45, max: 0.45, step: 0.005 },
+    { key: "titleScale", label: "Название: размер", type: "range", min: 0.5, max: 2, step: 0.01 },
     { key: "titleY", label: "Название: вертикаль", type: "range", min: -0.45, max: 0.45, step: 0.005 },
     { key: "subtitleX", label: "Подзаголовок: горизонталь", type: "range", min: -0.45, max: 0.45, step: 0.005 },
+    { key: "subtitleScale", label: "Подзаголовок: размер", type: "range", min: 0.5, max: 2, step: 0.01 },
     { key: "subtitleY", label: "Подзаголовок: вертикаль", type: "range", min: -0.45, max: 0.45, step: 0.005 },
     { key: "dateX", label: "Дата: горизонталь", type: "range", min: -0.45, max: 0.45, step: 0.005 },
+    { key: "dateScale", label: "Дата: размер", type: "range", min: 0.5, max: 2, step: 0.01 },
     { key: "dateY", label: "Дата: вертикаль", type: "range", min: -0.45, max: 0.45, step: 0.005 },
   ] },
   { id: "typography", title: "Типографика", fields: [

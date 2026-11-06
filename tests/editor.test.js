@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { moveLogo, moveTitle, snapRect } from '../src/editor-math.js';
+import { moveLogo, moveTitle, snapRect, resizeFromDistance } from '../src/editor-math.js';
 import { SCENES } from '../src/scenes/catalog.js';
 import { mergeConfig, configToJSON, parseConfigJSON } from '../src/config.js';
 
@@ -14,12 +14,15 @@ test('перемещение учитывает размер кадра и ог�
 
 test('позиции принадлежат отдельной сцене и сохраняются в JSON', () => {
   for (const scene of SCENES.filter(s => s.defaults)) {
-    const cfg = mergeConfig(scene.defaults, { logo: { offsetX: 0.7, offsetY: 0.2 }, caption: { titleX: 0.1, titleY: -0.05, subtitleX: -0.12, subtitleY: 0.03, dateX: 0.14, dateY: -0.08 } });
+    const cfg = mergeConfig(scene.defaults, { logo: { offsetX: 0.7, offsetY: 0.2 }, caption: { titleX: 0.1, titleY: -0.05, subtitleX: -0.12, subtitleY: 0.03, subtitleScale: 1.3, titleScale: 1.4, dateX: 0.14, dateY: -0.08, dateScale: 0.8 } });
     const next = parseConfigJSON(configToJSON(cfg), scene.defaults);
     assert.equal(next.logo.offsetX, 0.7);
     assert.equal(next.logo.offsetY, 0.2);
     assert.equal(next.caption.titleX, 0.1);
     assert.equal(next.caption.titleY, -0.05);
+    assert.equal(next.caption.titleScale, 1.4);
+    assert.equal(next.caption.subtitleScale, 1.3);
+    assert.equal(next.caption.dateScale, 0.8);
     assert.equal(next.caption.subtitleX, -0.12);
     assert.equal(next.caption.subtitleY, 0.03);
     assert.equal(next.caption.dateX, 0.14);
@@ -48,4 +51,13 @@ test('умное прилипание выравнивает края и цен�
   assert.equal(free.dy, 5);
   assert.equal(free.guideX, null);
   assert.equal(free.guideY, null);
+});
+
+
+test('масштабирование пропорционально и ограничено допустимыми размерами', () => {
+  assert.equal(resizeFromDistance(1, 100, 150, 0.5, 2), 1.5);
+  assert.equal(resizeFromDistance(1, 100, 400, 0.5, 2), 2);
+  assert.equal(resizeFromDistance(1, 100, 10, 0.5, 2), 0.5);
+  assert.equal(resizeFromDistance(1, 0, 100, 0.5, 2), 1);
+  assert.equal(resizeFromDistance(1, 100, NaN, 0.5, 2), 1);
 });

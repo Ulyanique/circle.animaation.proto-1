@@ -32,3 +32,9 @@ export function snapRect(rect, dx, dy, targets, threshold = 7) {
   return { dx: dx + (x?.correction ?? 0), dy: dy + (y?.correction ?? 0),
     guideX: x?.guide ?? null, guideY: y?.guide ?? null };
 }
+
+/** Пропорциональный размер от расстояния указателя до центра, с границами настройки. */
+export function resizeFromDistance(initial, startDistance, currentDistance, min, max) {
+  if (!(startDistance > 1) || !Number.isFinite(currentDistance)) return initial;
+  return clamp(initial * Math.max(0, currentDistance) / startDistance, min, max);
+}

@@ -173,7 +173,14 @@ export function drawCaption(ctx, alpha, sceneId) {
   const brand = sceneId === "brand";
   const photo = sceneId === "photo-pause";
   const finale = sceneId === "finale";
-  const tSize = (photo ? 6.7 : finale ? 6.6 : 7.2) * u;
+  const fontSize = (selector, fallback) => {
+    const el = cap?.querySelector(selector);
+    const size = el ? parseFloat(getComputedStyle(el).fontSize) * scale : NaN;
+    return Number.isFinite(size) && size > 0 ? size : fallback;
+  };
+  const tSize = fontSize(".cap-title", (photo ? 6.7 : finale ? 6.6 : 7.2) * u);
+  const subSize = fontSize(".cap-sub", (finale ? 2.55 : 2.4) * u);
+  const dateSize = fontSize(".cap-date", 1.5 * u);
   const titleGrad = (y) => {
     const g = ctx.createLinearGradient(0, y - tSize / 2, 0, y + tSize / 2);
     g.addColorStop(0, "#fff3cc"); g.addColorStop(0.4, "#f0cc78");
@@ -195,7 +202,7 @@ export function drawCaption(ctx, alpha, sceneId) {
   });
   if (finale) {
     textLine(".cap-sub", {
-      ...linePosition(".cap-sub", 0.79 * H), weight: 400, size: 2.55 * u, ls: 0.18 * 2.55 * u,
+      ...linePosition(".cap-sub", 0.79 * H), weight: 400, size: subSize, ls: 0.18 * subSize,
       stroke: "#d9b061", sw: 0.04 * u, fill: "#ecd08c",
     });
   }
@@ -203,10 +210,10 @@ export function drawCaption(ctx, alpha, sceneId) {
     rule(".r1", 0.66 * H);
     rule(".r2", 0.79 * H);
     textLine(".cap-sub", {
-      ...linePosition(".cap-sub", 0.72 * H), weight: 400, size: 2.4 * u, ls: 0.32 * 2.4 * u, stroke: "#d9b061", sw: 0.04 * u, fill: "#ecd08c",
+      ...linePosition(".cap-sub", 0.72 * H), weight: 400, size: subSize, ls: 0.32 * subSize, stroke: "#d9b061", sw: 0.04 * u, fill: "#ecd08c",
     });
     textLine(".cap-date", {
-      ...linePosition(".cap-date", 0.84 * H), weight: 400, size: 1.5 * u, ls: 0.28 * 1.5 * u, stroke: "#d9b061", sw: 0.035 * u, fill: "#d9b061",
+      ...linePosition(".cap-date", 0.84 * H), weight: 400, size: dateSize, ls: 0.28 * dateSize, stroke: "#d9b061", sw: 0.035 * u, fill: "#d9b061",
     });
   }
   ctx.restore();
