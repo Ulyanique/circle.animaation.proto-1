@@ -577,9 +577,10 @@ body.operator-idle:not(.ui-on) .operator-panel:not(.operator-exporting):hover {
 .editor-box.selected { border: 1px solid #f0d38c; background: rgba(217,176,97,0.10); box-shadow: 0 0 0 1px rgba(0,0,0,0.35); }
 .editor-box.locked { cursor: not-allowed; border-style: dotted; opacity: 0.65; }
 .editor-box > span {
-  position: absolute; left: 0; top: -18px; font: 10px/16px Montserrat, sans-serif;
-  color: #1b1712; background: #f0d38c; padding: 0 5px; white-space: nowrap;
+  position: absolute; left: 2px; top: 2px; display: none; font: 10px/16px Montserrat, sans-serif;
+  color: #1b1712; background: #f0d38c; padding: 0 5px; white-space: nowrap; pointer-events: none;
 }
+.editor-box:hover > span, .editor-box.selected > span { display: block; }
 .editor-toolbar, .editor-inspector, .editor-context {
   pointer-events: auto; background: rgba(12,11,10,0.92); color: #ecd8ac;
   border: 1px solid rgba(217,176,97,0.28); box-shadow: 0 8px 30px rgba(0,0,0,0.45);
@@ -600,9 +601,13 @@ body.operator-idle:not(.ui-on) .operator-panel:not(.operator-exporting):hover {
 .editor-toolbar label { display: flex; align-items: center; gap: 4px; }
 .editor-toolbar input[type="number"] { width: 58px; }
 .editor-inspector {
-  position: absolute; right: 14px; top: 14px; width: 228px; max-height: calc(100vh - 28px);
+  position: absolute; right: 14px; top: 14px; width: 244px; max-height: calc(100vh - 28px);
   overflow: auto; padding: 11px; border-radius: 3px;
 }
+.editor-inspector.collapsed { width: 30px; padding: 8px 4px; overflow: hidden; cursor: pointer; }
+.editor-inspector.collapsed .editor-inspector-content { display: none; }
+.editor-inspector-tab { display: none; writing-mode: vertical-rl; text-orientation: mixed; letter-spacing: 0.1em; text-transform: uppercase; font-size: 10px; opacity: 0.75; }
+.editor-inspector.collapsed .editor-inspector-tab { display: block; }
 .editor-inspector header { display: flex; justify-content: space-between; align-items: baseline; border-bottom: 1px solid rgba(217,176,97,0.2); padding-bottom: 7px; margin-bottom: 9px; }
 .editor-inspector header small { opacity: 0.55; }
 .editor-hint { opacity: 0.65; margin: 0; }
@@ -616,7 +621,11 @@ body.operator-idle:not(.ui-on) .operator-panel:not(.operator-exporting):hover {
 .editor-fields input[type="color"] { padding: 1px; height: 24px; }
 .editor-check { grid-column: 1 / -1; flex-direction: row !important; align-items: center; justify-content: space-between; }
 .editor-check input { width: auto !important; }
-.editor-actions { display: flex; gap: 6px; margin-top: 10px; }
+.editor-actions { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; margin-top: 10px; }
+.editor-actions button { padding: 3px 2px; min-width: 0; }
+.editor-element-picker { grid-column: 1 / -1; display: flex; flex-direction: column; gap: 3px; margin-bottom: 8px; }
+.editor-element-picker > span { opacity: 0.7; font-size: 9px; text-transform: uppercase; letter-spacing: 0.08em; }
+.editor-element-picker select { font: inherit; color: #ecd8ac; background: rgba(0,0,0,0.35); border: 1px solid rgba(217,176,97,0.25); border-radius: 2px; padding: 3px 4px; width: 100%; box-sizing: border-box; }
 .editor-context { position: absolute; width: 196px; padding: 7px; border-radius: 3px; display: grid; gap: 5px; }
 .editor-context strong { font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; padding: 2px 3px 4px; }
 .editor-context button { text-align: left; }

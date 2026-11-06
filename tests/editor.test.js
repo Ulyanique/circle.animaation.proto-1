@@ -5,7 +5,7 @@ import { migrateLegacyProject } from "../src/config.js";
 import { captionFrameState } from "../src/caption-renderer.js";
 import {
   createElementDefaults, elementIdsForScene, elementAnimation, elementWorldTransform,
-  setElementTransform, snapValue, worldToNormalized, normalizedToWorld,
+  setElementTransform, snapValue, worldToNormalized, normalizedToWorld, applyElementOpacity,
 } from "../src/element-registry.js";
 
 test("element registry has scene-specific elements and normalized coordinates", () => {
@@ -99,4 +99,16 @@ test("migrateLegacyProject preserve mode fills missing ?config fields without ov
   assert.equal(migrated.scenes.brand.decor.opacity, 0.9);
   assert.ok(migrated.scenes.brand.decor.speed !== undefined);
   assert.ok(migrated.scenes.brand.elements.logo);
+});
+
+test("default corners layer is -2 and opacity state is frame-local", () => {
+  assert.equal(createElementDefaults("waiting").corners.zIndex, -2);
+  const material = { opacity: 0.8, transparent: false, userData: {} };
+  const object = { traverse: (fn) => fn({ material }) };
+  applyElementOpacity(object, 0.5, 1);
+  assert.equal(material.opacity, 0.4);
+  // Следующий кадр сцена выставила новую базу; старый кэш не должен вернуться.
+  material.opacity = 0.6;
+  applyElementOpacity(object, 0.5, 2);
+  assert.equal(material.opacity, 0.3);
 });

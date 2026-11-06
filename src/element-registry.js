@@ -143,18 +143,23 @@ export function elementWorldTransform(el, t, cycle, halfW, halfH) {
   };
 }
 
-/** Мягко умножает прозрачность всех материалов объекта, сохраняя базу.
- * @param {any} object @param {number} opacity */
-export function applyElementOpacity(object, opacity) {
+/** Мягко умножает прозрачность всех материалов объекта. База берётся заново
+ * на каждом кадре: сцена сама пересчитывает material.opacity до вызова.
+ * @param {any} object @param {number} opacity @param {number} [frameId] */
+export function applyElementOpacity(object, opacity, frameId = 0) {
   if (!object) return;
   object.traverse(/** @param {any} child */ (child) => {
     const material = child.material;
     const list = Array.isArray(material) ? material : material ? [material] : [];
     for (const m of list) {
       if (!m || !("opacity" in m)) continue;
-      if (m.userData._editorBaseOpacity === undefined) m.userData._editorBaseOpacity = m.opacity ?? 1;
+      const state = m.userData._editorOpacityState || (m.userData._editorOpacityState = {});
+      if (state.frame !== frameId) {
+        state.frame = frameId;
+        state.base = m.opacity ?? 1;
+      }
       m.transparent = true;
-      m.opacity = m.userData._editorBaseOpacity * opacity;
+      m.opacity = state.base * opacity;
     }
   });
 }

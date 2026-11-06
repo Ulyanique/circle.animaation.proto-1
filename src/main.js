@@ -181,6 +181,14 @@ settings = createSettingsUI(project, {
 editor = createEditor({
   project,
   getActiveSceneId: () => sceneId,
+  getTime: () => runtime?.time ?? 0,
+  getCycle: () => cycleDuration(cfg.timeline),
+  onSeek: (value) => {
+    cfg.playback.paused = true;
+    runtime?.renderAt?.(value, 1 / OUTPUT.fps);
+    drawLiveCaption();
+    operator?.refresh?.();
+  },
   onProjectChange: () => {
     applyCaptionConfig();
     scene?.applyStatic?.();

@@ -197,7 +197,7 @@ export function createDefaultProject() {
   for (const id of SCENE_IDS) scenes[id] = createSceneDefaults(id);
   return {
     version: 2, settingsVersion: SETTINGS_VERSION, activeScene: "waiting", scenes,
-    editor: { enabled: false, snap: 0.01, grid: false, selection: null },
+    editor: { enabled: false, snap: 0.01, grid: false, selection: null, inspectorOpen: false },
   };
 }
 

@@ -18,11 +18,17 @@ const clone = (value) => JSON.parse(JSON.stringify(value));
 export function createEditor({
   project,
   getActiveSceneId = () => "waiting",
+  getTime = () => 0,
+  getCycle = () => 15.3,
+  onSeek = () => {},
   onProjectChange = () => {},
   onToast = () => {},
   enabled = false,
 } = {}) {
-  project.editor = project.editor || { enabled: false, snap: 0.01, grid: false, selection: null };
+  project.editor = project.editor || {
+    enabled: false, snap: 0.01, grid: false, selection: null, inspectorOpen: false,
+  };
+  if (project.editor.inspectorOpen === undefined) project.editor.inspectorOpen = false;
   let isEnabled = Boolean(enabled || project.editor.enabled);
   let activeId = getActiveSceneId();
   let selected = project.editor.selection || null;
@@ -43,6 +49,7 @@ export function createEditor({
       <button type="button" data-ed-act="undo" title="Отменить (Ctrl+Z)">↶</button>
       <button type="button" data-ed-act="redo" title="Повторить (Ctrl+Y)">↷</button>
       <button type="button" data-ed-act="grid" aria-pressed="false" title="Сетка">Сетка</button>
+      <button type="button" data-ed-act="inspector" aria-pressed="false" title="Инспектор (I)">Инспектор</button>
       <label>Шаг <input type="number" data-ed="snap" min="0" max="0.1" step="0.001" value="0.01"></label>
       <button type="button" data-ed-act="close" title="Закрыть конструктор">×</button>
     </div>
@@ -58,6 +65,7 @@ export function createEditor({
   const undoBtn = toolbar.querySelector('[data-ed-act="undo"]');
   const redoBtn = toolbar.querySelector('[data-ed-act="redo"]');
   const gridBtn = toolbar.querySelector('[data-ed-act="grid"]');
+  const inspectorBtn = toolbar.querySelector('[data-ed-act="inspector"]');
   const snapInput = toolbar.querySelector('[data-ed="snap"]');
 
   const scene = () => project.scenes[activeId] || project.scenes.waiting;
@@ -103,10 +111,17 @@ export function createEditor({
     historyIndex++;
     restore(history[historyIndex]);
   }
+  function setInspectorOpen(open) {
+    project.editor.inspectorOpen = Boolean(open);
+    saveProject(project);
+    refresh();
+  }
 
   function select(id) {
     selected = id;
     project.editor.selection = id;
+    // Выбор элемента раскрывает инспектор; в остальное время кадр остаётся чистым.
+    project.editor.inspectorOpen = true;
     saveProject(project);
     refresh();
   }
@@ -151,37 +166,51 @@ export function createEditor({
   }
 
   function buildInspector() {
+    const ids = elementIdsForScene(activeId);
+    const list = ids.map((id) =>
+      `<option value="${id}" ${id === selected ? "selected" : ""}>${elementLabel(id)}</option>`).join("");
+    inspector.innerHTML = `<div class="editor-inspector-tab" data-ed="inspector-tab">Инспектор</div>`;
     if (!selected) {
-      inspector.innerHTML = `<p class="editor-hint">Выберите элемент рамкой или правым кликом.</p>`;
+      inspector.insertAdjacentHTML("beforeend", `
+        <div class="editor-inspector-content">
+          <header><strong>Элемент</strong><small>${activeId}</small></header>
+          <label class="editor-element-picker"><span>Список элементов</span>
+            <select data-ed="element-select"><option value="">— выберите —</option>${list}</select></label>
+          <p class="editor-hint">Выберите элемент рамкой, правым кликом или из списка.</p>
+        </div>`);
       return;
     }
     const el = elements()[selected] || {};
-    const options = (list, value) => list.map((o) =>
+    const options = (items, value) => items.map((o) =>
       `<option value="${o.value}" ${o.value === value ? "selected" : ""}>${o.label}</option>`).join("");
     const row = (label, field, type, attrs = "") => `
       <label><span>${label}</span><input data-ed-field="${field}" type="${type}" value="${fieldValue(el, field)}" ${attrs}></label>`;
-    inspector.innerHTML = `
-      <header><strong>${elementLabel(selected)}</strong><small>${activeId}</small></header>
-      <div class="editor-fields">
-        ${row("X", "x", "number", "min='0' max='1' step='0.001'")}
-        ${row("Y", "y", "number", "min='0' max='1' step='0.001'")}
-        ${row("Масштаб", "scale", "number", "min='0.1' max='4' step='0.01'")}
-        ${row("Поворот", "rotation", "number", "min='-3.14' max='3.14' step='0.01'")}
-        ${row("Слой", "zIndex", "number", "min='-10' max='20' step='1'")}
-        <label><span>Цвет</span><input data-ed-field="color" type="color" value="${el.color || "#d9b061"}"></label>
-        <label><span>Появление</span><select data-ed-field="inPreset">${options(ANIMATION_PRESETS, el.inPreset)}</select></label>
-        <label><span>Исчезновение</span><select data-ed-field="outPreset">${options(OUT_PRESETS, el.outPreset)}</select></label>
-        <label><span>Движение</span><select data-ed-field="loopPreset">${options(LOOP_PRESETS, el.loopPreset)}</select></label>
-        ${row("Старт, с", "timing.start", "number", "min='0' max='60' step='0.1'")}
-        ${row("Длительность, с", "timing.duration", "number", "min='0.1' max='60' step='0.1'")}
-        <label class="editor-check"><span>Блокировка</span><input data-ed-field="locked" type="checkbox" ${el.locked ? "checked" : ""}></label>
+    inspector.insertAdjacentHTML("beforeend", `
+      <div class="editor-inspector-content">
+        <header><strong>${elementLabel(selected)}</strong><small>${activeId}</small></header>
+        <label class="editor-element-picker"><span>Элемент</span>
+          <select data-ed="element-select">${list}</select></label>
+        <div class="editor-fields">
+          ${row("X", "x", "number", "min='0' max='1' step='0.001'")}
+          ${row("Y", "y", "number", "min='0' max='1' step='0.001'")}
+          ${row("Масштаб", "scale", "number", "min='0.1' max='4' step='0.01'")}
+          ${row("Поворот", "rotation", "number", "min='-3.14' max='3.14' step='0.01'")}
+          ${row("Слой", "zIndex", "number", "min='-10' max='20' step='1'")}
+          <label><span>Цвет</span><input data-ed-field="color" type="color" value="${el.color || "#d9b061"}"></label>
+          <label><span>Появление</span><select data-ed-field="inPreset">${options(ANIMATION_PRESETS, el.inPreset)}</select></label>
+          <label><span>Исчезновение</span><select data-ed-field="outPreset">${options(OUT_PRESETS, el.outPreset)}</select></label>
+          <label><span>Движение</span><select data-ed-field="loopPreset">${options(LOOP_PRESETS, el.loopPreset)}</select></label>
+          ${row("Старт, с", "timing.start", "number", "min='0' max='60' step='0.1'")}
+          ${row("Длительность, с", "timing.duration", "number", "min='0.1' max='60' step='0.1'")}
+          <label class="editor-check"><span>Блокировка</span><input data-ed-field="locked" type="checkbox" ${el.locked ? "checked" : ""}></label>
+        </div>
+        <div class="editor-actions">
+          <button type="button" data-ed-action="front">Вперёд</button>
+          <button type="button" data-ed-action="back">Назад</button>
+          <button type="button" data-ed-action="reset">Сброс</button>
+        </div>
       </div>
-      <div class="editor-actions">
-        <button type="button" data-ed-action="front">Вперёд</button>
-        <button type="button" data-ed-action="back">Назад</button>
-        <button type="button" data-ed-action="reset">Сброс</button>
-      </div>
-    `;
+    `);
   }
 
   function refresh() {
@@ -208,6 +237,8 @@ export function createEditor({
     grid.style.height = `${rect.height}px`;
     snapInput.value = String(project.editor.snap ?? 0.01);
     gridBtn.setAttribute("aria-pressed", String(!!project.editor.grid));
+    inspectorBtn.setAttribute("aria-pressed", String(!!project.editor.inspectorOpen));
+    inspector.classList.toggle("collapsed", !project.editor.inspectorOpen);
     undoBtn.disabled = historyIndex <= 0;
     redoBtn.disabled = historyIndex >= history.length - 1;
     buildInspector();
@@ -290,11 +321,15 @@ export function createEditor({
     setField(field, value);
   };
   inspector.addEventListener("input", handleField);
-  // select дублируется change в старых браузерах; input/checkbox уже обработаны выше.
   inspector.addEventListener("change", (e) => {
+    if (e.target.dataset?.ed === "element-select") {
+      if (e.target.value) select(e.target.value);
+      return;
+    }
     if (e.target.dataset?.edField && e.target.tagName === "SELECT") handleField(e);
   });
   inspector.addEventListener("click", (e) => {
+    if (e.target.closest('[data-ed="inspector-tab"]')) { setInspectorOpen(true); return; }
     const action = e.target.closest("[data-ed-action]")?.dataset.edAction;
     if (!action || !selected) return;
     const el = elements()[selected] || {};
@@ -313,8 +348,11 @@ export function createEditor({
     else if (action === "back") setElementTransform(scene(), selected, { zIndex: num(el.zIndex, 0) - 1 });
     else if (action === "lock") setElementTransform(scene(), selected, { locked: !el.locked });
     else if (action === "reset") scene().elements[selected] = clone(createElementDefaults(activeId)[selected]);
-    else if (action === "inspector") { hideContext(); buildInspector(); return; }
-    else return;
+    else if (action === "inspector") {
+      setInspectorOpen(true);
+      hideContext();
+      return;
+    } else return;
     commit(true);
     hideContext();
   });
@@ -327,7 +365,8 @@ export function createEditor({
       project.editor.grid = !project.editor.grid;
       saveProject(project);
       refresh();
-    } else if (action === "close") setEnabled(false);
+    } else if (action === "inspector") setInspectorOpen(!project.editor.inspectorOpen);
+    else if (action === "close") setEnabled(false);
   });
   toolbar.addEventListener("input", (e) => {
     if (e.target.dataset?.ed !== "snap") return;
@@ -342,6 +381,7 @@ export function createEditor({
   window.addEventListener("keydown", (e) => {
     if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLSelectElement) return;
     if (e.code === "KeyE") toggle();
+    else if (e.code === "KeyI" && isEnabled) setInspectorOpen(!project.editor.inspectorOpen);
     else if (e.code === "Escape") hideContext();
     else if ((e.ctrlKey || e.metaKey) && e.code === "KeyZ") { e.preventDefault(); e.shiftKey ? redo() : undo(); }
     else if ((e.ctrlKey || e.metaKey) && e.code === "KeyY") { e.preventDefault(); redo(); }
@@ -353,5 +393,7 @@ export function createEditor({
     get enabled() { return isEnabled; },
     get activeScene() { return activeId; },
     get selection() { return selected; },
+    // Зарезервировано для фазы 3b: мини-таймлайн читает время и длительность цикла.
+    getTime, getCycle, onSeek, onToast,
   };
 }

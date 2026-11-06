@@ -455,6 +455,7 @@ export class LogoScene {
     const cfg = this.cfg;
     if (!cfg?.elements) return;
     const cycle = cycleDuration(cfg.timeline);
+    const frameId = (this._editorFrame = (this._editorFrame || 0) + 1);
     const map = {
       logo: this.logo?.root,
       corners: this.corners?.group,
@@ -473,7 +474,7 @@ export class LogoScene {
       object.scale.multiplyScalar(p.scale);
       object.rotation.z += p.rotation;
       object.renderOrder = p.zIndex;
-      applyElementOpacity(object, p.opacity);
+      applyElementOpacity(object, p.opacity, frameId);
       applyElementColor(object, p.color);
     }
   }
