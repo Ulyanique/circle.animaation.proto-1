@@ -1,6 +1,7 @@
 import { captionAccent, captionState, glyphReveal } from "./caption.js";
 import { computePhase, introCaptionDelay } from "./timeline.js";
 import { fieldCues, finaleCues } from "./scenes/cues.js";
+import { finaleSequence } from "./finale-sequence.js";
 
 const clamp01 = (x) => Math.max(0, Math.min(1, x));
 const smooth = (a, b, x) => {
@@ -110,23 +111,25 @@ export function captionFrameState(t, cfg, sceneId, options = {}) {
     });
   } else if (sceneId === "finale") {
     const cue = finaleCues(t, cfg.timeline.holdDuration);
+    const seq = finaleSequence(t, cfg);
+    const erase = seq.captionErase;
     const titleOutline = cue.titleOutline;
     const phraseOutline = cue.phraseOutline;
     lines.push({
       key: "title", text: cap.title || "Янтарный циркуль", y: 0.55 * H,
       size: 6.6 * u, weight: titleWeight, ls: 0, stroke: titleStroke,
       sw: 0.08 * u * strokeScale, paint: { type: "title" }, shadow: true,
-      outline: titleOutline, fill: delayedFill(cue.titleFill, fillDelay),
-      lift: (1 - titleOutline) ** 2 * 0.72 * u,
-      pen: 0.24 * Math.sin(Math.PI * titleOutline) * penGlow,
+      outline: titleOutline, fill: delayedFill(cue.titleFill, fillDelay) * (1 - erase),
+      erase, lift: (1 - titleOutline) ** 2 * 0.72 * u,
+      pen: 0.24 * Math.sin(Math.PI * titleOutline) * penGlow * (1 - erase),
     });
     lines.push({
       key: "phrase", text: (cap.phrase || cap.subtitle || "").toUpperCase(), y: 0.71 * H,
       size: 2.55 * u, weight: "400", ls: 0.18 * 2.55 * u, stroke: subStroke,
       sw: 0.04 * u * strokeScale, paint: "#ecd08c", shadow: false,
-      outline: phraseOutline, fill: delayedFill(cue.phraseFill, fillDelay),
-      lift: (1 - phraseOutline) ** 2 * 0.48 * u,
-      pen: 0.24 * Math.sin(Math.PI * phraseOutline) * penGlow,
+      outline: phraseOutline, fill: delayedFill(cue.phraseFill, fillDelay) * (1 - erase),
+      erase, lift: (1 - phraseOutline) ** 2 * 0.48 * u,
+      pen: 0.24 * Math.sin(Math.PI * phraseOutline) * penGlow * (1 - erase),
     });
   }
 
@@ -213,6 +216,15 @@ export class CaptionRenderer {
       ctx.strokeStyle = line.stroke;
       ctx.lineWidth = line.sw / (state.layers > 1 ? Math.sqrt(state.layers) : 1);
       ctx.lineJoin = "round";
+      // №9: надписи стираются справа налево обратным контуром, а не просто гаснут.
+      const erase = clamp01(line.erase ?? 0);
+      const eraseClip = erase > 0.001;
+      if (eraseClip) {
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(0, 0, Math.max(0, W / 2 + total / 2 - erase * total), H);
+        ctx.clip();
+      }
       glyphs.forEach((glyph, i) => {
         const reveal = glyphReveal({ outline: line.outline, fill: line.fill }, i, glyphs.length);
         const width = widths[i];
@@ -254,6 +266,7 @@ export class CaptionRenderer {
         }
         x += width + line.ls;
       });
+      if (eraseClip) ctx.restore();
       ctx.textAlign = "center";
     };
 

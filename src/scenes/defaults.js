@@ -113,7 +113,10 @@ const FIELD_VISUALS = {
     topGlowOpacity: 0.8,
     waveY: 1.00,
   },
-  decor: { preset: "none", opacity: 0 },
+  decor: {
+    preset: "blueprint-arcs", opacity: 0.42, speed: 1,
+    color: "#d9b061", scale: 1, density: 1,
+  },
 };
 
 const PHOTO_VISUALS = {
@@ -124,15 +127,23 @@ const PHOTO_VISUALS = {
     date: "20 ноября 2026 года",
   },
   layout: {
-    logoY: 1.00,
+    logoY: 0,
     bgL: 0.83,
     bgR: 0.91,
     waveOpacity: 0.72,
     topGlowY: 1.00,
     // baseline: BrandScene 0.8 × PhotoPause 0.88
     topGlowOpacity: 0.704,
-    viewfinderY: 1.00,
-    viewfinderOpacity: 0.24,
+    viewfinderY: 0,
+    viewfinderOpacity: 0,
+    cornerBrackets: true,
+  },
+  decor: { preset: "none", opacity: 0 },
+  photoPause: {
+    text: "фотопауза • ", repeats: 8, radius: 1.35, fontSize: 42,
+    opacity: 0.58, color: "#d9b061", turns: 1,
+    cornerInset: 0.22, cornerLength: 0.42, cornerThickness: 0.012,
+    cornerOpacity: 0.62,
   },
 };
 
@@ -153,7 +164,13 @@ const FINALE_VISUALS = {
     // baseline: BrandScene 0.8, Finale добавляет только cue.light
     topGlowOpacity: 0.8,
   },
-  finale: { finalCircle: "center-construction" },
+  decor: { preset: "none", opacity: 0 },
+  finale: {
+    finalCircle: "center-construction",
+    eraseStart: 0.05, logoMoveStart: 0.35, depthStart: 0.8,
+    depthTravel: 4, contourStart: 1.15, circleStart: 1.45,
+    circleEnd: 2.45, circleOpacity: 0.72, circleRadius: 0.8,
+  },
 };
 
 /** Полный набор настроек одной сцены. Значения по умолчанию повторяют текущий вид.

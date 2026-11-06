@@ -195,8 +195,25 @@ export const SCHEMA = [
     id: "decor", title: "Декор фона", fields: [
       { key: "preset", label: "Пресет", type: "select", options: DECOR_PRESETS },
       { key: "opacity", label: "Прозрачность", type: "range", min: 0, max: 1, step: 0.01 },
-      { key: "speed", label: "Скорость", type: "range", min: 0, max: 3, step: 0.01 },
+      { key: "speed", label: "Обороты за цикл", type: "range", min: -3, max: 3, step: 1 },
+      { key: "scale", label: "Масштаб", type: "range", min: 0.3, max: 2, step: 0.01 },
+      { key: "density", label: "Плотность", type: "range", min: 0, max: 1, step: 0.01 },
       { key: "color", label: "Цвет", type: "color" },
+    ]
+  },
+  {
+    id: "photoPause", title: "Фотопауза №8", fields: [
+      { key: "text", label: "Круговая строка", type: "text" },
+      { key: "repeats", label: "Повторов по кругу", type: "range", min: 3, max: 16, step: 1 },
+      { key: "radius", label: "Радиус строки", type: "range", min: 0.6, max: 2.2, step: 0.01 },
+      { key: "fontSize", label: "Размер шрифта (px)", type: "range", min: 20, max: 80, step: 1 },
+      { key: "opacity", label: "Прозрачность строки", type: "range", min: 0, max: 1, step: 0.01 },
+      { key: "color", label: "Цвет строки", type: "color" },
+      { key: "turns", label: "Обороты за цикл", type: "range", min: -3, max: 3, step: 1 },
+      { key: "cornerInset", label: "Отступ уголков", type: "range", min: 0.05, max: 0.8, step: 0.01 },
+      { key: "cornerLength", label: "Длина уголков", type: "range", min: 0.1, max: 1.2, step: 0.01 },
+      { key: "cornerThickness", label: "Толщина уголков", type: "range", min: 0.002, max: 0.05, step: 0.001 },
+      { key: "cornerOpacity", label: "Прозрачность уголков", type: "range", min: 0, max: 1, step: 0.01 },
     ]
   },
   {
@@ -207,6 +224,15 @@ export const SCHEMA = [
   {
     id: "finale", title: "Финал №9", fields: [
       { key: "finalCircle", label: "Финальный круг", type: "select", options: FINAL_CIRCLES },
+      { key: "eraseStart", label: "Стирание надписей: старт", type: "range", min: 0, max: 1.5, step: 0.01 },
+      { key: "logoMoveStart", label: "Лого в центр: старт", type: "range", min: 0, max: 1.5, step: 0.01 },
+      { key: "depthStart", label: "Удаление лого: старт", type: "range", min: 0, max: 2, step: 0.01 },
+      { key: "depthTravel", label: "Глубина удаления", type: "range", min: 1, max: 10, step: 0.1 },
+      { key: "contourStart", label: "Стирание контура: старт", type: "range", min: 0, max: 2, step: 0.01 },
+      { key: "circleStart", label: "Финальный круг: старт", type: "range", min: 0, max: 2, step: 0.01 },
+      { key: "circleEnd", label: "Финальный круг: конец", type: "range", min: 1, max: 3, step: 0.01 },
+      { key: "circleOpacity", label: "Финальный круг: прозрачность", type: "range", min: 0, max: 1, step: 0.01 },
+      { key: "circleRadius", label: "Финальный круг: радиус", type: "range", min: 0.3, max: 2, step: 0.01 },
     ]
   },
   {

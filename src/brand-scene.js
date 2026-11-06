@@ -6,6 +6,7 @@ import { fieldCues, quietBreath } from "./scenes/cues.js";
 import { computePhase } from "./timeline.js";
 import { glyphReveal } from "./caption.js";
 import { ContourWaves } from "./contour-waves.js";
+import { DecorLayer } from "./decor-layer.js";
 
 /** Внутренний конфиг полевых сцен: визуальные секции берутся из настроек
  * активной сцены, а художественные фазы и удержание считаются от внешнего цикла.
@@ -30,6 +31,8 @@ export class BrandScene extends LogoScene {
     this.brandConfig = config;
     this.waves = new ContourWaves(this.logo);
     this.scene.add(this.waves.group);
+    this.decor = new DecorLayer(config.decor);
+    this.scene.add(this.decor.group);
   }
 
   /** Настройки одной сцены могут измениться из панели без пересоздания WebGL. */
@@ -74,27 +77,42 @@ export class BrandScene extends LogoScene {
       group.scale.multiplyScalar(L.waveScale);
       material.opacity *= L.waveOpacity;
     });
+    // Фазовый декор №2 гаснет вместе с общей огибающей колец: шов остаётся тёмным.
+    this.decor.update(t, this.cfg, cycle, ph.rings);
     const cue = fieldCues(t, cycle);
     this._letterLine(".cap-title", cue.titleOutline, cue.titleFill, 0.72);
   }
 
   /** Общая для №2/8/9 посимвольная маска: DOM и экспортный canvas читают
-   * одинаковые --p/--f; на выходе заливка возвращается к контуру. */
-  _letterLine(selector, outline, fill, lift) {
+   * одинаковые --p/--f; на выходе заливка возвращается к контуру.
+   * @param {string} selector @param {number} outline @param {number} fill
+   * @param {number} lift @param {number} [erase]
+   */
+  _letterLine(selector, outline, fill, lift, erase = 0) {
     const line = document.querySelector(selector);
     if (!line) return;
+    const k = Math.max(0, Math.min(1, erase));
+    const visible = 1 - k;
+    const p = outline * visible;
+    const f = fill * visible;
     const u = parseFloat(document.getElementById("caption")?.style.getPropertyValue("--u")) || 19.2;
-    line.style.setProperty("--p", outline.toFixed(4));
-    line.style.setProperty("--f", fill.toFixed(4));
-    line.style.setProperty("--lift", `${((1 - outline) ** 2 * lift * u).toFixed(3)}px`);
-    const pen = 0.24 * Math.sin(Math.PI * outline);
+    line.style.setProperty("--p", p.toFixed(4));
+    line.style.setProperty("--f", f.toFixed(4));
+    line.style.setProperty("--erase", k.toFixed(4));
+    line.style.setProperty("--lift", `${((1 - p) ** 2 * lift * u).toFixed(3)}px`);
+    const pen = 0.24 * Math.sin(Math.PI * p);
     line.style.setProperty("--pen", pen.toFixed(4));
     const glyphs = line.children;
     for (let i = 0; i < glyphs.length; i++) {
-      const glyph = glyphReveal({ outline, fill }, i, glyphs.length);
+      const glyph = glyphReveal({ outline: p, fill: f }, i, glyphs.length);
       glyphs[i].style.setProperty("--o", glyph.outline.toFixed(4));
       glyphs[i].style.setProperty("--f", glyph.fill.toFixed(4));
       glyphs[i].style.setProperty("--gpen", (pen * Math.sin(Math.PI * glyph.outline)).toFixed(4));
     }
+  }
+
+  dispose() {
+    this.decor?.dispose();
+    super.dispose();
   }
 }
