@@ -7,6 +7,8 @@ const { Input, BlobSource, WEBM, EncodedPacketSink } = require("mediabunny");
   const browser = await launchBrowser();
   try {
     const page = await browser.newPage();
+    // Каждый verify:* начинается с чистого localStorage: соседний прогон не должен подменять defaults.
+    await page.evaluateOnNewDocument(() => { try { localStorage.clear(); } catch (_) {} });
     const errors = [];
     page.on("pageerror", (error) => errors.push(error.message));
     page.on("console", (msg) => { if (msg.type() === "error") errors.push(msg.text()); });

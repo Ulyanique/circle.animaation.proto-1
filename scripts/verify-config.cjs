@@ -13,6 +13,8 @@ const SCENES = [
   const browser = await launchBrowser();
   try {
     const page = await browser.newPage();
+    // Каждый verify:* начинается с чистого localStorage: соседний прогон не должен подменять defaults.
+    await page.evaluateOnNewDocument(() => { try { localStorage.clear(); } catch (_) {} });
     const messages = [];
     page.on("console", (m) => { if (m.type() === "error" || m.type() === "warning") messages.push(m.text()); });
     page.on("pageerror", (e) => messages.push(e.message));

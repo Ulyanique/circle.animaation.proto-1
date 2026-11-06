@@ -19,6 +19,8 @@
     "verify:chain": "node scripts/verify-chain.cjs",
     "verify:offline": "node scripts/verify-offline.cjs",
     "verify:loader": "node scripts/verify-loader.cjs",
+    "verify:editor": "node scripts/verify-editor.cjs",
+    "verify:caption": "node scripts/verify-caption.cjs",
     "render:frames": "node scripts/render-loop.cjs",
     "render:storyboard": "node scripts/render-storyboard.cjs",
     "render:encode": "bash scripts/encode-loop.sh"

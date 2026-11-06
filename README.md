@@ -40,7 +40,7 @@
 
 Смена фреймворка не требуется: `src/runtime.js` отвечает за абсолютное время, паузу и точный `renderAt(t)` через интерфейс `update/render`, не импортируя Three.js. `src/scenes/catalog.js` задаёт единый формат **1920×1080 / 60 FPS** и план девяти видов. **Реализованы виды №1, 2, 8 и 9:** вступительное интро (`src/intro-scene.js`), фирменный фон (`src/brand-scene.js`), фотопауза (`src/photo-pause-scene.js`) и финал (`src/finale-scene.js`). Внутренний id `waiting` для №1 оставлен ради совместимости ссылок, JSON-настроек и старых экспортов. Виды №3–7 остаются планами, а не фиктивными роликами.
 
-`npm run typecheck` постепенно проверяет типы движка и описаний сцен без перевода шейдеров на другой язык. `npm run verify:render`, `npm run verify:brand` и `SCENE=photo-pause npm run verify:priority` и `SCENE=finale npm run verify:priority` проверяют покадровый шов и наличие титра в экспортном canvas.
+`npm run typecheck` постепенно проверяет типы движка и описаний сцен без перевода шейдеров на другой язык. `npm run verify:render`, `npm run verify:brand`, `npm run verify:editor`, `npm run verify:caption`, `SCENE=photo-pause npm run verify:priority` и `SCENE=finale npm run verify:priority` проверяют покадровый шов, конструктор, единый титр и наличие текста в экспортном canvas. Все браузерные `verify:*` начинаются с чистого `localStorage`.
 
 ## Производительность без снижения качества
 

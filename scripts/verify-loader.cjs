@@ -9,6 +9,8 @@ const URL_ = process.env.URL || "http://localhost:5173/";
   const browser = await launchBrowser({ width: 1336, height: 815 });
   try {
     const page = await browser.newPage();
+    // Каждый verify:* начинается с чистого localStorage: соседний прогон не должен подменять defaults.
+    await page.evaluateOnNewDocument(() => { try { localStorage.clear(); } catch (_) {} });
     await page.setRequestInterception(true);
     let blockModule;
     const moduleRequested = new Promise((resolve) => {

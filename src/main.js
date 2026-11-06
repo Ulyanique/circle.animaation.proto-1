@@ -93,6 +93,7 @@ activateText(sceneId);
 const adapters = { waiting: IntroScene, brand: BrandScene,
   "photo-pause": PhotoPauseScene, finale: FinaleScene };
 scene = new adapters[sceneId](canvas, cfg);
+scene.editorSceneId = sceneId;
 runtime = new AnimationRuntime(scene, cfg, OUTPUT.fps);
 
 let lastFontKey = "";
@@ -316,6 +317,7 @@ function switchScene(id, source) {
   let nextScene;
   try {
     nextScene = new adapters[id](nextCanvas, nextCfg);
+    nextScene.editorSceneId = id;
   } catch (error) {
     toast(`Не удалось открыть сцену: ${error.message}`, true);
     return false;

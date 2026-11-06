@@ -9,6 +9,8 @@ const windows = [[70, 50, 350, 220], [1500, 650, 350, 250]];
   try {
     for (const id of ids) {
       const page = await browser.newPage();
+      // Каждый verify:* начинается с чистого localStorage: соседний прогон не должен подменять defaults.
+      await page.evaluateOnNewDocument(() => { try { localStorage.clear(); } catch (_) {} });
       try {
         const errors = [];
         page.on("pageerror", (e) => errors.push(e.message));

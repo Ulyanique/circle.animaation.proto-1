@@ -22,7 +22,9 @@ import { SolarBokeh } from "./bokeh.js";
 import { captionState, captionAccent, glyphReveal } from "./caption.js";
 import { computePhase, compositionFocus, heroGlint, seamCurtainOpacity, introCaptionDelay, introLogoLift } from "./timeline.js";
 import { cycleDuration } from "./runtime.js";
-import { elementWorldTransform, applyElementOpacity, applyElementColor } from "./element-registry.js";
+import {
+  createElementDefaults, elementWorldTransform, applyElementOpacity, applyElementColor,
+} from "./element-registry.js";
 
 const FOV = 30;
 const CAM_Z = 9;
@@ -454,6 +456,8 @@ export class LogoScene {
   applyEditorElements(t) {
     const cfg = this.cfg;
     if (!cfg?.elements) return;
+    const sceneId = this.editorSceneId || "waiting";
+    const defaults = createElementDefaults(sceneId);
     const cycle = cycleDuration(cfg.timeline);
     const frameId = (this._editorFrame = (this._editorFrame || 0) + 1);
     const map = {
@@ -467,14 +471,21 @@ export class LogoScene {
     };
     for (const [id, object] of Object.entries(map)) {
       const el = cfg.elements[id];
-      if (!el || !object) continue;
+      const defaultEl = defaults[id];
+      if (!el || !defaultEl || !object) continue;
       const p = elementWorldTransform(el, t, cycle, this.halfW, this.halfH);
-      object.position.x += p.x;
-      object.position.y += p.y;
-      object.scale.multiplyScalar(p.scale);
-      object.rotation.z += p.rotation;
-      object.renderOrder = p.zIndex;
-      applyElementOpacity(object, p.opacity, frameId);
+      const p0 = elementWorldTransform(defaultEl, t, cycle, this.halfW, this.halfH);
+      // Сцена уже поставила объект по своей режиссуре. Конструктор добавляет
+      // только отклонение от defaults, поэтому нет двойного сдвига лого/чертежа.
+      object.position.x += p.x - p0.x;
+      object.position.y += p.y - p0.y;
+      object.scale.multiplyScalar(p.scale / Math.max(1e-4, p0.scale));
+      object.rotation.z += p.rotation - p0.rotation;
+      if (object.userData._editorBaseRenderOrder === undefined) {
+        object.userData._editorBaseRenderOrder = object.renderOrder ?? 0;
+      }
+      object.renderOrder = object.userData._editorBaseRenderOrder + (p.zIndex - p0.zIndex);
+      applyElementOpacity(object, p.opacity / Math.max(1e-4, p0.opacity), frameId);
       applyElementColor(object, p.color);
     }
   }

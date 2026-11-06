@@ -14,6 +14,8 @@ const URL_ = process.env.URL || `http://localhost:5173/?scene=${sceneId}`;
   const browser = await launchBrowser();
   try {
     const page = await browser.newPage();
+    // Каждый verify:* начинается с чистого localStorage: соседний прогон не должен подменять defaults.
+    await page.evaluateOnNewDocument(() => { try { localStorage.clear(); } catch (_) {} });
     const errors = [];
     page.on("pageerror", (e) => errors.push(e.message));
     page.on("console", (m) => { if (m.type() === "error") errors.push(m.text()); });

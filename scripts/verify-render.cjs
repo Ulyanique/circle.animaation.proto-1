@@ -8,6 +8,8 @@ const URL_ = process.env.URL || "http://localhost:5173/";
   const browser = await launchBrowser();
   try {
     const page = await browser.newPage();
+    // Каждый verify:* начинается с чистого localStorage: соседний прогон не должен подменять defaults.
+    await page.evaluateOnNewDocument(() => { try { localStorage.clear(); } catch (_) {} });
     const errors = [];
     page.on("console", (m) => { if (m.type() === "error" || m.type() === "warning") errors.push(m.text()); });
     page.on("pageerror", (e) => errors.push(e.message));
