@@ -67,6 +67,9 @@ export const WAITING_DEFAULTS = {
     radius: 1.35,          // радиус основного кольца (в сцене)
     cornerX: 0.44,         // положение (доля ширины)
     cornerY: 0.42,         // положение (доля высоты)
+    leftVisible: true, rightVisible: true,
+    leftOffsetX: 0, leftOffsetY: 0, rightOffsetX: 0, rightOffsetY: 0,
+    leftScale: 1, rightScale: 1,
     speed: 0.16,           // медленное движение рисок, не отвлекающее от титра
     tilt: 62,              // наклон колец (градусы)
     thickness: 0.014,      // тонкая линия, как проведённая циркулем

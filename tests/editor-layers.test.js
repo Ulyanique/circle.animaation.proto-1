@@ -4,10 +4,10 @@ import { EDITOR_LAYERS, layersForScene, editorViewport, layerVisible } from '../
 
 test('список содержит только редактируемые элементы каждой сцены', () => {
   assert.equal(new Set(EDITOR_LAYERS.map(layer => layer.id)).size, EDITOR_LAYERS.length);
-  assert.deepEqual(layersForScene('waiting').map(layer => layer.id), ['logo', 'title', 'subtitle', 'date']);
-  assert.deepEqual(layersForScene('brand').map(layer => layer.id), ['logo', 'title', 'brandDecor']);
-  assert.deepEqual(layersForScene('photo-pause').map(layer => layer.id), ['logo', 'photoLabel']);
-  assert.deepEqual(layersForScene('finale').map(layer => layer.id), ['logo', 'title', 'subtitle']);
+  assert.deepEqual(layersForScene('waiting').map(layer => layer.id), ['logo', 'title', 'subtitle', 'date', 'ringLeft', 'ringRight']);
+  assert.deepEqual(layersForScene('brand').map(layer => layer.id), ['logo', 'title', 'ringLeft', 'ringRight', 'brandDecor']);
+  assert.deepEqual(layersForScene('photo-pause').map(layer => layer.id), ['logo', 'ringLeft', 'ringRight', 'photoLabel']);
+  assert.deepEqual(layersForScene('finale').map(layer => layer.id), ['logo', 'title', 'subtitle', 'ringLeft', 'ringRight']);
   assert.deepEqual(layersForScene('unknown'), []);
 });
 

@@ -1,3 +1,4 @@
+import { ringSideVisible, ringSideScale } from "./scenes/ring-sides.js";
 import * as THREE from "three";
 import lygiaRandom from "./shaders/lygia-random.glsl?raw";
 import { compositionFocus } from "./timeline.js";
@@ -76,7 +77,9 @@ export class SolarBokeh {
     for (const { mesh, uniforms, side, i, seed } of this.discs) {
       const base = side ? positions.right : positions.left;
       const dir = side ? -1 : 1;
-      const radius = cfg.rings.radius;
+      const sideName = side ? "right" : "left";
+      mesh.visible = ringSideVisible(cfg.rings, sideName);
+      const radius = cfg.rings.radius * ringSideScale(cfg.rings, sideName);
       const angle = (side ? 2.74 : -0.4) + (i ? (i - 2) * 0.35 : 0);
       const distance = radius * (i ? 0.72 + i * 0.18 : 1.0);
       const drift = 0.025 * Math.sin(ph.local * 0.45 + seed);

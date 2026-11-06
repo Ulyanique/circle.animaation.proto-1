@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { moveLogo, moveTitle, snapRect, resizeFromDistance } from './editor-math.js';
+import { moveLogo, moveTitle, moveWorldOffset, snapRect, resizeFromDistance } from './editor-math.js';
 import { EditorHistory } from './editor-history.js';
 import { validCustomColor } from './caption-content.js';
 import { EDITOR_LAYERS, layersForScene, layerVisible } from './editor-layers.js';
@@ -37,7 +37,8 @@ export function createFrameEditor({ getState, onEnable, onChange, onLayoutChange
     box.type = 'button'; box.className = 'editor-box'; box.dataset.element = id;
     box.setAttribute('aria-label', `${label}: перетащить, переместить стрелками или изменить размер клавишами плюс и минус`);
     box.innerHTML = `<span class="editor-label">${label}</span><span class="editor-resize" title="Изменить размер" aria-hidden="true"></span>`;
-    if (id === 'photoLabel' || id === 'brandDecor') box.classList.add('editor-handle');
+    if (id === 'photoLabel' || id === 'brandDecor' || id === 'ringLeft' || id === 'ringRight') box.classList.add('editor-handle');
+    if (id === 'ringLeft' || id === 'ringRight') box.classList.add('editor-center-handle');
     layer.appendChild(box); boxes[id] = box;
   }
   const layersPanel = document.createElement('aside');
@@ -65,8 +66,11 @@ export function createFrameEditor({ getState, onEnable, onChange, onLayoutChange
     visibility.addEventListener('click', () => {
       finishInput();
       const state = getState(), field = item.visibility;
-      const before = snapshot(state.config, [field]);
-      state.config[field.section][field.key] = !layerVisible(state.config, item);
+      const masterOff = (item.id === 'ringLeft' || item.id === 'ringRight') && state.config.rings.enabled === false;
+      const fields = masterOff ? [field, {section: 'rings', key: 'enabled'}] : [field];
+      const before = snapshot(state.config, fields);
+      if (masterOff) { state.config.rings.enabled = true; state.config.rings[field.key] = true; }
+      else state.config[field.section][field.key] = !layerVisible(state.config, item);
       record(state.id, state.config, before);
       onChange(); refresh();
     });
@@ -84,7 +88,7 @@ export function createFrameEditor({ getState, onEnable, onChange, onLayoutChange
     <label data-field="text">Текст <input type="text" data-appearance="text" maxlength="120" autocomplete="off"></label>
     <label data-field="color"><span data-color-label>Цвет</span> <input type="color" data-appearance="color"></label>
     <div class="editor-appearance-reset"><button type="button" data-action="reset-text">Исходный текст</button><button type="button" data-action="reset-color">Исходный цвет</button></div>
-  </div><section class="editor-timing" hidden>
+  </div><label class="editor-ring-scale" hidden><span>Размер круга <output data-ring-scale-output></output></span><input type="range" min="0.3" max="2.5" step="0.01" data-ring-scale></label><section class="editor-timing" hidden>
     <h3>Время надписи</h3>
     <label class="editor-timing-mode">Анимация <select data-timing-mode><option value="scene">Вместе с названием</option><option value="custom">Своё время</option></select></label>
     <div class="editor-timing-fields" hidden>
@@ -98,6 +102,8 @@ export function createFrameEditor({ getState, onEnable, onChange, onLayoutChange
   const colorInput = menu.querySelector('[data-appearance="color"]');
   const textRow = menu.querySelector('[data-field="text"]');
   const resetTextButton = menu.querySelector('[data-action="reset-text"]');
+  const ringScaleRow = menu.querySelector('.editor-ring-scale');
+  const ringScale = menu.querySelector('[data-ring-scale]');
   const timing = menu.querySelector('.editor-timing');
   const timingMode = menu.querySelector('[data-timing-mode]');
   const timingFields = menu.querySelector('.editor-timing-fields');
@@ -121,12 +127,16 @@ export function createFrameEditor({ getState, onEnable, onChange, onLayoutChange
     el.style.left = `${r.left}px`; el.style.top = `${r.top}px`;
     el.style.width = `${Math.max(1, r.width)}px`; el.style.height = `${Math.max(1, r.height)}px`;
   };
-  const worldSection = { logo: 'logo', photoLabel: 'photo', brandDecor: 'decor' };
+  const worldSection = { logo: 'logo', photoLabel: 'photo', brandDecor: 'decor', ringLeft: 'rings', ringRight: 'rings' };
+  const ringSide = id => id === 'ringLeft' ? 'left' : id === 'ringRight' ? 'right' : null;
+  const worldKeys = id => ringSide(id) ? [`${ringSide(id)}OffsetX`, `${ringSide(id)}OffsetY`] : ['offsetX', 'offsetY'];
   const textSection = id => CUSTOM_TEXT_IDS.includes(id) ? 'textLayers' : 'caption';
   const sizeInfo = {
     logo: { section: 'logo', key: 'scale', min: 0.3, max: 2.5 },
     photoLabel: { section: 'photo', key: 'radius', min: 1.1, max: 2.15 },
     brandDecor: { section: 'decor', key: 'radius', min: 0.4, max: 2.5 },
+    ringLeft: { section: 'rings', key: 'leftScale', min: 0.3, max: 2.5 },
+    ringRight: { section: 'rings', key: 'rightScale', min: 0.3, max: 2.5 },
     title: { section: 'caption', key: 'titleScale', min: 0.5, max: 2 },
     subtitle: { section: 'caption', key: 'subtitleScale', min: 0.5, max: 2 },
     date: { section: 'caption', key: 'dateScale', min: 0.5, max: 2 },
@@ -135,6 +145,8 @@ export function createFrameEditor({ getState, onEnable, onChange, onLayoutChange
     logo: { color: {section: 'colors', key: 'gold'}, fallback: '#c8962e' },
     photoLabel: { text: {section: 'photo', key: 'text'}, color: {section: 'photo', key: 'textColor'}, fallback: '#e8c77e', maxLength: 40 },
     brandDecor: { color: {section: 'decor', key: 'color'}, fallback: '#d9b268' },
+    ringLeft: { color: {section: 'colors', key: 'lightLeft'}, fallback: '#ffb55c' },
+    ringRight: { color: {section: 'colors', key: 'lightRight'}, fallback: '#ffcf7a' },
     title: { text: {section: 'caption', key: 'titleText'}, color: {section: 'caption', key: 'titleColor'}, fallback: '#e0b25a' },
     subtitle: { text: {section: 'caption', key: 'subtitleText'}, color: {section: 'caption', key: 'subtitleColor'}, fallback: '#ecd08c' },
     date: { text: {section: 'caption', key: 'dateText'}, color: {section: 'caption', key: 'dateColor'}, fallback: '#d9b061' },
@@ -155,7 +167,9 @@ export function createFrameEditor({ getState, onEnable, onChange, onLayoutChange
   }
   function populateAppearance(id) {
     const info = appearance[id], cfg = getState().config;
-    menu.querySelector('[data-color-label]').textContent = id === 'logo' ? 'Общий цвет золота' : 'Цвет';
+    menu.querySelector('[data-color-label]').textContent = id === 'logo' ? 'Общий цвет золота' : ringSide(id) ? 'Цвет свечения' : 'Цвет';
+    ringScaleRow.hidden = !ringSide(id);
+    if (!ringScaleRow.hidden) { ringScale.value = cfg.rings[`${ringSide(id)}Scale`]; menu.querySelector('[data-ring-scale-output]').textContent = `${Number(ringScale.value).toFixed(2)}×`; }
     menu.querySelector('[data-action=delete-text]').hidden = !CUSTOM_TEXT_IDS.includes(id);
     menu.querySelector('[data-action=settings]').hidden = CUSTOM_TEXT_IDS.includes(id);
     timing.hidden = !CUSTOM_TEXT_IDS.includes(id);
@@ -229,9 +243,25 @@ export function createFrameEditor({ getState, onEnable, onChange, onLayoutChange
     input.addEventListener('change', finishInput);
     input.addEventListener('blur', finishInput);
   }
+  const beginRingScale = () => {
+    if (inputSession || !selected || !ringSide(selected)) return;
+    const state = getState(), field = sizeFields(selected)[0];
+    inputSession = {sceneId: state.id, config: state.config, before: snapshot(state.config, [field]), field};
+  };
+  ringScale.addEventListener('focus', beginRingScale);
+  ringScale.addEventListener('input', () => {
+    beginRingScale();
+    if (!inputSession?.field) return;
+    const {section, key} = inputSession.field;
+    inputSession.config[section][key] = Number(ringScale.value);
+    menu.querySelector('[data-ring-scale-output]').textContent = `${Number(ringScale.value).toFixed(2)}×`;
+    onChange();
+  });
+  ringScale.addEventListener('change', finishInput);
+  ringScale.addEventListener('blur', finishInput);
   function positionFields(id) {
     const section = worldSection[id];
-    return section ? [{section, key: 'offsetX'}, {section, key: 'offsetY'}]
+    return section ? worldKeys(id).map(key => ({section, key}))
       : [{section: textSection(id), key: `${id}X`}, {section: textSection(id), key: `${id}Y`}];
   }
   const sizeFields = (id) => [{ section: sizeInfo[id].section, key: sizeInfo[id].key }];
@@ -302,9 +332,9 @@ export function createFrameEditor({ getState, onEnable, onChange, onLayoutChange
       const visible = layerVisible(config, item);
       const visibility = visibilityButtons[item.id];
       visibility.setAttribute('aria-pressed', String(visible));
-      const visibilityLabel = `${visible ? 'Скрыть' : 'Показать'}: ${item.label}`;
+      const visibilityLabel = ringSide(item.id) && config.rings?.enabled === false ? `Включить общий эффект: ${item.label}` : `${visible ? 'Скрыть' : 'Показать'}: ${item.label}`;
       visibility.setAttribute('aria-label', `Видимость: ${item.label}`); visibility.title = visibilityLabel;
-      const status = visible ? item.kind : `${item.kind} · скрыт`;
+      const status = ringSide(item.id) && config.rings?.enabled === false ? `${item.kind} · общий эффект выключен` : visible ? item.kind : `${item.kind} · скрыт`;
       if (row.querySelector('small').textContent !== status) row.querySelector('small').textContent = status;
     }
     if (selected && !available.has(selected)) {
@@ -371,6 +401,16 @@ export function createFrameEditor({ getState, onEnable, onChange, onLayoutChange
       const x = (left + right) / 2, y = top;
       place(boxes[name], { left: x - 9, top: y - 9, width: 18, height: 18 });
     };
+    for (const [name, side] of [['ringLeft', 'left'], ['ringRight', 'right']]) {
+      const group = scene.corners?.sides?.[side]?.group;
+      boxes[name].hidden = !group?.visible || config.rings?.[`${side}Visible`] === false || config.rings?.enabled === false;
+      if (!boxes[name].hidden) {
+        point.copy(group.position).project(scene.camera);
+        const x = rect.left + (point.x + 1) * rect.width / 2, y = rect.top + (1 - point.y) * rect.height / 2;
+        snapRects[name] = { left: x - 9, top: y - 9, width: 18, height: 18 };
+        place(boxes[name], snapRects[name]);
+      }
+    }
     const photoLabel = scene.circularLabel;
     handle('photoLabel', id === 'photo-pause' && config.photo?.textEnabled !== false && !!photoLabel?.visible,
       photoLabel?.position, getState().config.photo?.radius ?? 0);
@@ -436,7 +476,7 @@ export function createFrameEditor({ getState, onEnable, onChange, onLayoutChange
         startDistance: Math.hypot(event.clientX - centerX, event.clientY - centerY),
         startSize: cfg[size.section][size.key],
         rect: { ...bounds }, targets, frame: { left: frame.left, top: frame.top, width: frame.width, height: frame.height }, pointerId: event.pointerId, x: event.clientX, y: event.clientY, world,
-        start: section ? { x: cfg[section].offsetX, y: cfg[section].offsetY } : { x: cfg[textSection(id)][`${id}X`], y: cfg[textSection(id)][`${id}Y`] }, moved: false };
+        start: section ? { x: cfg[section][worldKeys(id)[0]], y: cfg[section][worldKeys(id)[1]] } : { x: cfg[textSection(id)][`${id}X`], y: cfg[textSection(id)][`${id}Y`] }, moved: false };
       box.setPointerCapture(event.pointerId); event.preventDefault();
     });
     box.addEventListener('pointermove', (event) => {
@@ -461,8 +501,9 @@ export function createFrameEditor({ getState, onEnable, onChange, onLayoutChange
         const section = worldSection[id];
         const now = worldPoint({ clientX: drag.x + dx, clientY: drag.y + dy }, state, depth(id, state.scene));
         if (!now) return;
-        const next = moveLogo(drag.start, now.x - drag.world.x, now.y - drag.world.y);
-        cfg[section].offsetX = next.x; cfg[section].offsetY = next.y;
+        const next = ringSide(id) ? moveWorldOffset(drag.start, now.x - drag.world.x, now.y - drag.world.y) : moveLogo(drag.start, now.x - drag.world.x, now.y - drag.world.y);
+        const [xKey, yKey] = worldKeys(id);
+        cfg[section][xKey] = next.x; cfg[section][yKey] = next.y;
       } else {
         const next = moveTitle(drag.start, dx, dy, rect.width, rect.height);
         cfg[textSection(id)][`${id}X`] = next.x; cfg[textSection(id)][`${id}Y`] = next.y;
@@ -497,8 +538,10 @@ export function createFrameEditor({ getState, onEnable, onChange, onLayoutChange
       const before = snapshot(cfg, positionFields(id));
       if (worldSection[id]) {
         const section = worldSection[id];
-        const p = moveLogo({ x: cfg[section].offsetX, y: cfg[section].offsetY }, direction[0] * step, -direction[1] * step);
-        cfg[section].offsetX = p.x; cfg[section].offsetY = p.y;
+        const [xKey, yKey] = worldKeys(id);
+        const start = { x: cfg[section][xKey], y: cfg[section][yKey] };
+        const p = ringSide(id) ? moveWorldOffset(start, direction[0] * step, -direction[1] * step) : moveLogo(start, direction[0] * step, -direction[1] * step);
+        cfg[section][xKey] = p.x; cfg[section][yKey] = p.y;
       } else {
         const target = cfg[textSection(id)];
         const p = moveTitle({ x: target[`${id}X`], y: target[`${id}Y`] }, direction[0] * step, direction[1] * step, 1, 1);
@@ -528,11 +571,14 @@ export function createFrameEditor({ getState, onEnable, onChange, onLayoutChange
       const xAxis = action === 'align-x';
       if (worldSection[selected]) {
         const section = worldSection[selected];
-        const position = xAxis ? state.scene.logo.root.position.x : state.scene.logo.root.position.y;
-        const key = xAxis ? 'offsetX' : 'offsetY';
-        // Учитываем небольшое покачивание знака на текущем кадре.
-        const value = selected === 'logo' ? state.config.logo[key] - position : -position;
-        state.config[section][key] = Math.max(-2, Math.min(2, value));
+        const key = worldKeys(selected)[xAxis ? 0 : 1];
+        const side = ringSide(selected);
+        const position = side ? state.scene.corners.sides[side].group.position : state.scene.logo.root.position;
+        const axisPosition = xAxis ? position.x : position.y;
+        // Кольцо хранит сдвиг от исходной позиции, остальные — от знака.
+        const value = side || selected === 'logo' ? state.config[section][key] - axisPosition : -axisPosition;
+        const limit = side ? 10 : 2;
+        state.config[section][key] = Math.max(-limit, Math.min(limit, value));
       } else {
         const selector = CUSTOM_TEXT_IDS.includes(selected) ? `[data-custom="${selected}"]` : { title: '.cap-title', subtitle: '.cap-sub', date: '.cap-date' }[selected];
         const element = document.querySelector(`#caption ${selector}`);
@@ -563,8 +609,7 @@ export function createFrameEditor({ getState, onEnable, onChange, onLayoutChange
     if (action === 'reset') {
       if (worldSection[selected]) {
         const section = worldSection[selected];
-        state.config[section].offsetX = state.defaults[section].offsetX;
-        state.config[section].offsetY = state.defaults[section].offsetY;
+        for (const key of worldKeys(selected)) state.config[section][key] = state.defaults[section][key];
       } else {
         const section = textSection(selected);
         state.config[section][`${selected}X`] = state.defaults[section][`${selected}X`];

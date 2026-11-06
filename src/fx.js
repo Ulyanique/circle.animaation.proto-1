@@ -1,3 +1,4 @@
+import { ringSidePosition, ringSideVisible, ringSideScale } from "./scenes/ring-sides.js";
 import * as THREE from "three";
 import { seededRandom } from "./random.js";
 import { ringSweep } from "./timeline.js";
@@ -373,8 +374,8 @@ export class Corners {
     this.rebuild(cfg);
     this.group.visible = cfg.rings.enabled;
     const sides = {
-      left: { x: -halfW * cfg.rings.cornerX * 2, y: halfH * cfg.rings.cornerY * 2, dir: 1 },
-      right: { x: halfW * cfg.rings.cornerX * 2, y: -halfH * cfg.rings.cornerY * 2, dir: -1 },
+      left: { ...ringSidePosition("left", cfg.rings, halfW, halfH), dir: 1 },
+      right: { ...ringSidePosition("right", cfg.rings, halfW, halfH), dir: -1 },
       // Малые группы чуть отведены от кромки, чтобы читались целиком.
     };
     const sp = cfg.rings.speed;
@@ -394,8 +395,8 @@ export class Corners {
       const s = this.sides[name];
       const c = sides[name];
       s.group.position.set(c.x, c.y, 0);
-      s.group.visible = cfg.rings.enabled && env > 0.0005;
-      s.group.scale.setScalar(1);
+      s.group.visible = cfg.rings.enabled && ringSideVisible(cfg.rings, name) && env > 0.0005;
+      s.group.scale.setScalar(ringSideScale(cfg.rings, name));
       // кольца рисуются дугой из плоскости фона: появление и уход — через проход дуги, без масштаба
       s.layers.forEach((l) => {
         l.mesh.material.color.copy(ringCol);
@@ -451,6 +452,8 @@ const ptVS = /* glsl */ `
   uniform vec2 uCornL;
   uniform vec2 uCornR;
   uniform float uRayLift;
+  uniform float uCornStrengthL;
+  uniform float uCornStrengthR;
   varying float vA;
   varying vec3 vC;
   void main(){
@@ -477,7 +480,7 @@ const ptVS = /* glsl */ `
     if (uMode > 0.5) {
       // пыль, подсвеченная световыми лучами от кругов
       vec2 q = p.xy / uBox.y;
-      vA *= 1.0 + uRayLift * 2.0 * (exp(-length(q - uCornL) * 1.1) + exp(-length(q - uCornR) * 1.1));
+      vA *= 1.0 + uRayLift * 2.0 * (uCornStrengthL * exp(-length(q - uCornL) * 1.1) + uCornStrengthR * exp(-length(q - uCornR) * 1.1));
     }
   }
 `;
@@ -530,6 +533,7 @@ export class Particles {
         uMode: { value: mode }, uCenter: { value: new THREE.Vector3() }, uBox: { value: new THREE.Vector2(3, 2) },
         uColA: { value: new THREE.Color() }, uColB: { value: new THREE.Color() },
         uCornL: { value: new THREE.Vector2() }, uCornR: { value: new THREE.Vector2() }, uRayLift: { value: 0 },
+        uCornStrengthL: { value: 1 }, uCornStrengthR: { value: 1 },
       },
     });
     this.mats.push(m);
@@ -579,7 +583,8 @@ export class Particles {
       u.uSpeed.value = cfg.particles.speed;
       u.uSpread.value = cfg.particles.spread;
       u.uSize.value = cfg.particles.size * 1.3;
-      u.uRadius.value = ringRadius * 1.25;
+      pts.visible = ringSideVisible(cfg.rings, sides[i]);
+      u.uRadius.value = ringRadius * 1.25 * ringSideScale(cfg.rings, sides[i]);
       u.uTilt.value = tilt;
       u.uPixel.value = pixel;
       u.uBright.value = cfg.particles.brightness * env;
@@ -596,6 +601,8 @@ export class Particles {
       u.uBright.value = cfg.particles.brightness * 0.8 * env;
       u.uBox.value.set(halfW, halfH);
       u.uRayLift.value = (cfg.particles.rayLift ?? 1.0) * env;
+      u.uCornStrengthL.value = ringSideVisible(cfg.rings, "left") ? 1 : 0;
+      u.uCornStrengthR.value = ringSideVisible(cfg.rings, "right") ? 1 : 0;
       u.uCornL.value.set(ringPos.left.x / halfH, ringPos.left.y / halfH);
       u.uCornR.value.set(ringPos.right.x / halfH, ringPos.right.y / halfH);
       u.uColA.value.copy(colA);

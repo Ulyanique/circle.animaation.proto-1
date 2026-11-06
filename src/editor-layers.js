@@ -6,6 +6,8 @@ export const EDITOR_LAYERS = [
   { id: 'title', label: 'Название', kind: 'Текст', visibility: { section: 'caption', key: 'titleVisible' }, scenes: ['waiting', 'brand', 'finale'] },
   { id: 'subtitle', label: 'Подзаголовок', kind: 'Текст', visibility: { section: 'caption', key: 'subtitleVisible' }, scenes: ['waiting', 'finale'] },
   { id: 'date', label: 'Дата', kind: 'Текст', visibility: { section: 'caption', key: 'dateVisible' }, scenes: ['waiting'] },
+  { id: 'ringLeft', label: 'Левый круг и свет', kind: 'Эффект', visibility: { section: 'rings', key: 'leftVisible' }, scenes: ['waiting', 'brand', 'photo-pause', 'finale'] },
+  { id: 'ringRight', label: 'Правый круг и свет', kind: 'Эффект', visibility: { section: 'rings', key: 'rightVisible' }, scenes: ['waiting', 'brand', 'photo-pause', 'finale'] },
   { id: 'photoLabel', label: 'Надпись по кругу', kind: 'Текст', visibility: { section: 'photo', key: 'textEnabled' }, scenes: ['photo-pause'] },
   { id: 'brandDecor', label: 'Построительная окружность', kind: 'Декор', visibility: { section: 'decor', key: 'enabled' }, scenes: ['brand'] },
   ...CUSTOM_TEXT_IDS.map((id, i) => ({ id, label: `Текст ${i + 1}`, kind: 'Текст', custom: true,
@@ -26,5 +28,6 @@ export function editorViewport(width, height, editing) {
 
 /** Отсутствующий флаг в старых настройках означает видимый элемент. */
 export function layerVisible(config, layer) {
+  if ((layer.id === 'ringLeft' || layer.id === 'ringRight') && config.rings?.enabled === false) return false;
   return config[layer.visibility.section]?.[layer.visibility.key] !== false;
 }

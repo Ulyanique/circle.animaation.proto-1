@@ -22,7 +22,7 @@ const { launchBrowser } = require('./browser.cjs');
       return { frame: bounds('#stage'), layers: bounds('.editor-layers'), inspector: bounds('.editor-inspector') };
     });
     assert.ok(layout.layers.right <= layout.frame.left && layout.inspector.left >= layout.frame.right, 'панели перекрывают кадр');
-    assert.deepEqual(await page.$$eval('[data-layer]:not([hidden])', els => els.map(el => el.dataset.layer)), ['logo', 'title', 'subtitle', 'date']);
+    assert.deepEqual(await page.$$eval('[data-layer]:not([hidden])', els => els.map(el => el.dataset.layer)), ['logo', 'title', 'subtitle', 'date', 'ringLeft', 'ringRight']);
     await page.click('[data-layer=title]');
     assert.equal(await page.$eval('[data-element=title]', el => el.classList.contains('selected')), true);
     assert.equal(await page.$eval('[data-selected-label]', el => el.textContent), 'Название');
@@ -112,6 +112,36 @@ const { launchBrowser } = require('./browser.cjs');
       await page.mouse.move(p.x, p.y); await page.mouse.down();
       await page.mouse.move(p.x + dx, p.y + dy, {steps: 3}); await page.mouse.up();
     }
+    await page.click('[data-layer=ringLeft]');
+    assert.equal(await page.$eval('[data-color-label]', el => el.textContent), 'Цвет свечения');
+    await drag('[data-element=ringLeft]', 45, 30);
+    const ringMoved = await page.evaluate(() => window.editorFixture.state.config.rings);
+    assert.ok(ringMoved.leftOffsetX > 0 && ringMoved.leftOffsetY < 0);
+    assert.equal(ringMoved.rightOffsetX, 0); assert.equal(ringMoved.rightOffsetY, 0);
+    await page.click('[data-history=undo]');
+    assert.equal(await page.evaluate(() => window.editorFixture.state.config.rings.leftOffsetX), 0);
+    await page.click('[data-history=redo]');
+    assert.equal(await page.evaluate(() => window.editorFixture.state.config.rings.leftOffsetX), ringMoved.leftOffsetX);
+    await page.$eval('[data-ring-scale]', el => { el.focus(); el.value = '1.4'; el.dispatchEvent(new Event('input', {bubbles:true})); el.dispatchEvent(new Event('change', {bubbles:true})); });
+    assert.equal(await page.evaluate(() => window.editorFixture.state.config.rings.leftScale), 1.4);
+    assert.equal(await page.evaluate(() => window.editorFixture.state.config.rings.rightScale), 1);
+    await page.click('[data-history=undo]');
+    assert.equal(await page.evaluate(() => window.editorFixture.state.config.rings.leftScale), 1);
+    await page.click('[data-visibility=ringLeft]');
+    assert.equal(await page.evaluate(() => window.editorFixture.state.scene.corners.sides.left.group.visible), false);
+    assert.equal(await page.evaluate(() => window.editorFixture.state.scene.corners.sides.right.group.visible), true);
+    await page.click('[data-history=undo]');
+    await page.evaluate(() => { window.editorFixture.state.config.rings.enabled = false; window.editorFixture.editor.refresh(); });
+    assert.equal(await page.$eval('[data-visibility=ringLeft]', el => el.getAttribute('aria-pressed')), 'false');
+    await page.click('[data-visibility=ringLeft]');
+    assert.equal(await page.evaluate(() => window.editorFixture.state.config.rings.enabled), true);
+    await page.click('[data-history=undo]');
+    assert.equal(await page.evaluate(() => window.editorFixture.state.config.rings.enabled), false);
+    await page.click('[data-history=redo]');
+    assert.equal(await page.evaluate(() => window.editorFixture.state.config.rings.enabled), true);
+    await page.click('[data-action=reset]');
+    assert.equal(await page.evaluate(() => window.editorFixture.state.config.rings.leftOffsetX), 0);
+    await page.evaluate(() => window.editorFixture.editor.clearHistory('waiting'));
     const titleCenter = await page.$eval('[data-element=title]', el => {
       const r = el.getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
     });
@@ -193,7 +223,7 @@ const { launchBrowser } = require('./browser.cjs');
     await page.click('[data-action=reset]');
     assert.equal(await page.evaluate(() => window.editorFixture.state.config.caption.subtitleX), 0);
     await page.evaluate(() => window.editorFixture.activate('photo-pause'));
-    assert.deepEqual(await page.$$eval('[data-layer]:not([hidden])', els => els.map(el => el.dataset.layer)), ['logo', 'photoLabel']);
+    assert.deepEqual(await page.$$eval('[data-layer]:not([hidden])', els => els.map(el => el.dataset.layer)), ['logo', 'ringLeft', 'ringRight', 'photoLabel']);
     await page.click('[data-visibility=photoLabel]');
     assert.equal(await page.evaluate(() => window.editorFixture.state.config.photo.textEnabled), false);
     assert.equal(await page.evaluate(() => window.editorFixture.state.scene.circularLabel.visible), false);
@@ -234,7 +264,7 @@ const { launchBrowser } = require('./browser.cjs');
     await page.click('[data-action=reset]');
     assert.equal(await page.evaluate(() => window.editorFixture.state.config.photo.offsetX), 0);
     await page.evaluate(() => window.editorFixture.activate('brand'));
-    assert.deepEqual(await page.$$eval('[data-layer]:not([hidden])', els => els.map(el => el.dataset.layer)), ['logo', 'title', 'brandDecor']);
+    assert.deepEqual(await page.$$eval('[data-layer]:not([hidden])', els => els.map(el => el.dataset.layer)), ['logo', 'title', 'ringLeft', 'ringRight', 'brandDecor']);
     await page.click('[data-visibility=brandDecor]');
     assert.equal(await page.evaluate(() => window.editorFixture.state.config.decor.enabled), false);
     assert.equal(await page.evaluate(() => window.editorFixture.state.scene.brandDecor.group.visible), false);
@@ -275,6 +305,38 @@ const { launchBrowser } = require('./browser.cjs');
       await page.$eval('[data-action=delete-text]', el => el.click());
     }
     await page.evaluate(() => window.editorFixture.editor.clearHistory('brand'));
+    // Реальные классы эффектов без WebGL: позиция кольца, боке и частиц используют общие настройки.
+    const effectState = await page.evaluate(async () => {
+      const { Corners, Particles } = await import('/src/fx.js');
+      const { SolarBokeh } = await import('/src/bokeh.js');
+      const { WAITING_DEFAULTS } = await import('/src/scenes/waiting.js');
+      const { computePhase } = await import('/src/timeline.js');
+      const cfg = structuredClone(WAITING_DEFAULTS);
+      cfg.rings.leftOffsetX = 1.25; cfg.rings.leftOffsetY = -0.5;
+      cfg.rings.leftScale = 1.4; cfg.rings.leftVisible = false;
+      const corners = new Corners(), particles = new Particles(), bokeh = new SolarBokeh();
+      const pos = corners.update(8, cfg, 5, 3, 1, 0);
+      particles.update(8, cfg, 5, 3, 1, 1080, Math.PI / 6, pos, cfg.rings.radius, 1, 1);
+      bokeh.update(8, computePhase(8, cfg.timeline), cfg, pos);
+      const result = {
+        leftX: pos.left.x, leftY: pos.left.y, rightX: pos.right.x,
+        leftVisible: corners.sides.left.group.visible, rightVisible: corners.sides.right.group.visible,
+        scale: corners.sides.left.group.scale.x, particlesLeft: particles.left.visible,
+        particlesRight: particles.right.visible, particleRadius: particles.left.material.uniforms.uRadius.value,
+        dustLeft: particles.dust.material.uniforms.uCornStrengthL.value,
+        dustRight: particles.dust.material.uniforms.uCornStrengthR.value,
+        bokehLeft: bokeh.discs[0].mesh.visible, bokehRight: bokeh.discs[5].mesh.visible,
+      };
+      particles.dispose(); bokeh.dispose(); return result;
+    });
+    assert.ok(Math.abs(effectState.leftX - (-4.4 + 1.25)) < 1e-8);
+    assert.ok(Math.abs(effectState.leftY - (2.52 - .5)) < 1e-8);
+    assert.ok(Math.abs(effectState.rightX - 4.4) < 1e-8);
+    assert.equal(effectState.scale, 1.4); assert.equal(effectState.leftVisible, false); assert.equal(effectState.rightVisible, true);
+    assert.equal(effectState.particlesLeft, false); assert.equal(effectState.particlesRight, true);
+    assert.ok(Math.abs(effectState.particleRadius - 1.35 * 1.25 * 1.4) < 1e-8);
+    assert.equal(effectState.dustLeft, 0); assert.equal(effectState.dustRight, 1);
+    assert.equal(effectState.bokehLeft, false); assert.equal(effectState.bokehRight, true);
     await page.setViewport({width: 700, height: 700});
     assert.equal(await page.$eval('.editor-layers', el => getComputedStyle(el).display), 'none');
     await page.click('[data-panel=layers]');

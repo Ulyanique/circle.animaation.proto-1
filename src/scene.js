@@ -1,3 +1,4 @@
+import { ringSideVisible } from "./scenes/ring-sides.js";
 import { customTextAnimation } from "./custom-text.js";
 import { editorViewport } from "./editor-layers.js";
 import * as THREE from "three";
@@ -316,8 +317,8 @@ export class LogoScene {
     const tilt = THREE.MathUtils.degToRad(cfg.rings.tilt);
     this.particles.update(t, cfg, this.halfW, this.halfH, this.pixelRatio, this.viewportH, this.fovRad, cpos, cfg.rings.radius, tilt, cornerEnv);
     this.background.update(t, cfg);
-    this.background.uniforms.uEnvL.value = cornerEnv;
-    this.background.uniforms.uEnvR.value = cornerEnv;
+    this.background.uniforms.uEnvL.value = cornerEnv * (ringSideVisible(cfg.rings, "left") ? 1 : 0);
+    this.background.uniforms.uEnvR.value = cornerEnv * (ringSideVisible(cfg.rings, "right") ? 1 : 0);
     this.background.uniforms.uIntroLight.value = opening.beams;
     // На удержании фон остаётся живым, но перестаёт спорить с названием.
     this.background.uniforms.uShimmer.value *= 1 - 0.32 * focus;
