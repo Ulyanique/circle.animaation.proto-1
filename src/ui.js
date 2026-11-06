@@ -78,8 +78,8 @@ export function createSettingsUI({
   const defs = () => getDefaults(editing);
   const sceneLabel = (id) => scenes.find((s) => s.id === id)?.label || id.toUpperCase();
 
-  function commit() {
-    onConfigChange?.(editing);
+  function commit(section, key) {
+    onConfigChange?.(editing, section, key);
   }
 
   function buildTabs() {
@@ -132,7 +132,7 @@ export function createSettingsUI({
           input.addEventListener("input", () => {
             holder[f.key] = Number(input.value);
             out.textContent = fmt(holder[f.key]);
-            commit();
+            commit(section.id, f.key);
           });
           inputs.push({ set: () => { input.value = holder[f.key]; out.textContent = fmt(holder[f.key]); } });
           const wrap = document.createElement("span");
@@ -145,7 +145,7 @@ export function createSettingsUI({
             holder[f.key] = defaults[section.id][f.key];
             input.value = holder[f.key];
             out.textContent = fmt(holder[f.key]);
-            commit();
+            commit(section.id, f.key);
           });
         } else if (f.type === "text") {
           const input = document.createElement("input");
@@ -153,7 +153,7 @@ export function createSettingsUI({
           input.maxLength = f.maxLength || 100;
           input.dataset.key = `${section.id}.${f.key}`;
           input.value = holder[f.key];
-          input.addEventListener("input", () => { holder[f.key] = input.value; commit(); });
+          input.addEventListener("input", () => { holder[f.key] = input.value; commit(section.id, f.key); });
           inputs.push({ set: () => { input.value = holder[f.key]; } });
           row.appendChild(input);
         } else if (f.type === "select") {
@@ -165,7 +165,7 @@ export function createSettingsUI({
             input.appendChild(el);
           }
           input.value = holder[f.key];
-          input.addEventListener("change", () => { holder[f.key] = input.value; commit(); });
+          input.addEventListener("change", () => { holder[f.key] = input.value; commit(section.id, f.key); });
           inputs.push({ set: () => { input.value = holder[f.key]; } });
           row.appendChild(input);
         } else if (f.type === "color") {
@@ -175,7 +175,7 @@ export function createSettingsUI({
           input.value = holder[f.key];
           input.addEventListener("input", () => {
             holder[f.key] = input.value;
-            commit();
+            commit(section.id, f.key);
           });
           inputs.push({ set: () => { input.value = holder[f.key]; } });
           row.appendChild(input);
@@ -186,7 +186,7 @@ export function createSettingsUI({
           input.checked = !!holder[f.key];
           input.addEventListener("change", () => {
             holder[f.key] = input.checked;
-            commit();
+            commit(section.id, f.key);
           });
           inputs.push({ set: () => { input.checked = !!holder[f.key]; } });
           row.appendChild(input);

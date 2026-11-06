@@ -564,3 +564,7 @@ body.operator-idle:not(.ui-on) .cfg-toggle { opacity: .55; }
 .editor-handle .editor-resize { right: -20px; bottom: -4px; }
 .editor-box.selected { z-index: 2; }
 .editor-menu { z-index: 4; }
+.editor-history { position: fixed; top: 18px; left: 145px; display: flex; gap: 6px; pointer-events: auto; }
+.editor-history button { padding: 9px 11px; border: 1px solid rgba(217,176,97,.4); border-radius: 6px;
+  background: rgba(12,10,8,.9); color: #ead3a5; cursor: pointer; font: 12px system-ui, sans-serif; }
+.editor-history button:disabled { opacity: .38; cursor: default; }

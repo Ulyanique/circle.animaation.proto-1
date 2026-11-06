@@ -1,8 +1,9 @@
 import * as THREE from 'three';
 import { moveLogo, moveTitle, snapRect, resizeFromDistance } from './editor-math.js';
+import { EditorHistory } from './editor-history.js';
 
 /** Рамки редактора находятся только в DOM и не попадают в экспорт. */
-export function createFrameEditor({ getState, onEnable, onChange, onSettings }) {
+export function createFrameEditor({ getState, onEnable, onChange, onSettings, onHistoryConflict }) {
   const toggle = document.createElement('button');
   toggle.type = 'button'; toggle.className = 'editor-toggle';
   toggle.textContent = 'Редактировать'; toggle.setAttribute('aria-pressed', 'false');
@@ -14,6 +15,13 @@ export function createFrameEditor({ getState, onEnable, onChange, onSettings }) 
   const hint = document.createElement('div');
   hint.className = 'editor-hint'; hint.textContent = 'Тяните уголок для размера · Alt — без прилипания';
   layer.appendChild(hint);
+  const history = new EditorHistory();
+  const historyBar = document.createElement('div');
+  historyBar.className = 'editor-history';
+  historyBar.innerHTML = '<button type="button" data-history="undo" title="Отменить (Ctrl+Z)" aria-label="Отменить">↶ Отменить</button><button type="button" data-history="redo" title="Повторить (Ctrl+Shift+Z или Ctrl+Y)" aria-label="Повторить">↷ Повторить</button>';
+  layer.appendChild(historyBar);
+  const undoButton = historyBar.querySelector('[data-history="undo"]');
+  const redoButton = historyBar.querySelector('[data-history="redo"]');
   const guides = {};
   for (const axis of ['x', 'y']) {
     const guide = document.createElement('div');
@@ -50,6 +58,42 @@ export function createFrameEditor({ getState, onEnable, onChange, onSettings }) 
     subtitle: { section: 'caption', key: 'subtitleScale', min: 0.5, max: 2 },
     date: { section: 'caption', key: 'dateScale', min: 0.5, max: 2 },
   };
+  function positionFields(id) {
+    const section = worldSection[id];
+    return section ? [{section, key: 'offsetX'}, {section, key: 'offsetY'}]
+      : [{section: 'caption', key: `${id}X`}, {section: 'caption', key: `${id}Y`}];
+  }
+  const sizeFields = (id) => [{ section: sizeInfo[id].section, key: sizeInfo[id].key }];
+  function snapshot(config, fields) {
+    return fields.map(({section, key}) => ({section, key, before: config[section][key]}));
+  }
+  function record(id, config, before) {
+    history.record(id, before.map(c => ({...c, after: config[c.section][c.key]})));
+    updateHistory();
+  }
+  function updateHistory() {
+    const state = history.state(getState().id);
+    undoButton.disabled = state.undo.length === 0;
+    redoButton.disabled = state.redo.length === 0;
+  }
+  function historyAction(direction) {
+    if (!enabled || drag) return;
+    const state = getState();
+    const result = history.apply(state.id, state.config, direction);
+    if (result === 'applied') { menu.hidden = true; onChange(); refresh(); }
+    if (result === 'conflict') onHistoryConflict?.();
+    updateHistory();
+  }
+  function cancelDrag() {
+    if (!drag) return;
+    for (const c of drag.before) drag.config[c.section][c.key] = c.before;
+    drag = null; guides.x.hidden = guides.y.hidden = true;
+    onChange(); updateHistory();
+  }
+  historyBar.addEventListener('click', event => {
+    const direction = event.target.closest('button')?.dataset.history;
+    if (direction === 'undo' || direction === 'redo') historyAction(direction);
+  });
   function depth(id, scene) {
     if (id === 'photoLabel') return scene.circularLabel.position.z;
     if (id === 'brandDecor') return scene.brandDecor.group.position.z;
@@ -71,6 +115,7 @@ export function createFrameEditor({ getState, onEnable, onChange, onSettings }) 
   }
   function refresh() {
     if (!enabled) return;
+    updateHistory();
     const { scene, canvas, id } = getState();
     snapRects = {};
     const rect = canvas.getBoundingClientRect();
@@ -129,6 +174,10 @@ export function createFrameEditor({ getState, onEnable, onChange, onSettings }) 
     }
   }
   function disable() {
+    if (drag) {
+      record(drag.sceneId, drag.config, drag.before);
+      drag = null;
+    }
     enabled = false; selected = null; drag = null; layer.hidden = true; menu.hidden = true;
     guides.x.hidden = guides.y.hidden = true;
     toggle.textContent = 'Редактировать'; toggle.setAttribute('aria-pressed', 'false');
@@ -156,7 +205,8 @@ export function createFrameEditor({ getState, onEnable, onChange, onSettings }) 
       const targets = [{ left: frame.left, top: frame.top, width: frame.width, height: frame.height },
         ...Object.entries(snapRects).filter(([name]) => name !== id &&
           !(id === 'logo' && (name === 'photoLabel' || name === 'brandDecor'))).map(([, rect]) => ({ ...rect }))];
-      drag = { id, resizing, centerX, centerY,
+      drag = { id, resizing, sceneId: state.id, config: cfg,
+        before: snapshot(cfg, resizing ? sizeFields(id) : positionFields(id)), centerX, centerY,
         startDistance: Math.hypot(event.clientX - centerX, event.clientY - centerY),
         startSize: cfg[size.section][size.key],
         rect: { ...bounds }, targets, frame: { left: frame.left, top: frame.top, width: frame.width, height: frame.height }, pointerId: event.pointerId, x: event.clientX, y: event.clientY, world,
@@ -195,25 +245,30 @@ export function createFrameEditor({ getState, onEnable, onChange, onSettings }) 
     });
     box.addEventListener('pointerup', (event) => {
       if (!drag || drag.pointerId !== event.pointerId) return;
-      const moved = drag.moved; drag = null;
+      const moved = drag.moved;
+      record(drag.sceneId, drag.config, drag.before);
+      drag = null;
       guides.x.hidden = guides.y.hidden = true;
       if (!moved) select(id, true);
     });
-    box.addEventListener('pointercancel', () => { drag = null; guides.x.hidden = guides.y.hidden = true; });
+    box.addEventListener('pointercancel', cancelDrag);
+    box.addEventListener('lostpointercapture', () => { if (drag) cancelDrag(); });
     box.addEventListener('contextmenu', (event) => { event.preventDefault(); select(id, true); });
     box.addEventListener('keydown', (event) => {
       if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); event.stopPropagation(); select(id, true); return; }
       if (event.key === '+' || event.key === '=' || event.key === '-') {
         event.preventDefault(); event.stopPropagation();
-        const size = sizeInfo[id], cfg = getState().config;
+        const state = getState(), size = sizeInfo[id], cfg = state.config;
+        const before = snapshot(cfg, sizeFields(id));
         const multiplier = event.key === '-' ? 0.95 : 1.05;
         cfg[size.section][size.key] = resizeFromDistance(cfg[size.section][size.key], 100, 100 * multiplier, size.min, size.max);
-        select(id, false); onChange(); return;
+        record(state.id, cfg, before); select(id, false); onChange(); return;
       }
       const direction = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[event.key];
       if (!direction) return;
       event.preventDefault(); event.stopPropagation();
-      const cfg = getState().config, step = event.shiftKey ? 0.1 : 0.01;
+      const state = getState(), cfg = state.config, step = event.shiftKey ? 0.1 : 0.01;
+      const before = snapshot(cfg, positionFields(id));
       if (worldSection[id]) {
         const section = worldSection[id];
         const p = moveLogo({ x: cfg[section].offsetX, y: cfg[section].offsetY }, direction[0] * step, -direction[1] * step);
@@ -222,13 +277,14 @@ export function createFrameEditor({ getState, onEnable, onChange, onSettings }) 
         const p = moveTitle({ x: cfg.caption[`${id}X`], y: cfg.caption[`${id}Y`] }, direction[0] * step, direction[1] * step, 1, 1);
         cfg.caption[`${id}X`] = p.x; cfg.caption[`${id}Y`] = p.y;
       }
-      select(id, false); onChange();
+      record(state.id, cfg, before); select(id, false); onChange();
     });
   }
   menu.addEventListener('click', (event) => {
     const action = event.target.closest('button')?.dataset.action;
     if (!selected || !action) return;
     const state = getState();
+    const before = snapshot(state.config, action === 'reset-size' ? sizeFields(selected) : positionFields(selected));
     if (action === 'align-x' || action === 'align-y') {
       const xAxis = action === 'align-x';
       if (worldSection[selected]) {
@@ -268,8 +324,24 @@ export function createFrameEditor({ getState, onEnable, onChange, onSettings }) 
       }
       onChange();
     }
+    if (action !== 'settings') record(state.id, state.config, before);
     menu.hidden = true;
   });
-  window.addEventListener('keydown', (event) => { if (enabled && event.key === 'Escape') disable(); });
-  return { refresh, disable, get enabled() { return enabled; } };
+  window.addEventListener('keydown', (event) => {
+    if (!enabled) return;
+    if (event.key === 'Escape') { if (drag) cancelDrag(); else disable(); return; }
+    if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement ||
+        event.target instanceof HTMLSelectElement || event.target.isContentEditable) return;
+    const modifier = event.ctrlKey || event.metaKey;
+    if (modifier && !event.altKey && (event.key.toLowerCase() === 'z' || event.key.toLowerCase() === 'y')) {
+      event.preventDefault(); event.stopPropagation();
+      historyAction(event.key.toLowerCase() === 'y' || event.shiftKey ? 'redo' : 'undo');
+    }
+  });
+  return {
+    refresh, disable, cancelDrag,
+    clearHistory(id) { history.clear(id); updateHistory(); },
+    invalidateHistory(id, section, key) { history.invalidate(id, section, key); updateHistory(); },
+    get enabled() { return enabled; },
+  };
 }

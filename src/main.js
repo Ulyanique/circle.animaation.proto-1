@@ -43,6 +43,9 @@ function saveScene(id = sceneId) {
 /** Применить присланный JSON к сцене, не ломая ссылку, которую держит рендер. */
 function applySceneConfig(id, next) {
   id = sceneById(id)?.id || id;
+  // Импорт и сброс заменяют конфиг: старые команды редактора больше к нему неприменимы.
+  if (id === sceneId) editor?.cancelDrag();
+  editor?.clearHistory(id);
   // Присланный фрагмент накладывается на умолчания сцены: частичный JSON не ломает рендер.
   replaceConfig(configFor(id), mergeConfig(sceneById(id).defaults, next));
   saveScene(id);
@@ -120,7 +123,8 @@ const settings = createSettingsUI({
   getConfig: (id) => configFor(id),
   getDefaults: (id) => sceneById(id).defaults,
   setScene: (id) => switchScene(id),
-  onConfigChange: (id) => {
+  onConfigChange: (id, section, key) => {
+    editor?.invalidateHistory(id, section, key);
     saveScene(id);
     if (id === sceneId) { applyTypography(); runtime.renderAt(runtime.time, 1 / OUTPUT.fps); }
   },
@@ -193,6 +197,7 @@ editor = createFrameEditor({
   },
   onChange: () => { applyTypography(); saveScene(); settings.refresh(); },
   onSettings: (section) => settings.openSection(section),
+  onHistoryConflict: () => toast("Настройка изменилась вне редактора; история сцены очищена", true),
 });
 
 const REC_W = OUTPUT.width, REC_H = OUTPUT.height;
