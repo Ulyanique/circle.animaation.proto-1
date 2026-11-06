@@ -26,6 +26,7 @@
     "verify:fonts": "node scripts/verify-fonts.cjs"
   },
   "dependencies": {
+    "opentype.js": "^2.0.0",
     "postprocessing": "^6.39.5",
     "three": "^0.186.0"
   },

@@ -1,6 +1,10 @@
 import "./styles.css";
 import "./font-assets.js";
 import { fontName, loadFonts } from "./fonts.js";
+import { loadContourFonts } from "./contour-fonts.js";
+import { parse as parseFont } from "opentype.js";
+import { sources as contourSources } from "./contour-font-assets.js";
+import { refreshContours } from "./contour-preview.js";
 import {
   cloneDefaults, loadSceneConfig, saveSceneConfig, replaceConfig, mergeConfig, projectToJSON,
 } from "./config.js";
@@ -86,9 +90,13 @@ function activateClasses(id) {
 }
 activateClasses(sceneId);
 activateText(sceneId);
-function applyTypography() {
+function applyTypography(force = false) {
   const cap = document.getElementById("caption");
-  cap.style.fontFamily = `"${fontName(cfg.typography?.font)}", Georgia, serif`;
+  const font = cfg.typography?.font || "cormorant-garamond";
+  const changed = cap.dataset.font !== font;
+  cap.style.fontFamily = `"${fontName(font)}", Georgia, serif`;
+  cap.dataset.font = font;
+  if (changed || force || !cap.classList.contains("contours-ready")) refreshContours(font);
 }
 applyTypography();
 
@@ -125,7 +133,7 @@ const settings = createSettingsUI({
   onExportVideo: () => startRecording(),
 });
 
-window.addEventListener("resize", () => scene.resize());
+window.addEventListener("resize", () => { scene.resize(); applyTypography(true); });
 
 // презентация: F — полный экран
 window.addEventListener("keydown", (e) => {
@@ -219,7 +227,7 @@ function switchScene(id, source) {
   runtime = new AnimationRuntime(scene, cfg, OUTPUT.fps);
   activateClasses(id);
   activateText(id);
-  applyTypography();
+  applyTypography(true);
   runtime.renderAt(cfg.timeline.startDelay, 1 / OUTPUT.fps);
   oldScene.dispose();
   // Панель настроек остаётся открытой и переключается на настройки новой сцены.
@@ -423,8 +431,8 @@ function frame(now) {
   // Это также защищает титр от вспышки системного шрифта при медленном запуске.
   if (!firstFrameRendered) {
     firstFrameRendered = true;
-    const fonts = loadFonts().catch((error) => console.warn("Не удалось загрузить шрифты", error));
-    fonts.then(() => window.__bootReady?.());
+    const fonts = Promise.all([loadFonts(), loadContourFonts(contourSources, parseFont)]).catch((error) => console.warn("Не удалось загрузить контуры шрифтов", error));
+    fonts.then(() => { applyTypography(true); window.__bootReady?.(); });
   }
   operator.refresh();
   if (recording?.kind === "single") {

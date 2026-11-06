@@ -1,4 +1,5 @@
 import { OUTPUT } from "./scenes/catalog.js";
+import { contourShape } from "./contour-fonts.js";
 import { glyphReveal } from "./caption.js";
 
 const REC_W = OUTPUT.width, REC_H = OUTPUT.height;
@@ -17,7 +18,7 @@ let baselines = new WeakMap();
 if (typeof document !== "undefined") {
   document.fonts?.addEventListener?.("loadingdone", () => { baselines = new WeakMap(); });
 }
-function lineBaseline(line, style, language) {
+export function lineBaseline(line, style, language) {
   const signature = [line.textContent, language, style.fontFamily, style.fontSize, style.fontWeight,
     style.fontStyle, style.fontStretch, style.lineHeight, style.letterSpacing, style.textTransform].join("\u0000");
   const cached = baselines.get(line);
@@ -103,9 +104,22 @@ export function drawCaption(ctx, alpha, sceneId) {
         else ctx[method](glyph, x, y);
       };
       if (glyph !== " " && reveal.outline > 0.001) {
+        const shape = contourShape(cap.dataset.font, o.weight, glyph);
         ctx.save();
-        ctx.beginPath(); ctx.rect(x, 0, width * reveal.outline, H); ctx.clip();
-        paint("strokeText");
+        if (shape) {
+          const unit = o.size / 1000;
+          ctx.translate(x, y);
+          ctx.scale(unit, unit);
+          ctx.setLineDash([shape.length, shape.length]);
+          ctx.lineDashOffset = shape.length * (1 - reveal.outline);
+          for (const [offset, opacity, width] of [[-10, 0.3, 4], [10, 0.3, 4], [0, 1, 9]]) {
+            ctx.save(); ctx.translate(offset, 0); ctx.globalAlpha *= opacity;
+            ctx.lineWidth = width; ctx.stroke(shape.path); ctx.restore();
+          }
+        } else {
+          ctx.beginPath(); ctx.rect(x, 0, width * reveal.outline, H); ctx.clip();
+          paint("strokeText");
+        }
         ctx.restore();
       }
       if (glyph !== " " && reveal.fill > 0.001) {

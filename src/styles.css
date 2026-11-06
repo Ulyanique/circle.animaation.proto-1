@@ -412,3 +412,8 @@ body.operator-idle:not(.ui-on) .cfg-toggle { opacity: .55; }
   background: #252018; border: 1px solid rgba(217,176,97,.35);
   border-radius: 5px; font: inherit; cursor: pointer;
 }
+/* Контур рисуется по пути глифа, а не прямоугольной маской. Заливка остаётся отдельной. */
+#caption.contours-ready .cap-glyph.has-contour { -webkit-text-stroke: 0; clip-path: none; }
+#caption .glyph-contour { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; }
+#caption .glyph-contour path { fill: none; stroke: #e0b25a; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 1 1; stroke-dashoffset: calc(1 - var(--o, 0)); }
+#caption .cap-sub .glyph-contour path, #caption .cap-date .glyph-contour path { stroke: #d9b061; }

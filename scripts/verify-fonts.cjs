@@ -22,15 +22,15 @@ const { launchBrowser } = require('./browser.cjs');
         input.dispatchEvent(new Event('change', {bubbles:true}));
         const title = document.querySelector('.cap-title');
         const bounds = title.getBoundingClientRect();
-        const original = CanvasRenderingContext2D.prototype.strokeText;
+        const original = CanvasRenderingContext2D.prototype.fillText;
         let usedFont = '';
-        CanvasRenderingContext2D.prototype.strokeText = function (...args) {
+        CanvasRenderingContext2D.prototype.fillText = function (...args) {
           if (!usedFont) usedFont = this.font;
           return original.apply(this, args);
         };
         let frame;
         try { frame = window.__logo.compositeFrameAt(8); }
-        finally { CanvasRenderingContext2D.prototype.strokeText = original; }
+        finally { CanvasRenderingContext2D.prototype.fillText = original; }
         fonts.push({value, family: getComputedStyle(title).fontFamily,
           fits: bounds.left >= 0 && bounds.right <= innerWidth,
           frame: [frame.width, frame.height],
