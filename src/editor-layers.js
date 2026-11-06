@@ -9,12 +9,12 @@ export const EDITOR_LAYERS = [
   { id: 'ringLeft', label: 'Левый круг и свет', kind: 'Эффект', visibility: { section: 'rings', key: 'leftVisible' }, scenes: ['waiting', 'brand', 'photo-pause', 'finale'] },
   { id: 'ringRight', label: 'Правый круг и свет', kind: 'Эффект', visibility: { section: 'rings', key: 'rightVisible' }, scenes: ['waiting', 'brand', 'photo-pause', 'finale'] },
   { id: 'photoLabel', label: 'Надпись по кругу', kind: 'Текст', visibility: { section: 'photo', key: 'textEnabled' }, scenes: ['photo-pause'] },
-  { id: 'brandDecor', label: 'Построительная окружность', kind: 'Декор', visibility: { section: 'decor', key: 'enabled' }, scenes: ['brand'] },
+  { id: 'brandDecor', label: 'Построительная окружность', kind: 'Декор', optional: true, visibility: { section: 'decor', key: 'enabled' }, scenes: ['waiting', 'brand', 'photo-pause', 'finale'] },
   ...CUSTOM_TEXT_IDS.map((id, i) => ({ id, label: `Текст ${i + 1}`, kind: 'Текст', custom: true,
     visibility: { section: 'textLayers', key: `${id}Visible` }, scenes: ['waiting', 'brand', 'photo-pause', 'finale'] })),
 ];
 export function layersForScene(id, config) {
-  return EDITOR_LAYERS.filter(layer => layer.scenes.includes(id) && (!layer.custom || config?.textLayers?.[`${layer.id}Present`] === true));
+  return EDITOR_LAYERS.filter(layer => layer.scenes.includes(id) && (!layer.custom || config?.textLayers?.[`${layer.id}Present`] === true) && (!layer.optional || (config ? config.decor?.present === true : id === 'brand')));
 }
 
 /** Место под панели редактора; пропорции самого кадра не меняются. */

@@ -17,10 +17,11 @@ export const SCHEMA = [
     { key: "titleDelay", label: "Пауза до надписей", type: "range", min: 0, max: 3, step: 0.05 },
   ] },
   { id: "decor", title: "Построительная окружность", fields: [
+    { key: "present", label: "Добавить окружность в сцену", type: "bool" },
     { key: "enabled", label: "Показать декор", type: "bool" },
     { key: "radius", label: "Радиус", type: "range", min: 0.4, max: 2.5, step: 0.01 },
-    { key: "offsetX", label: "Сдвиг от логотипа по горизонтали", type: "range", min: -2, max: 2, step: 0.01 },
-    { key: "offsetY", label: "Сдвиг от логотипа по вертикали", type: "range", min: -2, max: 2, step: 0.01 },
+    { key: "offsetX", label: "Положение по горизонтали", type: "range", min: -10, max: 10, step: 0.01 },
+    { key: "offsetY", label: "Положение по вертикали", type: "range", min: -10, max: 10, step: 0.01 },
     { key: "opacity", label: "Прозрачность линий", type: "range", min: 0, max: 1, step: 0.01 },
     { key: "color", label: "Цвет", type: "color" },
     { key: "speed", label: "Скорость вращения", type: "range", min: -0.3, max: 0.3, step: 0.005 },

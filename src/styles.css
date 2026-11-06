@@ -667,3 +667,6 @@ body.editor-on.operator-idle:not(.ui-on) .operator-panel { opacity: 1; pointer-e
 .editor-ring-scale span { display: flex; justify-content: space-between; }
 .editor-ring-scale output { color: #e7ca91; font-variant-numeric: tabular-nums; }
 .editor-ring-scale input { width: 100%; margin: 0; accent-color: #d9b061; }
+.editor-follow-logo { display: flex; align-items: center; gap: 8px; padding: 12px 7px; color: #d3c7b1; font-size: 11px; }
+.editor-follow-logo[hidden] { display: none; }
+.editor-follow-logo input { accent-color: #d9b061; }

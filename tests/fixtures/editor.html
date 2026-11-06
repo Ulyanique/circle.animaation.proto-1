@@ -25,7 +25,7 @@ const ringLeft = new THREE.Group(), ringRight = new THREE.Group();
 const sides = {left: {group: ringLeft}, right: {group: ringRight}};
 function updateRings() { const halfH = Math.tan(Math.PI / 12) * 9, halfW = halfH * 16 / 9; for (const side of ['left', 'right']) { const p = ringSidePosition(side, config.rings, halfW, halfH); sides[side].group.position.set(p.x, p.y, 0); sides[side].group.visible = config.rings.enabled && config.rings[`${side}Visible`]; sides[side].group.scale.setScalar(config.rings[`${side}Scale`]); } }
 config.photo = {textEnabled: true, offsetX: 0, offsetY: 0, radius: 1.75, text: 'ФОТОПАУЗА', textColor: null, color: '#e8c77e'};
-config.decor = {enabled: true, offsetX: 0, offsetY: 0, radius: 1.2, color: '#d9b268'};
+config.decor = {present: false, enabled: true, followLogo: false, offsetX: 0, offsetY: 0, radius: 1.2, color: '#d9b268'};
 updateRings();
 const state = { scene: { logo: { root, mesh }, camera, circularLabel, corners: {sides}, brandDecor: {group: brandGroup} }, canvas: document.querySelector('#stage'),
   config, defaults: structuredClone(config), id: 'waiting', time: 10 };
@@ -54,10 +54,10 @@ function renderCustom() {
 }
 const editor = createFrameEditor({ onLayoutChange: layout, getState: () => state, onEnable: () => true, onChange: () => {
   updateRings();
-  root.visible = config.logo.visible; circularLabel.visible = config.photo.textEnabled; brandGroup.visible = config.decor.enabled;
+  root.visible = config.logo.visible; circularLabel.visible = config.photo.textEnabled; brandGroup.visible = config.decor.present && config.decor.enabled;
   root.position.set(config.logo.offsetX, config.logo.offsetY, 0); root.scale.setScalar(config.logo.scale);
   circularLabel.position.set(root.position.x + config.photo.offsetX, root.position.y + config.photo.offsetY, 0.1);
-  brandGroup.position.set(root.position.x + config.decor.offsetX, root.position.y + config.decor.offsetY, -0.25);
+  brandGroup.position.set((config.decor.followLogo ? root.position.x : 0) + config.decor.offsetX, (config.decor.followLogo ? root.position.y : 0) + config.decor.offsetY, -0.25);
   syncCaptionContent(cap, config.caption, config.textLayers);
   renderCustom();
   for (const name of ['title', 'subtitle', 'date']) {
@@ -81,10 +81,11 @@ window.editorFixture = { editor, state, setTime(time) { state.time = time; rende
   return fontSize;
 }, activate(id) {
   state.id = id; document.body.className = `scene-${id === 'photo-pause' ? 'photo' : id} editor-on`;
+  config.decor.present = id === 'brand'; config.decor.followLogo = id === 'brand'; brandGroup.visible = config.decor.present && config.decor.enabled;
   config.logo.offsetX = 0; config.logo.offsetY = id === 'photo-pause' ? 0 : 0.6;
   root.position.set(config.logo.offsetX, config.logo.offsetY, 0);
   circularLabel.position.set(root.position.x + config.photo.offsetX, root.position.y + config.photo.offsetY, 0.1);
-  brandGroup.position.set(root.position.x + config.decor.offsetX, root.position.y + config.decor.offsetY, -0.25);
+  brandGroup.position.set((config.decor.followLogo ? root.position.x : 0) + config.decor.offsetX, (config.decor.followLogo ? root.position.y : 0) + config.decor.offsetY, -0.25);
   editor.refresh();
 } };
 </script></body></html>

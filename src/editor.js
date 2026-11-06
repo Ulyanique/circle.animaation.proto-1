@@ -44,7 +44,7 @@ export function createFrameEditor({ getState, onEnable, onChange, onLayoutChange
   const layersPanel = document.createElement('aside');
   layersPanel.className = 'editor-sidebar editor-layers';
   layersPanel.setAttribute('aria-label', 'Элементы сцены');
-  layersPanel.innerHTML = '<div class="editor-sidebar-heading"><span>СЦЕНА</span><h2>Элементы</h2></div><div class="editor-layers-list"></div><button type="button" class="editor-add-text" data-add-text>＋ Добавить текст</button><p class="editor-sidebar-note">До 8 дополнительных надписей в каждой сцене</p>';
+  layersPanel.innerHTML = '<div class="editor-sidebar-heading"><span>СЦЕНА</span><h2>Элементы</h2></div><div class="editor-layers-list"></div><button type="button" class="editor-add-text" data-add-text>＋ Добавить текст</button><button type="button" class="editor-add-text" data-add-decor>＋ Добавить окружность</button><p class="editor-sidebar-note">До 8 надписей и одна построительная окружность в каждой сцене</p>';
   const layerList = layersPanel.querySelector('.editor-layers-list');
   const rows = {}, visibilityButtons = {}, entries = {};
   for (const item of EDITOR_LAYERS) {
@@ -88,7 +88,7 @@ export function createFrameEditor({ getState, onEnable, onChange, onLayoutChange
     <label data-field="text">Текст <input type="text" data-appearance="text" maxlength="120" autocomplete="off"></label>
     <label data-field="color"><span data-color-label>Цвет</span> <input type="color" data-appearance="color"></label>
     <div class="editor-appearance-reset"><button type="button" data-action="reset-text">Исходный текст</button><button type="button" data-action="reset-color">Исходный цвет</button></div>
-  </div><label class="editor-ring-scale" hidden><span>Размер круга <output data-ring-scale-output></output></span><input type="range" min="0.3" max="2.5" step="0.01" data-ring-scale></label><section class="editor-timing" hidden>
+  </div><label class="editor-follow-logo" hidden><input type="checkbox" data-follow-logo> Привязать окружность к логотипу</label><label class="editor-ring-scale" hidden><span>Размер круга <output data-ring-scale-output></output></span><input type="range" min="0.3" max="2.5" step="0.01" data-ring-scale></label><section class="editor-timing" hidden>
     <h3>Время надписи</h3>
     <label class="editor-timing-mode">Анимация <select data-timing-mode><option value="scene">Вместе с названием</option><option value="custom">Своё время</option></select></label>
     <div class="editor-timing-fields" hidden>
@@ -97,11 +97,13 @@ export function createFrameEditor({ getState, onEnable, onChange, onLayoutChange
       <label><span>Плавность <output data-timing-output="Fade"></output></span><input type="range" data-timing="Fade" min="5" max="50" step="1"></label>
       <p>Время — доля цикла после стартовой задержки; секунды указаны по таймлайну. Плавность — доля выбранного интервала.</p>
     </div>
-  </section><button type="button" data-action="align-x">По центру по горизонтали</button><button type="button" data-action="align-y">По центру по вертикали</button><button type="button" data-action="settings">Настройки элемента</button><button type="button" data-action="reset">Сбросить положение</button><button type="button" data-action="reset-size">Сбросить размер</button><button type="button" class="editor-delete-text" data-action="delete-text" hidden>Удалить текст</button>`;
+  </section><button type="button" data-action="align-x">По центру по горизонтали</button><button type="button" data-action="align-y">По центру по вертикали</button><button type="button" data-action="settings">Настройки элемента</button><button type="button" data-action="reset">Сбросить положение</button><button type="button" data-action="reset-size">Сбросить размер</button><button type="button" class="editor-delete-text" data-action="delete-text" hidden>Удалить текст</button><button type="button" class="editor-delete-text" data-action="delete-decor" hidden>Удалить окружность</button>`;
   const textInput = menu.querySelector('[data-appearance="text"]');
   const colorInput = menu.querySelector('[data-appearance="color"]');
   const textRow = menu.querySelector('[data-field="text"]');
   const resetTextButton = menu.querySelector('[data-action="reset-text"]');
+  const followRow = menu.querySelector('.editor-follow-logo');
+  const followInput = menu.querySelector('[data-follow-logo]');
   const ringScaleRow = menu.querySelector('.editor-ring-scale');
   const ringScale = menu.querySelector('[data-ring-scale]');
   const timing = menu.querySelector('.editor-timing');
@@ -171,6 +173,9 @@ export function createFrameEditor({ getState, onEnable, onChange, onLayoutChange
     ringScaleRow.hidden = !ringSide(id);
     if (!ringScaleRow.hidden) { ringScale.value = cfg.rings[`${ringSide(id)}Scale`]; menu.querySelector('[data-ring-scale-output]').textContent = `${Number(ringScale.value).toFixed(2)}×`; }
     menu.querySelector('[data-action=delete-text]').hidden = !CUSTOM_TEXT_IDS.includes(id);
+    menu.querySelector('[data-action=delete-decor]').hidden = id !== 'brandDecor';
+    followRow.hidden = id !== 'brandDecor';
+    if (!followRow.hidden) followInput.checked = cfg.decor.followLogo !== false;
     menu.querySelector('[data-action=settings]').hidden = CUSTOM_TEXT_IDS.includes(id);
     timing.hidden = !CUSTOM_TEXT_IDS.includes(id);
     if (!timing.hidden) populateTiming(id);
@@ -243,6 +248,20 @@ export function createFrameEditor({ getState, onEnable, onChange, onLayoutChange
     input.addEventListener('change', finishInput);
     input.addEventListener('blur', finishInput);
   }
+  followInput.addEventListener('change', () => {
+    if (selected !== 'brandDecor') return;
+    finishInput();
+    const state = getState(), decor = state.config.decor, root = state.scene.logo.root.position;
+    const fields = ['followLogo', 'offsetX', 'offsetY'].map(key => ({section: 'decor', key}));
+    const before = snapshot(state.config, fields);
+    const followed = decor.followLogo !== false, follow = followInput.checked;
+    if (followed !== follow) {
+      decor.offsetX += follow ? -root.x : root.x;
+      decor.offsetY += follow ? -root.y : root.y;
+      decor.followLogo = follow;
+    }
+    record(state.id, state.config, before); onChange(); refresh();
+  });
   const beginRingScale = () => {
     if (inputSession || !selected || !ringSide(selected)) return;
     const state = getState(), field = sizeFields(selected)[0];
@@ -348,6 +367,10 @@ export function createFrameEditor({ getState, onEnable, onChange, onLayoutChange
     addButton.disabled = CUSTOM_TEXT_IDS.every(key => config.textLayers?.[`${key}Present`] === true);
     addButton.title = addButton.disabled ? 'Максимум 8 дополнительных надписей' : 'Добавить надпись в сцену';
     addButton.textContent = addButton.disabled ? 'Лимит: 8 надписей' : '＋ Добавить текст';
+    const addDecor = layersPanel.querySelector('[data-add-decor]');
+    addDecor.disabled = config.decor?.present === true;
+    addDecor.title = addDecor.disabled ? 'Окружность уже добавлена' : 'Добавить построительную окружность';
+    addDecor.textContent = addDecor.disabled ? 'Окружность добавлена' : '＋ Добавить окружность';
     snapRects = {};
     const rect = canvas.getBoundingClientRect();
     scene.logo.root.updateWorldMatrix(true, true);
@@ -415,7 +438,7 @@ export function createFrameEditor({ getState, onEnable, onChange, onLayoutChange
     handle('photoLabel', id === 'photo-pause' && config.photo?.textEnabled !== false && !!photoLabel?.visible,
       photoLabel?.position, getState().config.photo?.radius ?? 0);
     const decor = scene.brandDecor;
-    handle('brandDecor', id === 'brand' && config.decor?.enabled !== false && !!decor?.group.visible,
+    handle('brandDecor', available.has('brandDecor') && config.decor?.enabled !== false && !!decor?.group.visible,
       decor?.group.position, getState().config.decor?.radius ?? 0);
 
   }
@@ -435,6 +458,16 @@ export function createFrameEditor({ getState, onEnable, onChange, onLayoutChange
     guides.x.hidden = guides.y.hidden = true;
     toggle.textContent = 'Редактировать'; toggle.setAttribute('aria-pressed', 'false');
   }
+  layersPanel.querySelector('[data-add-decor]').addEventListener('click', () => {
+    finishInput();
+    const state = getState(), cfg = state.config;
+    if (cfg.decor.present) return;
+    const fields = Object.keys(state.defaults.decor).map(key => ({section: 'decor', key}));
+    const before = snapshot(cfg, fields);
+    for (const {key} of fields) cfg.decor[key] = state.defaults.decor[key];
+    cfg.decor.present = true; cfg.decor.enabled = true;
+    record(state.id, cfg, before); onChange(); select('brandDecor', true);
+  });
   layersPanel.querySelector('[data-add-text]').addEventListener('click', () => {
     finishInput();
     const state = getState(), cfg = state.config;
@@ -501,7 +534,7 @@ export function createFrameEditor({ getState, onEnable, onChange, onLayoutChange
         const section = worldSection[id];
         const now = worldPoint({ clientX: drag.x + dx, clientY: drag.y + dy }, state, depth(id, state.scene));
         if (!now) return;
-        const next = ringSide(id) ? moveWorldOffset(drag.start, now.x - drag.world.x, now.y - drag.world.y) : moveLogo(drag.start, now.x - drag.world.x, now.y - drag.world.y);
+        const next = (ringSide(id) || id === 'brandDecor') ? moveWorldOffset(drag.start, now.x - drag.world.x, now.y - drag.world.y) : moveLogo(drag.start, now.x - drag.world.x, now.y - drag.world.y);
         const [xKey, yKey] = worldKeys(id);
         cfg[section][xKey] = next.x; cfg[section][yKey] = next.y;
       } else {
@@ -540,7 +573,7 @@ export function createFrameEditor({ getState, onEnable, onChange, onLayoutChange
         const section = worldSection[id];
         const [xKey, yKey] = worldKeys(id);
         const start = { x: cfg[section][xKey], y: cfg[section][yKey] };
-        const p = ringSide(id) ? moveWorldOffset(start, direction[0] * step, -direction[1] * step) : moveLogo(start, direction[0] * step, -direction[1] * step);
+        const p = (ringSide(id) || id === 'brandDecor') ? moveWorldOffset(start, direction[0] * step, -direction[1] * step) : moveLogo(start, direction[0] * step, -direction[1] * step);
         cfg[section][xKey] = p.x; cfg[section][yKey] = p.y;
       } else {
         const target = cfg[textSection(id)];
@@ -557,6 +590,12 @@ export function createFrameEditor({ getState, onEnable, onChange, onLayoutChange
     if (!selected || !action) return;
     finishInput();
     const state = getState();
+    if (action === 'delete-decor' && selected === 'brandDecor') {
+      const before = snapshot(state.config, [{section: 'decor', key: 'present'}]);
+      state.config.decor.present = false;
+      record(state.id, state.config, before); onChange(); refresh();
+      return;
+    }
     if (action === 'delete-text' && CUSTOM_TEXT_IDS.includes(selected)) {
       const key = `${selected}Present`, before = snapshot(state.config, [{section: 'textLayers', key}]);
       state.config.textLayers[key] = false;
@@ -576,8 +615,9 @@ export function createFrameEditor({ getState, onEnable, onChange, onLayoutChange
         const position = side ? state.scene.corners.sides[side].group.position : state.scene.logo.root.position;
         const axisPosition = xAxis ? position.x : position.y;
         // Кольцо хранит сдвиг от исходной позиции, остальные — от знака.
-        const value = side || selected === 'logo' ? state.config[section][key] - axisPosition : -axisPosition;
-        const limit = side ? 10 : 2;
+        const value = side || selected === 'logo' ? state.config[section][key] - axisPosition
+          : selected === 'brandDecor' && state.config.decor.followLogo === false ? 0 : -axisPosition;
+        const limit = side || selected === 'brandDecor' ? 10 : 2;
         state.config[section][key] = Math.max(-limit, Math.min(limit, value));
       } else {
         const selector = CUSTOM_TEXT_IDS.includes(selected) ? `[data-custom="${selected}"]` : { title: '.cap-title', subtitle: '.cap-sub', date: '.cap-date' }[selected];

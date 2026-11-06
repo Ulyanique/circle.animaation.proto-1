@@ -47,12 +47,50 @@ test('окружность следует знаку, вращается, гас
   assert.equal(decor.group.visible, false);
 });
 
-test('настройки декора сохраняются отдельно и не добавляются в другие сцены', () => {
+test('декор доступен отдельно в каждой сцене и сохраняется в JSON', () => {
   const cfg = mergeConfig(BRAND_DEFAULTS, { decor: { radius: 1.4, speed: -0.02, offsetX: 0.8, offsetY: -0.4 } });
   assert.equal(parseConfigJSON(configToJSON(cfg), BRAND_DEFAULTS).decor.radius, 1.4);
   assert.equal(parseConfigJSON(configToJSON(cfg), BRAND_DEFAULTS).decor.speed, -0.02);
   assert.equal(parseConfigJSON(configToJSON(cfg), BRAND_DEFAULTS).decor.offsetX, 0.8);
   assert.equal(parseConfigJSON(configToJSON(cfg), BRAND_DEFAULTS).decor.offsetY, -0.4);
-  for (const other of [WAITING_DEFAULTS, PHOTO_PAUSE_DEFAULTS, FINALE_DEFAULTS]) assert.equal(other.decor, undefined);
+  for (const other of [WAITING_DEFAULTS, PHOTO_PAUSE_DEFAULTS, FINALE_DEFAULTS]) { assert.equal(other.decor.present, false); assert.equal(other.decor.followLogo, false); }
+  assert.equal(BRAND_DEFAULTS.decor.present, true); assert.equal(BRAND_DEFAULTS.decor.followLogo, true);
   assert.ok(BRAND_DEFAULTS.logo.offsetY < WAITING_DEFAULTS.logo.offsetY);
+});
+
+
+test('окружность может быть независима от знака и выключается при удалении', () => {
+  for (const defaults of [WAITING_DEFAULTS, BRAND_DEFAULTS, PHOTO_PAUSE_DEFAULTS, FINALE_DEFAULTS]) {
+    const cfg = mergeConfig(defaults, {decor: {present: true, enabled: true, followLogo: false, offsetX: 0.7, offsetY: -0.4}});
+    const decor = new BrandDecor();
+    const root = {position: {x: 0.3, y: 1.1}};
+    const phase = computePhase(cfg.timeline.startDelay + cfg.timeline.drawDuration + cfg.timeline.emergeDuration + 1, cfg.timeline);
+    decor.update(6, phase, cfg, root);
+    assert.equal(decor.group.visible, true);
+    assert.equal(decor.group.position.x, 0.7); assert.equal(decor.group.position.y, -0.4);
+    root.position.x = -1; root.position.y = -1;
+    decor.update(6, phase, cfg, root);
+    assert.equal(decor.group.position.x, 0.7); assert.equal(decor.group.position.y, -0.4);
+    cfg.decor.followLogo = true; decor.update(6, phase, cfg, root);
+    assert.ok(Math.abs(decor.group.position.x - (-0.3)) < 1e-9);
+    cfg.decor.present = false; decor.update(6, phase, cfg, root);
+    assert.equal(decor.group.visible, false);
+    const saved = parseConfigJSON(configToJSON(cfg), defaults);
+    assert.equal(saved.decor.followLogo, true); assert.equal(saved.decor.present, false);
+  }
+});
+
+
+test('старые настройки сохраняют прежний состав сцен, новая окружность экспортируется', async () => {
+  const { layersForScene } = await import('../src/editor-layers.js');
+  for (const [id, defaults] of [['waiting', WAITING_DEFAULTS], ['brand', BRAND_DEFAULTS], ['photo-pause', PHOTO_PAUSE_DEFAULTS], ['finale', FINALE_DEFAULTS]]) {
+    const old = parseConfigJSON('{"logo":{"offsetX":0.2}}', defaults);
+    assert.equal(old.decor.present, id === 'brand');
+    assert.equal(layersForScene(id, old).some(layer => layer.id === 'brandDecor'), id === 'brand');
+    old.decor.present = true; old.decor.followLogo = false; old.decor.offsetX = 3.5;
+    const restored = parseConfigJSON(configToJSON(old), defaults);
+    assert.equal(restored.decor.present, true); assert.equal(restored.decor.followLogo, false);
+    assert.equal(restored.decor.offsetX, 3.5);
+    assert.ok(layersForScene(id, restored).some(layer => layer.id === 'brandDecor'));
+  }
 });

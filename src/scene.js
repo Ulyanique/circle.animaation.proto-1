@@ -17,6 +17,7 @@ import {
   ToneMappingMode,
 } from "postprocessing";
 import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
+import { BrandDecor } from "./brand-decor.js";
 import { Logo, revealUniforms } from "./logo.js";
 import { ContourWaves } from "./contour-waves.js";
 import { Background, Corners, Particles } from "./fx.js";
@@ -103,6 +104,9 @@ export class LogoScene {
     this.logo = new Logo();
     this.logo.root.position.set(0, 0, 0);
     this.scene.add(this.logo.root);
+    // Построительная окружность — опциональный элемент любой сцены.
+    this.brandDecor = new BrandDecor();
+    this.scene.add(this.brandDecor.group);
     // Волны включаются только сценой фотопаузы.
     this.contourWaves = contourWaves ? new ContourWaves(this.logo) : null;
     if (this.contourWaves) this.scene.add(this.contourWaves.group);
@@ -311,7 +315,8 @@ export class LogoScene {
     const focus = compositionFocus(ph, cfg.timeline);
     const cornerEnv = env * (1 - 0.44 * focus);
     const cpos = this.corners.update(t, cfg, this.halfW, this.halfH, env, focus);
-    if (this.isIntro) this.corners.centerRing.visible = false;
+    if (this.isIntro || this.hideCenterRing) this.corners.centerRing.visible = false;
+    this.brandDecor.update(t, computePhase(t, cfg.timeline), cfg, root);
     this.solarBokeh.update(t, sequence ? { ...ph, rings: env } : ph, cfg, cpos);
     this.plotter.update(ph, cfg, (sequence || finale?.active) ? root.position.y : cfg.logo.offsetY, root.position.x);
     const tilt = THREE.MathUtils.degToRad(cfg.rings.tilt);

@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { brandDecorLayout } from './scenes/brand-decor-layout.js';
 
-/** Тонкая построительная окружность и орбитальные отметки для сцены 02. */
+/** Тонкая построительная окружность и орбитальные отметки для любой сцены. */
 export class BrandDecor {
   constructor() {
     this.group = new THREE.Group();
@@ -30,9 +30,10 @@ export class BrandDecor {
   update(time, phase, config, root) {
     const d = config.decor;
     const visibility = phase.beforeStart ? 0 : phase.reveal * phase.rings;
-    this.group.visible = d.enabled && visibility > 0.001;
+    this.group.visible = d?.present !== false && d?.enabled && visibility > 0.001;
     if (!this.group.visible) return;
-    this.group.position.set(root.position.x + (d.offsetX ?? 0), root.position.y + (d.offsetY ?? 0), -0.25);
+    const anchor = d.followLogo !== false ? root.position : { x: 0, y: 0 };
+    this.group.position.set(anchor.x + (d.offsetX ?? 0), anchor.y + (d.offsetY ?? 0), -0.25);
     this.group.scale.setScalar(d.radius);
     this.ticks.rotation.z = time * d.speed;
     this.dust.rotation.z = -time * d.speed * 0.65;

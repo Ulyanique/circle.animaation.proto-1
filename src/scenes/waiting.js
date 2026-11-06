@@ -13,6 +13,11 @@ export const WAITING_DEFAULTS = {
     titleX: 0, titleY: 0, titleScale: 1, subtitleX: 0, subtitleY: 0, subtitleScale: 1,
     dateX: 0, dateY: 0, dateScale: 1,
   },
+  decor: {
+    present: false, enabled: true, followLogo: false,
+    radius: 1.2, offsetX: 0, offsetY: 0, opacity: 0.22, color: "#d9b268",
+    speed: 0.055, dustOpacity: 0.38, dustSize: 0.018,
+  },
   intro: { cornerDuration: 1.1, liftDuration: 1.4, titleDelay: 0.15 },
   timeline: {
     // длительности фаз в секундах; цикл повторяется бесконечно
