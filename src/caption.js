@@ -29,13 +29,13 @@ function clock(t, tl) {
 }
 
 /** Положение подписи: движение вниз при появлении, вверх при уходе названия. */
-export function captionProgress(t, tl) {
+export function captionProgress(t, tl, delay = 0) {
   const { local, on, fadeStart, fade } = clock(t, tl);
   if (local < 0) return 0;
-  if (local < fadeStart) return clamp(local - on, 0, CAP_MAX);
+  if (local < fadeStart) return clamp(local - on - delay, 0, CAP_MAX);
   if (local >= fadeStart + fade) return 0;
   const p = (local - fadeStart) / Math.max(fade, 1e-4);
-  return clamp(fadeStart - on, 0, CAP_MAX) * (1 - smooth(0.35, 0.62, p));
+  return clamp(fadeStart - on - delay, 0, CAP_MAX) * (1 - smooth(0.35, 0.62, p));
 }
 
 const RISE = { title: 1.0, rule1: 0.25, subtitle: 0.55, rule2: 0.25, date: 0.35 };
@@ -63,14 +63,14 @@ export function captionLines(v) {
 }
 
 /** При уходе строки закрываются в порядке: дата → подзаголовок → название. */
-export function captionState(t, tl) {
-  const progress = captionProgress(t, tl);
+export function captionState(t, tl, delay = 0) {
+  const progress = captionProgress(t, tl, delay);
   const { local, on, fadeStart, fade } = clock(t, tl);
   if (local < fadeStart) return { progress, lines: captionLines(progress) };
   if (local >= fadeStart + fade) return { progress: 0, lines: captionLines(0) };
 
   const p = (local - fadeStart) / Math.max(fade, 1e-4);
-  const lines = captionLines(clamp(fadeStart - on, 0, CAP_MAX));
+  const lines = captionLines(clamp(fadeStart - on - delay, 0, CAP_MAX));
   for (const [name, from, to] of [
     ["date", 0.03, 0.20], ["rule2", 0.11, 0.29],
     ["subtitle", 0.17, 0.40], ["rule1", 0.28, 0.47],

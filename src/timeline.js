@@ -8,6 +8,22 @@ const smooth = (a, b, x) => {
 };
 const easeInOutCubic = (x) => (x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2);
 
+/** Задержка титра в пресете circle-first: лого успевает подняться раньше надписи. */
+export const INTRO_CAPTION_DELAY = 0.35;
+/** @param {any} cfg */
+export function introCaptionDelay(cfg) {
+  return cfg?.intro?.preset === "circle-first" ? INTRO_CAPTION_DELAY : 0;
+}
+/** Логотип стартует в центре и плавно выходит на рабочую ось.
+ * @param {any} phase @param {any} tl
+ */
+export function introLogoLift(phase, tl) {
+  if (!phase || !tl) return 1;
+  const start = tl.drawDuration * 0.25;
+  const end = tl.drawDuration + tl.emergeDuration * 0.25;
+  return smooth(start, end, phase.local);
+}
+
 /**
  * Вычисляет фазу цикла по времени.
  * Цикл: прорисовка контура → появление из тени → удержание → уход в тень → пауза.
@@ -99,7 +115,7 @@ export function heroGlint(phase, tl) {
 /** Первый ролик: три связанных такта — игла света находит точку чертежа,
  * превращение в золото отпускает световую волну, а последняя буква запирает
  * композицию коротким штрихом. Все огибающие нулевые на удержании и на шве. */
-export function openingAccent(phase, tl) {
+export function openingAccent(phase, tl, captionDelay = 0) {
   const start = tl.drawDuration * 0.92;
   const span = Math.max(0.25, tl.emergeDuration * 0.77);
   const travel = clamp01((phase.local - start) / span);
@@ -117,7 +133,7 @@ export function openingAccent(phase, tl) {
     (1 - smooth(traceArrival, traceArrival + tl.drawDuration * 0.12, phase.local));
   // Финал: подпись заканчивается мягким проходом света по её строке. Такт
   // привязан к общей длине подписи, а не к жёстко зашитому кадру.
-  const captionStart = tl.drawDuration + tl.emergeDuration * 0.5;
+  const captionStart = tl.drawDuration + tl.emergeDuration * 0.5 + captionDelay;
   const sealEnd = captionStart + CAP_MAX;
   const sealStart = sealEnd - Math.min(0.95, Math.max(0.3, tl.holdDuration * 0.14));
   const sealTravel = clamp01((phase.local - sealStart) / (sealEnd - sealStart));

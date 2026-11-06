@@ -352,7 +352,10 @@ export class Corners {
   /**
    * @param {number} halfW, halfH — полуразмеры видимой области на z=0
    */
-  update(t, cfg, halfW, halfH, env = 1, focus = 0) {
+  /** @param {number} t @param {any} cfg @param {number} halfW @param {number} halfH
+   * @param {number} [env] @param {number} [focus] @param {number} [centerY]
+   */
+  update(t, cfg, halfW, halfH, env = 1, focus = 0, centerY = cfg.logo.offsetY) {
     this.rebuild(cfg);
     this.group.visible = cfg.rings.enabled;
     const sides = this._sides;
@@ -369,7 +372,7 @@ export class Corners {
     // центральный круг: позиция и размер от логотипа, вращение медленное, в плоскости фона
     const cr = this.centerRing;
     cr.visible = cfg.rings.enabled && env > 0.0005;
-    cr.position.set(0, cfg.logo.offsetY ?? 0, -0.05);
+    cr.position.set(0, centerY, -0.05);
     cr.rotation.z = t * 0.04;
     cr.scale.setScalar(cfg.rings.radius * (0.8 - 0.06 * focus));
     this.centerMat.opacity = 0.18 * env * (1 - 0.67 * focus);

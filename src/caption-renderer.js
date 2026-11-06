@@ -1,5 +1,5 @@
 import { captionAccent, captionState, glyphReveal } from "./caption.js";
-import { computePhase } from "./timeline.js";
+import { computePhase, introCaptionDelay } from "./timeline.js";
 import { fieldCues, finaleCues } from "./scenes/cues.js";
 
 const clamp01 = (x) => Math.max(0, Math.min(1, x));
@@ -55,7 +55,7 @@ export function captionFrameState(t, cfg, sceneId, options = {}) {
   let drift = 0;
 
   if (sceneId === "waiting") {
-    const state = captionState(t, cfg.timeline);
+    const state = captionState(t, cfg.timeline, introCaptionDelay(cfg));
     const k = smooth(0, 0.8, state.progress);
     drift = (1 - k) * viewportHeight * 0.008 * scale;
     const exiting = computePhase(t, cfg.timeline).name === "fade" ||
@@ -64,17 +64,17 @@ export function captionFrameState(t, cfg, sceneId, options = {}) {
       title: {
         key: "title", text: cap.title || "Янтарный циркуль", y: 0.55 * H,
         size: 7.2 * u, weight: titleWeight, ls: 0, stroke: titleStroke,
-        sw: 0.08 * u * strokeScale, fill: { type: "title" }, shadow: true,
+        sw: 0.08 * u * strokeScale, paint: { type: "title" }, shadow: true,
       },
       subtitle: {
         key: "subtitle", text: (cap.subtitle || "").toUpperCase(), y: 0.72 * H,
         size: 2.4 * u, weight: "400", ls: 0.32 * 2.4 * u, stroke: subStroke,
-        sw: 0.04 * u * strokeScale, fill: "#ecd08c", shadow: false,
+        sw: 0.04 * u * strokeScale, paint: "#ecd08c", shadow: false,
       },
       date: {
         key: "date", text: (cap.date || "").toUpperCase(), y: 0.84 * H,
         size: 1.5 * u, weight: "400", ls: 0.28 * 1.5 * u, stroke: subStroke,
-        sw: 0.035 * u * strokeScale, fill: "#d9b061", shadow: false,
+        sw: 0.035 * u * strokeScale, paint: "#d9b061", shadow: false,
       },
     };
     for (const key of ["title", "subtitle", "date"]) {
@@ -103,7 +103,7 @@ export function captionFrameState(t, cfg, sceneId, options = {}) {
       text: cap.title || (sceneId === "brand" ? "Янтарный циркуль" : "Фотопауза"),
       y: 0.69 * H, size: (sceneId === "brand" ? 6.2 : 6.7) * u,
       weight: titleWeight, ls: 0, stroke: titleStroke, sw: 0.08 * u * strokeScale,
-      fill: { type: "title" }, shadow: true,
+      paint: { type: "title" }, shadow: true,
       outline, fill: delayedFill(cue.titleFill, fillDelay),
       lift: (1 - outline) ** 2 * 0.72 * u,
       pen: 0.24 * Math.sin(Math.PI * outline) * penGlow,
@@ -115,7 +115,7 @@ export function captionFrameState(t, cfg, sceneId, options = {}) {
     lines.push({
       key: "title", text: cap.title || "Янтарный циркуль", y: 0.55 * H,
       size: 6.6 * u, weight: titleWeight, ls: 0, stroke: titleStroke,
-      sw: 0.08 * u * strokeScale, fill: { type: "title" }, shadow: true,
+      sw: 0.08 * u * strokeScale, paint: { type: "title" }, shadow: true,
       outline: titleOutline, fill: delayedFill(cue.titleFill, fillDelay),
       lift: (1 - titleOutline) ** 2 * 0.72 * u,
       pen: 0.24 * Math.sin(Math.PI * titleOutline) * penGlow,
@@ -123,7 +123,7 @@ export function captionFrameState(t, cfg, sceneId, options = {}) {
     lines.push({
       key: "phrase", text: (cap.phrase || cap.subtitle || "").toUpperCase(), y: 0.71 * H,
       size: 2.55 * u, weight: "400", ls: 0.18 * 2.55 * u, stroke: subStroke,
-      sw: 0.04 * u * strokeScale, fill: "#ecd08c", shadow: false,
+      sw: 0.04 * u * strokeScale, paint: "#ecd08c", shadow: false,
       outline: phraseOutline, fill: delayedFill(cue.phraseFill, fillDelay),
       lift: (1 - phraseOutline) ** 2 * 0.48 * u,
       pen: 0.24 * Math.sin(Math.PI * phraseOutline) * penGlow,
@@ -235,7 +235,7 @@ export class CaptionRenderer {
             ctx.shadowBlur = 0.5 * u;
             ctx.shadowOffsetY = 0.2 * u;
           }
-          ctx.fillStyle = makeFill(ctx, line.fill, y, line.size);
+          ctx.fillStyle = makeFill(ctx, line.paint, y, line.size);
           ctx.fillText(glyph, x, y);
           ctx.restore();
         }

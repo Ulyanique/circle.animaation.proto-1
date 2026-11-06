@@ -20,7 +20,7 @@ import { Sparks, AnamorphicFlare } from "./sparks.js";
 import { Plotter } from "./plotter.js";
 import { SolarBokeh } from "./bokeh.js";
 import { captionState, captionAccent, glyphReveal } from "./caption.js";
-import { computePhase, compositionFocus, heroGlint, seamCurtainOpacity } from "./timeline.js";
+import { computePhase, compositionFocus, heroGlint, seamCurtainOpacity, introCaptionDelay, introLogoLift } from "./timeline.js";
 
 const FOV = 30;
 const CAM_Z = 9;
@@ -308,6 +308,13 @@ export class LogoScene {
     const z = -cfg.logo.shadowDepth * (1 - ph.reveal) * (1 - ph.reveal);
     const root = this.logo.root;
     root.position.set(0, Math.sin(TAUt * quant(cfg.logo.swaySpeed * 0.5) * t) * 0.02 + (cfg.logo.offsetY ?? 0), z);
+    // Пресет circle-first: сначала логотип появляется в центре, затем плавно
+    // поднимается на рабочую ось; крайние кольца и чертёж следуют за ним.
+    if (cfg.intro?.preset === "circle-first") {
+      const lift = introLogoLift(ph, cfg.timeline);
+      const targetY = cfg.layout?.logoY ?? cfg.logo.offsetY ?? 0;
+      root.position.y = targetY * lift;
+    }
     root.scale.setScalar(cfg.logo.scale * scaleGrow * pulse * (0.55 + 0.45 * easeOutCubic(ph.reveal)));  // сначала контур в малом размере, затем логотип растёт
     root.rotation.set(
       Math.cos(TAUt * quant(cfg.logo.swaySpeed * 0.7) * t + 1.0) * cfg.logo.swayAmount * 0.6,
@@ -320,9 +327,9 @@ export class LogoScene {
     const env = ph.rings;
     const focus = compositionFocus(ph, cfg.timeline);
     const cornerEnv = env * (1 - 0.44 * focus);
-    const cpos = this.corners.update(t, cfg, this.halfW, this.halfH, env, focus);
+    const cpos = this.corners.update(t, cfg, this.halfW, this.halfH, env, focus, root.position.y);
     this.solarBokeh.update(t, ph, cfg, cpos);
-    this.plotter.update(ph, cfg);
+    this.plotter.update(ph, cfg, root.position.y);
     const tilt = THREE.MathUtils.degToRad(cfg.rings.tilt);
     this.particles.update(t, cfg, this.halfW, this.halfH, this.pixelRatio, this.viewportH, this.fovRad, cpos, cfg.rings.radius, tilt, cornerEnv);
     this.background.update(t, cfg);
@@ -368,7 +375,7 @@ export class LogoScene {
     // Кэш узлов и значений удаляет повторные записи в DOM на неподвижных кадрах.
     const caption = this._captionNodes();
     if (caption) {
-      const { progress, lines } = captionState(t, cfg.timeline);
+      const { progress, lines } = captionState(t, cfg.timeline, introCaptionDelay(cfg));
       const k = THREE.MathUtils.smoothstep(progress, 0.0, 0.8);
       this._setCaptionStyle(caption.style, caption.cap, "opacity", "1");
       this._setCaptionStyle(caption.style, caption.cap, "--drift",

@@ -1,7 +1,7 @@
 import { LogoScene } from "./scene.js";
 import { OpeningPulse } from "./opening-pulse.js";
 import { START_ANGLE } from "./plotter.js";
-import { computePhase, openingAccent } from "./timeline.js";
+import { computePhase, openingAccent, introCaptionDelay } from "./timeline.js";
 
 /** №1 — интро, не экран ожидания. Три такта одной причинно-следственной
  * линии: игла света находит точку чертежа, переход контура в металл
@@ -29,7 +29,8 @@ export class IntroScene extends LogoScene {
 
   update(t, dt) {
     super.update(t, dt);
-    const cue = openingAccent(computePhase(t, this.cfg.timeline), this.cfg.timeline);
+    const phase = computePhase(t, this.cfg.timeline);
+    const cue = openingAccent(phase, this.cfg.timeline, introCaptionDelay(this.cfg));
     // Всплеск следует за начавшимся проявлением металла; финальный штрих
     // тише и не повторяет длинный блик, который проходит раньше по граням.
     this.glintLight.intensity += cue.energy * 3.2 + cue.seal * 0.45;
@@ -38,7 +39,7 @@ export class IntroScene extends LogoScene {
     this.camera.position.z -= cue.dolly * 0.42 + cue.seal * 0.025;
     this.camera.lookAt(0, 0, 0);
 
-    const centerY = this.cfg.logo.offsetY ?? 0;
+    const centerY = this.logo.root.position.y;
     const radius = this.cfg.rings.radius * 0.8;
     const constructionZ = -0.08; // Plotter.group.position.z
     this._projectToPulse(this._waveCenter, 0, centerY, constructionZ);

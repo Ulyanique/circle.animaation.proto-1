@@ -15,7 +15,7 @@ test("project v2 contains all four ready scenes with current cycle lengths", () 
   assert.equal(cycleDuration(project.scenes["photo-pause"].timeline), 24);
   assert.equal(cycleDuration(project.scenes.finale.timeline), 18);
   assert.equal(project.scenes.waiting.caption.fontFamily, "Cormorant Garamond");
-  assert.equal(project.scenes.brand.intro.preset, "three-acts");
+  assert.equal(project.scenes.brand.intro.preset, "circle-first");
   assert.equal(project.scenes.finale.finale.finalCircle, "center-construction");
 });
 

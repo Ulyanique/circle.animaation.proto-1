@@ -159,7 +159,7 @@ export const WAITING_DEFAULTS = {
     color: "#d9b061",
   },
   intro: {
-    preset: "three-acts",
+    preset: "circle-first",
   },
   finale: {
     finalCircle: "center-construction",
