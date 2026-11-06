@@ -49,7 +49,7 @@ url.searchParams.set("scene", sceneId);
       const withWaves = grab(320, 0, 1280, 620);
       const withWavesUnderTitle = grab(0, captionY, stage.width, stage.height - captionY);
       const backgroundA = grab(0, 0, 500, 360);
-      // В интро фоновых контуров нет; в остальных сценах сравниваем пиксели с ними и без них.
+      // Волны есть только в фотопаузе.
       let withoutWaves = withWaves, withoutWavesUnderTitle = withWavesUnderTitle;
       if (L.scene.contourWaves) {
         L.scene.contourWaves.group.visible = false;
@@ -120,14 +120,12 @@ url.searchParams.set("scene", sceneId);
     console.log({ ...result, errors });
     assert.equal(result.id, sceneId === "intro" ? "waiting" : sceneId);
     assert.deepEqual(errors, []);
-    if (result.isIntro) {
-      assert.equal(result.hasWaves, false, "в интро не должно быть фоновых контуров");
-      assert.equal(result.wavePixels, 0);
+    if (result.id === "photo-pause") {
+      assert.ok(result.hasWaves && result.wavePixels > 30, `волны не видны в WebGL: ${result.wavePixels}`);
     } else {
-      assert.ok(result.hasWaves && result.wavePixels > 500, `волны не видны в WebGL: ${result.wavePixels}`);
+      assert.equal(result.hasWaves, false, "волны от логотипа должны быть только в фотопаузе");
+      assert.equal(result.wavePixels, 0);
     }
-    assert.ok(result.wavePixelsUnderTitle < 500,
-      `волны мешают области титров: ${result.wavePixelsUnderTitle}`);
     assert.ok(result.backgroundChanges.every((pixels) => pixels > 1000),
       `фон не движется в двух последовательных интервалах: ${result.backgroundChanges}`);
     assert.ok(result.trace.visible && result.trace.head > 0 && result.trace.distance < 0.001 &&

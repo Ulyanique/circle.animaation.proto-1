@@ -209,14 +209,19 @@ function assertSceneDesign(state) {
   assert.ok(state.layout.logoHeight > 0.41, `знак слишком мал: ${state.layout.logoHeight.toFixed(3)} высоты кадра`);
   assert.ok(state.layout.titleCenter > 0.60, `титр слишком высоко: ${state.layout.titleCenter.toFixed(3)}`);
   }
-  assert.ok(state.motion.every((sample) => sample.waveVisible && sample.captionSafe && sample.centerRing &&
-      sample.waves.some((wave) => wave.visible && wave.opacity > 0.02)),
-    "контурные волны отсутствуют или не освобождают область титров");
+  if (state.id === "photo-pause") {
+    assert.ok(state.motion.every((sample) => sample.waveVisible && sample.captionSafe && sample.centerRing &&
+        sample.waves.some((wave) => wave.visible && wave.opacity > 0.02)),
+      "в фотопаузе отсутствуют контурные волны");
+  } else {
+    assert.ok(state.motion.every((sample) => !sample.waveVisible && !sample.waves),
+      "волны от логотипа должны быть только в фотопаузе");
+  }
   for (let i = 1; i < state.motion.length; i++) {
     const a = state.motion[i - 1], b = state.motion[i];
     assert.ok(b.backgroundTime > a.backgroundTime && b.particleTime > a.particleTime && b.tickAngle !== a.tickAngle,
       "фон, пыль и кольца должны постоянно двигаться");
-    assert.ok(Math.abs(b.waves[0].distance - a.waves[0].distance) > 0.001, "контурная волна не движется");
+    if (state.id === "photo-pause") assert.ok(Math.abs(b.waves[0].distance - a.waves[0].distance) > 0.001, "контурная волна не движется");
   }
 }
 

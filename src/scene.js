@@ -37,7 +37,7 @@ const setStyleIfChanged = (el, name, value) => {
 export { computePhase } from "./timeline.js";
 
 export class LogoScene {
-  constructor(canvas, cfg, { intro = true } = {}) {
+  constructor(canvas, cfg, { intro = true, contourWaves = false } = {}) {
     this.cfg = cfg;
     this.isIntro = intro;
     this._introCenter = new THREE.Vector3();
@@ -100,8 +100,8 @@ export class LogoScene {
     this.logo = new Logo();
     this.logo.root.position.set(0, 0, 0);
     this.scene.add(this.logo.root);
-    // В интро чистый знак; расходящиеся копии контура — язык фоновых роликов.
-    this.contourWaves = intro ? null : new ContourWaves(this.logo);
+    // Волны включаются только сценой фотопаузы.
+    this.contourWaves = contourWaves ? new ContourWaves(this.logo) : null;
     if (this.contourWaves) this.scene.add(this.contourWaves.group);
 
     // Кольца и частицы: только левый верх и правый низ, как в исходной сцене.
