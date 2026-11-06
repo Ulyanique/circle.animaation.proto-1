@@ -61,3 +61,24 @@ export function contourWave(time, index) {
     opacity: 0.075 * smooth(0.04, 0.22, phase) * (1 - smooth(0.38, 1, phase)),
   };
 }
+
+/** Финальный уход: сначала текст, затем центр, удаление и обратная обводка.
+ * @param {{local:number, name:string, beforeStart:boolean}} phase
+ * @param {{drawDuration:number, emergeDuration:number, holdDuration:number, fadeDuration:number}} tl */
+export function finaleCues(phase, tl) {
+  if (phase.beforeStart || phase.name !== 'fade' && phase.name !== 'rest') {
+    return { active: false, center: 0, retreat: 0, reveal: 1, outline: 0, draw: 1 };
+  }
+  if (phase.name === 'rest') return { active: true, center: 1, retreat: 1, reveal: 0, outline: 0, draw: 0 };
+  const start = tl.drawDuration + tl.emergeDuration + tl.holdDuration;
+  const p = clamp((phase.local - start) / Math.max(0.0001, tl.fadeDuration));
+  return {
+    active: true,
+    center: smooth(0.32, 0.53, p),
+    retreat: smooth(0.53, 0.78, p),
+    reveal: 1 - smooth(0.62, 0.80, p),
+    outline: smooth(0.66, 0.78, p) * (1 - smooth(0.92, 1, p)),
+    // Этим же прогрессом управляется точка, забирающая последний штрих.
+    draw: 1 - smooth(0.78, 1, p),
+  };
+}

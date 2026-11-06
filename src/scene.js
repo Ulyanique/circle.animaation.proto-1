@@ -22,7 +22,7 @@ import { Plotter } from "./plotter.js";
 import { SolarBokeh } from "./bokeh.js";
 import { captionState, captionAccent, glyphReveal } from "./caption.js";
 import { computePhase, compositionFocus, heroGlint, seamCurtainOpacity } from "./timeline.js";
-import { introCues, introSequence } from "./scenes/cues.js";
+import { introCues, introSequence, finaleCues } from "./scenes/cues.js";
 
 const FOV = 30;
 const CAM_Z = 9;
@@ -228,7 +228,11 @@ export class LogoScene {
 
   update(t, dt) {
     const cfg = this.cfg;
-    const ph = computePhase(t, cfg.timeline);
+    let ph = computePhase(t, cfg.timeline);
+    const finale = cfg.finale ? finaleCues(ph, cfg.timeline) : null;
+    if (finale?.active && ph.name === "fade") {
+      ph = { ...ph, reveal: finale.reveal, fill: finale.reveal, outline: finale.outline, draw: finale.draw };
+    }
     const opening = this.isIntro ? introCues(ph, cfg.timeline) : { beams: 0, strike: 0, approach: 0 };
     const sequence = this.isIntro ? introSequence(ph, cfg.timeline, cfg.intro) : null;
     const TAUt = TAU;
@@ -272,12 +276,15 @@ export class LogoScene {
     // частоты пульсации/покачивания кратны циклу → состояние логотипа периодично, шов бесшовный
     const quant = (f) => (f <= 0 ? 0 : Math.max(1, Math.round(f * ph.cycle)) / ph.cycle);
     const pulse = 1 + cfg.logo.pulseAmount * Math.sin(TAUt * quant(cfg.logo.pulseSpeed) * t);
-    const z = -cfg.logo.shadowDepth * (1 - ph.reveal) * (1 - ph.reveal);
+    const retreat = finale?.active ? finale.retreat : 0;
+    const z = -cfg.logo.shadowDepth * (1 - ph.reveal) * (1 - ph.reveal) - retreat * (cfg.finale?.retreatDepth ?? 0);
     const root = this.logo.root;
     const lift = sequence ? sequence.lift : 1;
     const sway = Math.sin(TAUt * quant(cfg.logo.swaySpeed * 0.5) * t) * 0.02;
-    root.position.set(0, (cfg.logo.offsetY ?? 0) * lift + sway * (sequence ? sequence.settled : 1), z);
-    root.scale.setScalar(cfg.logo.scale * scaleGrow * pulse * (0.55 + 0.45 * easeOutCubic(ph.reveal)));  // сначала контур в малом размере, затем логотип растёт
+    const y = (cfg.logo.offsetY ?? 0) * lift + sway * (sequence ? sequence.settled : 1);
+    root.position.set(0, y * (1 - (finale?.center ?? 0)), z);
+    const retreatScale = 1 - retreat * (1 - (cfg.finale?.retreatScale ?? 1));
+    root.scale.setScalar(cfg.logo.scale * scaleGrow * pulse * (0.55 + 0.45 * easeOutCubic(ph.reveal)) * retreatScale);  // сначала контур в малом размере, затем логотип растёт
     // У интро знак входит с небольшого ракурса и разворачивается к зрителю.
     root.rotation.set(
       Math.cos(TAUt * quant(cfg.logo.swaySpeed * 0.7) * t + 1.0) * cfg.logo.swayAmount * 0.6 + 0.14 * opening.approach,
@@ -295,7 +302,7 @@ export class LogoScene {
     const cpos = this.corners.update(t, cfg, this.halfW, this.halfH, env, focus);
     if (this.isIntro) this.corners.centerRing.visible = false;
     this.solarBokeh.update(t, sequence ? { ...ph, rings: env } : ph, cfg, cpos);
-    this.plotter.update(ph, cfg, sequence ? root.position.y : cfg.logo.offsetY);
+    this.plotter.update(ph, cfg, (sequence || finale?.active) ? root.position.y : cfg.logo.offsetY);
     const tilt = THREE.MathUtils.degToRad(cfg.rings.tilt);
     this.particles.update(t, cfg, this.halfW, this.halfH, this.pixelRatio, this.viewportH, this.fovRad, cpos, cfg.rings.radius, tilt, cornerEnv);
     this.background.update(t, cfg);
@@ -342,7 +349,7 @@ export class LogoScene {
     // Один и тот же t всегда даёт один и тот же кадр подписи, даже после seek.
     const capEl = document.getElementById("caption");
     if (capEl) {
-      const { progress, lines } = captionState(t, cfg.timeline, sequence?.captionStart);
+      const { progress, lines } = captionState(t, cfg.timeline, sequence?.captionStart, finale ? 0.5 : 1);
       const k = THREE.MathUtils.smoothstep(progress, 0.0, 0.8);
       capEl.style.opacity = "1";
       capEl.style.setProperty("--drift", `${((1 - k) * window.innerHeight * 0.008).toFixed(3)}px`);
@@ -373,7 +380,7 @@ export class LogoScene {
     }
 
     // Камера интро плавно подъезжает к знаку; остальные ролики сохраняют общую композицию.
-    const camK = (1 - ph.reveal) * 0.6;
+    const camK = finale?.active ? 0 : (1 - ph.reveal) * 0.6;
     this.camera.position.set(-0.6 * camK, 0.35 * camK, CAM_Z + 1.2 * opening.approach);
     this.camera.lookAt(0, 0, 0);
     this.camera.updateMatrixWorld();

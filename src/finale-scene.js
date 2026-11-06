@@ -1,4 +1,4 @@
 import { BrandScene } from "./brand-scene.js";
 
-/** №9: общий жест; название и финальная фраза выводятся последовательно. */
+/** №9: вход и отдельная последовательность ухода заданы конфигом finale. */
 export class FinaleScene extends BrandScene {}

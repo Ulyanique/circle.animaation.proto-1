@@ -16,6 +16,10 @@ export const SCHEMA = [
     { key: "liftDuration", label: "Подъём логотипа", type: "range", min: 0.2, max: 3, step: 0.05 },
     { key: "titleDelay", label: "Пауза до надписей", type: "range", min: 0, max: 3, step: 0.05 },
   ] },
+  { id: "finale", title: "Финальный уход", fields: [
+    { key: "retreatDepth", label: "Глубина удаления", type: "range", min: 0, max: 5, step: 0.1 },
+    { key: "retreatScale", label: "Конечный масштаб", type: "range", min: 0.2, max: 1, step: 0.01 },
+  ] },
   { id: "photo", title: "Фотопауза", fields: [
     { key: "textEnabled", label: "Надпись по кругу", type: "bool" },
     { key: "text", label: "Текст", type: "text", maxLength: 40 },

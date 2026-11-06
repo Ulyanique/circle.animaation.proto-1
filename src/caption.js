@@ -32,12 +32,12 @@ function clock(t, tl, start) {
 }
 
 /** Положение подписи: движение вниз при появлении, вверх при уходе названия. */
-export function captionProgress(t, tl, start) {
+export function captionProgress(t, tl, start, exitFraction = 1) {
   const { local, on, fadeStart, fade } = clock(t, tl, start);
   if (local < 0) return 0;
   if (local < fadeStart) return clamp(local - on, 0, CAP_MAX);
   if (local >= fadeStart + fade) return 0;
-  const p = (local - fadeStart) / Math.max(fade, 1e-4);
+  const p = (local - fadeStart) / Math.max(fade * exitFraction, 1e-4);
   return clamp(fadeStart - on, 0, CAP_MAX) * (1 - smooth(0.35, 0.62, p));
 }
 
@@ -66,13 +66,13 @@ export function captionLines(v) {
 }
 
 /** При уходе строки закрываются в порядке: дата → подзаголовок → название. */
-export function captionState(t, tl, start) {
-  const progress = captionProgress(t, tl, start);
+export function captionState(t, tl, start, exitFraction = 1) {
+  const progress = captionProgress(t, tl, start, exitFraction);
   const { local, on, fadeStart, fade } = clock(t, tl, start);
   if (local < fadeStart) return { progress, lines: captionLines(progress) };
   if (local >= fadeStart + fade) return { progress: 0, lines: captionLines(0) };
 
-  const p = (local - fadeStart) / Math.max(fade, 1e-4);
+  const p = (local - fadeStart) / Math.max(fade * exitFraction, 1e-4);
   const lines = captionLines(clamp(fadeStart - on, 0, CAP_MAX));
   for (const [name, from, to] of [
     ["date", 0.03, 0.20], ["rule2", 0.11, 0.29],
