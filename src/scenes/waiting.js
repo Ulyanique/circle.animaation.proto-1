@@ -6,6 +6,7 @@ export const WAITING_DEFAULTS = {
   caption: {
     titleText: "Янтарный циркуль", subtitleText: "Вечер ретроспектива", dateText: "20 ноября 2026 года",
     titleColor: null, subtitleColor: null, dateColor: null,
+    titleVisible: true, subtitleVisible: true, dateVisible: true,
     titleX: 0, titleY: 0, titleScale: 1, subtitleX: 0, subtitleY: 0, subtitleScale: 1,
     dateX: 0, dateY: 0, dateScale: 1,
   },
@@ -22,6 +23,7 @@ export const WAITING_DEFAULTS = {
     speed: 1.0,            // общая скорость (1 = реальное время)
   },
   logo: {
+    visible: true,
     scale: 0.47,           // лёгкий акцент на символе без потери пропорций
     offsetX: 0,            // горизонтальная позиция
     offsetY: 1.1,          // сдвиг логотипа вверх (мировые единицы)

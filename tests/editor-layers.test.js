@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { EDITOR_LAYERS, layersForScene, editorViewport } from '../src/editor-layers.js';
+import { EDITOR_LAYERS, layersForScene, editorViewport, layerVisible } from '../src/editor-layers.js';
 
 test('список содержит только редактируемые элементы каждой сцены', () => {
   assert.equal(new Set(EDITOR_LAYERS.map(layer => layer.id)).size, EDITOR_LAYERS.length);
@@ -19,4 +19,29 @@ test('кадр получает место между панелями, обыч
   assert.deepEqual(narrow, {left: 8, top: 100, width: 684, height: 425});
   const small = editorViewport(250, 200, true);
   assert.ok(small.width > 0 && small.height > 0);
+});
+
+
+test('видимость элементов сохраняется независимо и старые JSON получают прежние значения', async () => {
+  const { SCENES } = await import('../src/scenes/catalog.js');
+  const { mergeConfig, configToJSON, parseConfigJSON, projectToJSON, parseProjectJSON } = await import('../src/config.js');
+  const scenes = SCENES.filter(scene => scene.defaults);
+  const configs = Object.fromEntries(scenes.map(scene => [scene.id, mergeConfig(scene.defaults, {})]));
+  for (const scene of scenes) {
+    const old = parseConfigJSON('{"caption":{"titleX":0.1},"logo":{"scale":0.5}}', scene.defaults);
+    for (const layer of layersForScene(scene.id)) assert.equal(layerVisible(old, layer), true);
+  }
+  for (const scene of scenes) {
+    for (const layer of layersForScene(scene.id)) {
+      configs[scene.id][layer.visibility.section][layer.visibility.key] = false;
+    }
+    const restored = parseConfigJSON(configToJSON(configs[scene.id]), scene.defaults);
+    for (const layer of layersForScene(scene.id)) assert.equal(layerVisible(restored, layer), false);
+  }
+  const ids = scenes.map(scene => scene.id);
+  const project = parseProjectJSON(projectToJSON(configs, ids), ids);
+  for (const scene of scenes) {
+    for (const layer of layersForScene(scene.id)) assert.equal(layerVisible(project.scenes[scene.id], layer), false);
+    assert.equal(scene.defaults.logo.visible, true);
+  }
 });

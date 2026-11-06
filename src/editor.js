@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { moveLogo, moveTitle, snapRect, resizeFromDistance } from './editor-math.js';
 import { EditorHistory } from './editor-history.js';
 import { validCustomColor } from './caption-content.js';
-import { EDITOR_LAYERS, layersForScene } from './editor-layers.js';
+import { EDITOR_LAYERS, layersForScene, layerVisible } from './editor-layers.js';
 
 /** Рамки редактора находятся только в DOM и не попадают в экспорт. */
 export function createFrameEditor({ getState, onEnable, onChange, onLayoutChange, onSettings, onHistoryConflict }) {
@@ -44,7 +44,7 @@ export function createFrameEditor({ getState, onEnable, onChange, onLayoutChange
   layersPanel.setAttribute('aria-label', 'Элементы сцены');
   layersPanel.innerHTML = '<div class="editor-sidebar-heading"><span>СЦЕНА</span><h2>Элементы</h2></div><div class="editor-layers-list"></div><p class="editor-sidebar-note">Доступные для редактирования элементы шаблона</p>';
   const layerList = layersPanel.querySelector('.editor-layers-list');
-  const rows = {};
+  const rows = {}, visibilityButtons = {}, entries = {};
   for (const item of EDITOR_LAYERS) {
     const button = document.createElement('button');
     button.type = 'button'; button.className = 'editor-layer-row'; button.dataset.layer = item.id;
@@ -54,8 +54,21 @@ export function createFrameEditor({ getState, onEnable, onChange, onLayoutChange
     const text = document.createElement('span'); text.className = 'editor-layer-name';
     const title = document.createElement('strong'); title.textContent = item.label;
     const kind = document.createElement('small'); kind.textContent = item.kind;
-    text.append(title, kind); button.append(icon, text); layerList.appendChild(button);
-    rows[item.id] = button;
+    text.append(title, kind); button.append(icon, text);
+    const entry = document.createElement('div'); entry.className = 'editor-layer-entry';
+    const visibility = document.createElement('button');
+    visibility.type = 'button'; visibility.className = 'editor-visibility'; visibility.dataset.visibility = item.id;
+    visibility.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.5-6.5 10-6.5 10 6.5 10 6.5-3.5 6.5-10 6.5S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/><path class="eye-slash" d="M4 4l16 16"/></svg>';
+    entry.append(button, visibility); layerList.appendChild(entry);
+    rows[item.id] = button; visibilityButtons[item.id] = visibility; entries[item.id] = entry;
+    visibility.addEventListener('click', () => {
+      finishInput();
+      const state = getState(), field = item.visibility;
+      const before = snapshot(state.config, [field]);
+      state.config[field.section][field.key] = !layerVisible(state.config, item);
+      record(state.id, state.config, before);
+      onChange(); refresh();
+    });
     button.addEventListener('click', () => select(item.id, true));
   }
   layer.appendChild(layersPanel);
@@ -66,7 +79,7 @@ export function createFrameEditor({ getState, onEnable, onChange, onLayoutChange
   const empty = inspector.querySelector('.editor-empty');
   const menu = document.createElement('div');
   menu.className = 'editor-menu'; menu.hidden = true;
-  menu.innerHTML = `<div class="editor-selected-label" data-selected-label></div><div class="editor-appearance">
+  menu.innerHTML = `<div class="editor-selected-label" data-selected-label></div><p class="editor-hidden-note" hidden>Элемент скрыт. Включите его кнопкой справа от названия в списке.</p><div class="editor-appearance">
     <label data-field="text">Текст <input type="text" data-appearance="text" maxlength="120" autocomplete="off"></label>
     <label data-field="color"><span data-color-label>Цвет</span> <input type="color" data-appearance="color"></label>
     <div class="editor-appearance-reset"><button type="button" data-action="reset-text">Исходный текст</button><button type="button" data-action="reset-color">Исходный цвет</button></div>
@@ -220,9 +233,13 @@ export function createFrameEditor({ getState, onEnable, onChange, onLayoutChange
     const available = new Set(layersForScene(id).map(item => item.id));
     for (const item of EDITOR_LAYERS) {
       const row = rows[item.id];
-      row.hidden = !available.has(item.id);
-      const isOff = item.id === 'photoLabel' ? config.photo?.textEnabled === false : item.id === 'brandDecor' ? config.decor?.enabled === false : false;
-      const status = isOff ? `${item.kind} · выключен в настройках` : item.kind;
+      row.hidden = entries[item.id].hidden = !available.has(item.id);
+      const visible = layerVisible(config, item);
+      const visibility = visibilityButtons[item.id];
+      visibility.setAttribute('aria-pressed', String(visible));
+      const visibilityLabel = `${visible ? 'Скрыть' : 'Показать'}: ${item.label}`;
+      visibility.setAttribute('aria-label', `Видимость: ${item.label}`); visibility.title = visibilityLabel;
+      const status = visible ? item.kind : `${item.kind} · скрыт`;
       if (row.querySelector('small').textContent !== status) row.querySelector('small').textContent = status;
     }
     if (selected && !available.has(selected)) {
@@ -230,6 +247,7 @@ export function createFrameEditor({ getState, onEnable, onChange, onLayoutChange
       for (const row of Object.values(rows)) row.setAttribute('aria-pressed', 'false');
       for (const box of Object.values(boxes)) box.classList.remove('selected');
     }
+    if (selected) menu.querySelector('.editor-hidden-note').hidden = layerVisible(config, EDITOR_LAYERS.find(item => item.id === selected));
     if (selected && !inputSession && !menu.contains(document.activeElement)) populateAppearance(selected);
     snapRects = {};
     const rect = canvas.getBoundingClientRect();
@@ -244,14 +262,14 @@ export function createFrameEditor({ getState, onEnable, onChange, onLayoutChange
       minX = Math.min(minX, px); maxX = Math.max(maxX, px);
       minY = Math.min(minY, py); maxY = Math.max(maxY, py);
     }
-    boxes.logo.hidden = !Number.isFinite(minX);
+    boxes.logo.hidden = config.logo?.visible === false || !Number.isFinite(minX);
     if (!boxes.logo.hidden) {
       snapRects.logo = { left: minX, top: minY, width: maxX - minX, height: maxY - minY };
       place(boxes.logo, { left: minX - 5, top: minY - 5, width: maxX - minX + 10, height: maxY - minY + 10 });
     }
     for (const [name, selector] of [['title', '.cap-title'], ['subtitle', '.cap-sub'], ['date', '.cap-date']]) {
       const line = document.querySelector(`#caption ${selector}`);
-      boxes[name].hidden = id === 'photo-pause' || !line || getComputedStyle(line).display === 'none';
+      boxes[name].hidden = id === 'photo-pause' || !line || getComputedStyle(line).display === 'none' || config.caption?.[`${name}Visible`] === false;
       if (!boxes[name].hidden) {
         const r = line.getBoundingClientRect();
         snapRects[name] = { left: r.left, top: r.top, width: r.width, height: r.height };
@@ -276,10 +294,10 @@ export function createFrameEditor({ getState, onEnable, onChange, onLayoutChange
       place(boxes[name], { left: x - 9, top: y - 9, width: 18, height: 18 });
     };
     const photoLabel = scene.circularLabel;
-    handle('photoLabel', id === 'photo-pause' && !!photoLabel?.visible,
+    handle('photoLabel', id === 'photo-pause' && config.photo?.textEnabled !== false && !!photoLabel?.visible,
       photoLabel?.position, getState().config.photo?.radius ?? 0);
     const decor = scene.brandDecor;
-    handle('brandDecor', id === 'brand' && !!decor?.group.visible,
+    handle('brandDecor', id === 'brand' && config.decor?.enabled !== false && !!decor?.group.visible,
       decor?.group.position, getState().config.decor?.radius ?? 0);
 
   }
@@ -306,7 +324,7 @@ export function createFrameEditor({ getState, onEnable, onChange, onLayoutChange
     document.body.classList.add('editor-on');
     onLayoutChange?.();
     toggle.textContent = 'Готово'; toggle.setAttribute('aria-pressed', 'true');
-    refresh();
+    select('logo', false);
   });
   for (const [id, box] of Object.entries(boxes)) {
     box.addEventListener('pointerdown', (event) => {

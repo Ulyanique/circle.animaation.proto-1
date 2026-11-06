@@ -67,6 +67,7 @@ export function drawCaption(ctx, alpha, sceneId) {
     const line = { outline: capVal(sel, "--p"), fill: capVal(sel, "--f") };
     if (line.outline <= 0.001) return;
     const style = getComputedStyle(element);
+    if (style.visibility === "hidden" || style.display === "none") return;
     const language = element.closest("[lang]")?.getAttribute("lang") || "ru";
     const centerY = o.y + capVal(sel, "--lift") * scale;
     const y = centerY + lineBaseline(element, style, language) * scale;

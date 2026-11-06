@@ -49,10 +49,13 @@ export const SCHEMA = [
     { key: "frameOpacity", label: "Прозрачность уголков", type: "range", min: 0, max: 1, step: 0.01 },
   ] },
   { id: "caption", title: "Надписи", fields: [
+    { key: "titleVisible", label: "Название: показывать", type: "bool" },
     { key: "titleText", label: "Название: текст", type: "text", maxLength: 120 },
     { key: "titleColor", label: "Название: свой цвет", type: "color", fallback: "#e0b25a" },
+    { key: "subtitleVisible", label: "Подзаголовок: показывать", type: "bool" },
     { key: "subtitleText", label: "Подзаголовок: текст", type: "text", maxLength: 120 },
     { key: "subtitleColor", label: "Подзаголовок: свой цвет", type: "color", fallback: "#ecd08c" },
+    { key: "dateVisible", label: "Дата: показывать", type: "bool" },
     { key: "dateText", label: "Дата: текст", type: "text", maxLength: 120 },
     { key: "dateColor", label: "Дата: свой цвет", type: "color", fallback: "#d9b061" },
     { key: "titleX", label: "Название: горизонталь", type: "range", min: -0.45, max: 0.45, step: 0.005 },
@@ -82,6 +85,7 @@ export const SCHEMA = [
   },
   {
     id: "logo", title: "Логотип", fields: [
+      { key: "visible", label: "Показывать логотип", type: "bool" },
       { key: "scale", label: "Размер", type: "range", min: 0.3, max: 2.5, step: 0.01 },
       { key: "offsetX", label: "Положение по горизонтали", type: "range", min: -2, max: 2, step: 0.01 },
       { key: "offsetY", label: "Положение по высоте", type: "range", min: -2, max: 2, step: 0.01 },

@@ -618,3 +618,21 @@ body.editor-on.operator-idle:not(.ui-on) .operator-panel { opacity: 1; pointer-e
   .editor-inspector { width: min(266px, calc(100vw - 24px)); }
   body.editor-on .operator-panel { max-height: calc(min(175px, 32vh) - 18px); overflow-y: auto; }
 }
+/* Акцент только на выбранном объекте; остальные остаются доступными на кадре. */
+.editor-box { border-color: rgba(255,221,156,.28); }
+.editor-box .editor-label, .editor-box .editor-resize { opacity: 0; transition: opacity .12s; }
+.editor-box.selected .editor-label, .editor-box.selected .editor-resize,
+.editor-box:hover .editor-label, .editor-box:hover .editor-resize,
+.editor-box:focus-visible .editor-label, .editor-box:focus-visible .editor-resize { opacity: 1; }
+.editor-box.selected { border: 1px solid #ffe3a8; box-shadow: 0 0 0 1px rgba(39,26,9,.5); }
+.editor-layer-entry { display: flex; min-width: 0; align-items: stretch; border-radius: 4px; }
+.editor-layer-entry[hidden] { display: none; }
+.editor-layer-entry .editor-layer-row { flex: 1; width: auto; }
+.editor-visibility { flex: 0 0 32px; padding: 6px; border: 0; background: transparent; color: #bea77c; cursor: pointer; border-radius: 4px; }
+.editor-visibility:hover, .editor-visibility:focus-visible { color: #ffe3a1; background: #30281b; outline: 1px solid #947744; }
+.editor-visibility svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+.editor-visibility .eye-slash { display: none; }
+.editor-visibility[aria-pressed="false"] { color: #736c5e; }
+.editor-visibility[aria-pressed="false"] .eye-slash { display: block; }
+.editor-hidden-note { margin: 0 7px 8px; padding: 8px; border-radius: 4px; background: #30281b; color: #d7c39b; font-size: 11px; }
+.editor-hidden-note[hidden] { display: none; }

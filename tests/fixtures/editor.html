@@ -15,11 +15,11 @@ const mesh = new THREE.Mesh(new THREE.BoxGeometry(2, 2, 0.1), new THREE.MeshBasi
 root.add(mesh); root.position.y = 1.1;
 const camera = new THREE.PerspectiveCamera(30, 960 / 540, 0.1, 100);
 camera.position.set(0, 0, 9); camera.lookAt(0, 0, 0); camera.updateProjectionMatrix(); camera.updateMatrixWorld();
-const config = { logo: { offsetX: 0, offsetY: 1.1, scale: 1 }, colors: {gold: '#c8962e'}, caption: { titleText: 'рЦиркуль', subtitleText: 'Подзаголовок', dateText: 'Дата', titleColor: null, subtitleColor: null, dateColor: null, titleX: 0, titleY: 0, titleScale: 1, subtitleX: 0, subtitleY: 0, subtitleScale: 1, dateX: 0, dateY: 0, dateScale: 1 } };
+const config = { logo: { visible: true, offsetX: 0, offsetY: 1.1, scale: 1 }, colors: {gold: '#c8962e'}, caption: { titleVisible: true, subtitleVisible: true, dateVisible: true, titleText: 'рЦиркуль', subtitleText: 'Подзаголовок', dateText: 'Дата', titleColor: null, subtitleColor: null, dateColor: null, titleX: 0, titleY: 0, titleScale: 1, subtitleX: 0, subtitleY: 0, subtitleScale: 1, dateX: 0, dateY: 0, dateScale: 1 } };
 const circularLabel = new THREE.Object3D(); circularLabel.position.z = 0.1;
 const brandGroup = new THREE.Group(); brandGroup.position.z = -0.25;
-config.photo = {offsetX: 0, offsetY: 0, radius: 1.75, text: 'ФОТОПАУЗА', textColor: null, color: '#e8c77e'};
-config.decor = {offsetX: 0, offsetY: 0, radius: 1.2, color: '#d9b268'};
+config.photo = {textEnabled: true, offsetX: 0, offsetY: 0, radius: 1.75, text: 'ФОТОПАУЗА', textColor: null, color: '#e8c77e'};
+config.decor = {enabled: true, offsetX: 0, offsetY: 0, radius: 1.2, color: '#d9b268'};
 const state = { scene: { logo: { root, mesh }, camera, circularLabel, brandDecor: {group: brandGroup} }, canvas: document.querySelector('#stage'),
   config, defaults: structuredClone(config), id: 'waiting' };
 const cap = document.querySelector('#caption');
@@ -34,6 +34,7 @@ function layout() {
 }
 window.addEventListener('resize', () => { layout(); editor.refresh(); });
 const editor = createFrameEditor({ onLayoutChange: layout, getState: () => state, onEnable: () => true, onChange: () => {
+  root.visible = config.logo.visible; circularLabel.visible = config.photo.textEnabled; brandGroup.visible = config.decor.enabled;
   root.position.set(config.logo.offsetX, config.logo.offsetY, 0); root.scale.setScalar(config.logo.scale);
   circularLabel.position.set(root.position.x + config.photo.offsetX, root.position.y + config.photo.offsetY, 0.1);
   brandGroup.position.set(root.position.x + config.decor.offsetX, root.position.y + config.decor.offsetY, -0.25);

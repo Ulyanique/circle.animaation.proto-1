@@ -12,6 +12,7 @@ export function syncCaptionContent(cap, caption) {
     const value = caption?.[`${name}Text`];
     const text = typeof value === 'string' ? value : '';
     const color = validCustomColor(caption?.[`${name}Color`]);
+    el.style.visibility = caption?.[`${name}Visible`] === false ? "hidden" : "";
     const property = `--${name}-color`;
     if (color) cap.style.setProperty(property, color);
     else cap.style.removeProperty(property);

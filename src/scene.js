@@ -286,6 +286,7 @@ export class LogoScene {
     const retreat = finale?.active ? finale.retreat : 0;
     const z = -cfg.logo.shadowDepth * (1 - ph.reveal) * (1 - ph.reveal) - retreat * (cfg.finale?.retreatDepth ?? 0);
     const root = this.logo.root;
+    root.visible = cfg.logo.visible !== false;
     const lift = sequence ? sequence.lift : 1;
     const sway = Math.sin(TAUt * quant(cfg.logo.swaySpeed * 0.5) * t) * 0.02;
     const y = (cfg.logo.offsetY ?? 0) * lift + sway * (sequence ? sequence.settled : 1);
@@ -300,6 +301,7 @@ export class LogoScene {
     );
     this.logo.updateOutline(ph.draw, ph.outline, cfg, ph.fill, ph.name === "fade");
     this.contourWaves?.update(t, ph, cfg);
+    if (!root.visible && this.contourWaves) this.contourWaves.group.visible = false;
 
     // кольца, свет из углов
     // В интро боковые круги появляются только после собранного знака.
