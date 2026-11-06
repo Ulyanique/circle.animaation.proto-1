@@ -11,6 +11,11 @@ export const DEFAULTS = WAITING_DEFAULTS;
 
 // Схема UI: группы → поля. type: range | color | bool
 export const SCHEMA = [
+  { id: "intro", title: "Последовательность интро", fields: [
+    { key: "cornerDuration", label: "Прорисовка боковых кругов", type: "range", min: 0.2, max: 4, step: 0.05 },
+    { key: "liftDuration", label: "Подъём логотипа", type: "range", min: 0.2, max: 3, step: 0.05 },
+    { key: "titleDelay", label: "Пауза до надписей", type: "range", min: 0, max: 3, step: 0.05 },
+  ] },
   { id: "typography", title: "Типографика", fields: [
     { key: "font", label: "Шрифт", type: "select", options: FONTS.map(({ id, name }) => ({ value: id, label: name })) },
   ] },

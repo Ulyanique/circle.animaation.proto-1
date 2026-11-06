@@ -15,21 +15,21 @@ export function glyphReveal(line, index, count) {
   };
 }
 
-function clock(t, tl) {
+function clock(t, tl, start) {
   if (t < tl.startDelay) return { local: -1, fadeStart: 0, on: 0, fade: 0 };
   const { drawDuration: D, emergeDuration: E, holdDuration: H, fadeDuration: F, restDuration: R } = tl;
   const cycle = D + E + H + F + R;
   return {
     local: ((t - tl.startDelay) % cycle + cycle) % cycle,
-    on: D + E / 2,
+    on: start ?? D + E / 2,
     fadeStart: D + E + H,
     fade: F,
   };
 }
 
 /** Положение подписи: движение вниз при появлении, вверх при уходе названия. */
-export function captionProgress(t, tl) {
-  const { local, on, fadeStart, fade } = clock(t, tl);
+export function captionProgress(t, tl, start) {
+  const { local, on, fadeStart, fade } = clock(t, tl, start);
   if (local < 0) return 0;
   if (local < fadeStart) return clamp(local - on, 0, CAP_MAX);
   if (local >= fadeStart + fade) return 0;
@@ -62,9 +62,9 @@ export function captionLines(v) {
 }
 
 /** При уходе строки закрываются в порядке: дата → подзаголовок → название. */
-export function captionState(t, tl) {
-  const progress = captionProgress(t, tl);
-  const { local, on, fadeStart, fade } = clock(t, tl);
+export function captionState(t, tl, start) {
+  const progress = captionProgress(t, tl, start);
+  const { local, on, fadeStart, fade } = clock(t, tl, start);
   if (local < fadeStart) return { progress, lines: captionLines(progress) };
   if (local >= fadeStart + fade) return { progress: 0, lines: captionLines(0) };
 

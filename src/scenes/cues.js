@@ -24,6 +24,24 @@ export function introCues(phase, timeline) {
   return { beams, strike, approach };
 }
 
+
+/** Такты интро: знак остаётся по центру, затем идут боковые круги, подъём и титр.
+ * @param {{local:number, beforeStart:boolean, rings:number}} phase
+ * @param {{drawDuration:number, emergeDuration:number}} timeline
+ * @param {{cornerDuration:number, liftDuration:number, titleDelay:number}} config */
+export function introSequence(phase, timeline, config) {
+  const cornerStart = timeline.drawDuration + timeline.emergeDuration;
+  const cornerEnd = cornerStart + Math.max(0.05, config.cornerDuration);
+  const liftEnd = cornerEnd + Math.max(0.05, config.liftDuration);
+  const captionStart = liftEnd + Math.max(0, config.titleDelay);
+  if (phase.beforeStart) return { corners: 0, lift: 0, captionStart, cornerStart, cornerEnd, liftEnd };
+  return {
+    corners: phase.rings * smooth(cornerStart, cornerEnd, phase.local),
+    lift: smooth(cornerEnd, liftEnd, phase.local),
+    captionStart, cornerStart, cornerEnd, liftEnd,
+  };
+}
+
 export const CONTOUR_WAVE_COUNT = 3;
 export const CONTOUR_WAVE_PERIOD = 5.4;
 

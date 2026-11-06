@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { DEFAULTS } from "../src/config.js";
 import { computePhase, ringsEnvelope, compositionFocus, heroGlint, plotSequence, ringSweep, seamCurtainOpacity } from "../src/timeline.js";
 import { captionLines, captionProgress, captionState, captionAccent, glyphReveal } from "../src/caption.js";
+import { introSequence } from "../src/scenes/cues.js";
 import { seededRandom } from "../src/random.js";
 import { advanceTimeline } from "../src/playback.js";
 import { reviewMarkers } from "../src/review.js";
@@ -23,16 +24,26 @@ test("фазы и границы цикла", () => {
   assert.equal(at(D + E + H + F).reveal, 0);
 });
 
-test("интро зажигает угловой свет раньше обычного черчения дуг", () => {
-  const early = { local: 0.75 };
-  const normal = ringsEnvelope(early, tl);
-  const fast = ringsEnvelope(early, tl, { fast: true });
-  assert.ok(fast > normal * 3, `интро слишком тёмное: ${fast} против ${normal}`);
-  assert.ok(fast > 0.3, "свет должен быть заметным уже в первую секунду");
-  // Шов и уход остаются прежними: на первом и последнем кадре огибающая равна нулю.
-  assert.equal(ringsEnvelope({ local: 0 }, tl, { fast: true }), 0);
-  const fadeEnd = tl.drawDuration + tl.emergeDuration + tl.holdDuration + tl.fadeDuration;
-  assert.equal(ringsEnvelope({ local: fadeEnd }, tl, { fast: true }), 0);
+test("интро: центральная орбита, знак, боковые круги, подъём, титры", () => {
+  const intro = DEFAULTS.intro;
+  const cue = (local) => introSequence(at(local), tl, intro);
+  const middle = cue(tl.drawDuration + tl.emergeDuration / 2);
+  assert.equal(middle.corners, 0);
+  assert.equal(middle.lift, 0);
+  const { cornerStart, cornerEnd, liftEnd, captionStart } = middle;
+  assert.equal(at(cornerStart).reveal, 1);
+  assert.equal(cue(cornerStart).corners, 0);
+  assert.ok(cue((cornerStart + cornerEnd) / 2).corners > 0);
+  assert.equal(cue(cornerEnd).lift, 0);
+  assert.ok(cue((cornerEnd + liftEnd) / 2).lift > 0);
+  assert.equal(cue(liftEnd).lift, 1);
+  assert.equal(captionState(tl.startDelay + liftEnd, tl, captionStart).lines.title.outline, 0);
+  assert.ok(captionState(tl.startDelay + captionStart + 0.5, tl, captionStart).lines.title.outline > 0);
+  const fadeStart = tl.drawDuration + tl.emergeDuration + tl.holdDuration;
+  assert.ok(fadeStart - (captionStart + 2.9) >= 5);
+  assert.equal(cue(cycle - 1 / 60).corners, 0);
+  const next = cue(cornerStart + cycle + 0.3);
+  assert.ok(Math.abs(next.corners - cue(cornerStart + 0.3).corners) < 1e-9);
 });
 
 test("фазы и подпись периодичны на любом кадре", () => {

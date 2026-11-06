@@ -118,11 +118,11 @@ export class Plotter {
     this.group.add(this.head);
   }
 
-  update(phase, cfg) {
+  update(phase, cfg, centerY = cfg.logo.offsetY) {
     const { sweep, transfer, opacity, head, trace, reverse } = plotSequence(phase, cfg.timeline);
     this.group.visible = cfg.rings.enabled && (opacity > 0.001 || head > 0.001);
     if (!this.group.visible) return;
-    this.group.position.set(0, cfg.logo.offsetY, -0.08);
+    this.group.position.set(0, centerY, -0.08);
     this.group.scale.setScalar(cfg.rings.radius * 0.8);
     this.uniforms.uSweep.value = sweep;
     this.uniforms.uTransfer.value = transfer;

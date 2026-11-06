@@ -21,8 +21,8 @@ import { Sparks, AnamorphicFlare } from "./sparks.js";
 import { Plotter } from "./plotter.js";
 import { SolarBokeh } from "./bokeh.js";
 import { captionState, captionAccent, glyphReveal } from "./caption.js";
-import { computePhase, ringsEnvelope, compositionFocus, heroGlint, seamCurtainOpacity } from "./timeline.js";
-import { introCues } from "./scenes/cues.js";
+import { computePhase, compositionFocus, heroGlint, seamCurtainOpacity } from "./timeline.js";
+import { introCues, introSequence } from "./scenes/cues.js";
 
 const FOV = 30;
 const CAM_Z = 9;
@@ -226,6 +226,7 @@ export class LogoScene {
     const cfg = this.cfg;
     const ph = computePhase(t, cfg.timeline);
     const opening = this.isIntro ? introCues(ph, cfg.timeline) : { beams: 0, strike: 0, approach: 0 };
+    const sequence = this.isIntro ? introSequence(ph, cfg.timeline, cfg.intro) : null;
     const TAUt = TAU;
     const exposure = cfg.lights.exposure;
 
@@ -269,7 +270,8 @@ export class LogoScene {
     const pulse = 1 + cfg.logo.pulseAmount * Math.sin(TAUt * quant(cfg.logo.pulseSpeed) * t);
     const z = -cfg.logo.shadowDepth * (1 - ph.reveal) * (1 - ph.reveal);
     const root = this.logo.root;
-    root.position.set(0, Math.sin(TAUt * quant(cfg.logo.swaySpeed * 0.5) * t) * 0.02 + (cfg.logo.offsetY ?? 0), z);
+    const lift = sequence ? sequence.lift : 1;
+    root.position.set(0, (Math.sin(TAUt * quant(cfg.logo.swaySpeed * 0.5) * t) * 0.02 + (cfg.logo.offsetY ?? 0)) * lift, z);
     root.scale.setScalar(cfg.logo.scale * scaleGrow * pulse * (0.55 + 0.45 * easeOutCubic(ph.reveal)));  // сначала контур в малом размере, затем логотип растёт
     // У интро знак входит с небольшого ракурса и разворачивается к зрителю.
     root.rotation.set(
@@ -281,15 +283,14 @@ export class LogoScene {
     this.contourWaves?.update(t, ph, cfg);
 
     // кольца, свет из углов
-    // В интро угловые огни разгораются быстрее обычного черчения дуг:
-    // первый кадр должен открываться светом, а не долгой темнотой.
-    const env = this.isIntro ? ringsEnvelope(ph, cfg.timeline, { fast: true }) : ph.rings;
+    // В интро боковые круги появляются только после собранного знака.
+    const env = sequence ? sequence.corners : ph.rings;
     const focus = compositionFocus(ph, cfg.timeline);
     const cornerEnv = env * (1 - 0.44 * focus);
     const cpos = this.corners.update(t, cfg, this.halfW, this.halfH, env, focus);
     if (this.isIntro) this.corners.centerRing.visible = false;
-    this.solarBokeh.update(t, ph, cfg, cpos);
-    this.plotter.update(ph, cfg);
+    this.solarBokeh.update(t, sequence ? { ...ph, rings: env } : ph, cfg, cpos);
+    this.plotter.update(ph, cfg, sequence ? root.position.y : cfg.logo.offsetY);
     const tilt = THREE.MathUtils.degToRad(cfg.rings.tilt);
     this.particles.update(t, cfg, this.halfW, this.halfH, this.pixelRatio, this.viewportH, this.fovRad, cpos, cfg.rings.radius, tilt, cornerEnv);
     this.background.update(t, cfg);
@@ -336,7 +337,7 @@ export class LogoScene {
     // Один и тот же t всегда даёт один и тот же кадр подписи, даже после seek.
     const capEl = document.getElementById("caption");
     if (capEl) {
-      const { progress, lines } = captionState(t, cfg.timeline);
+      const { progress, lines } = captionState(t, cfg.timeline, sequence?.captionStart);
       const k = THREE.MathUtils.smoothstep(progress, 0.0, 0.8);
       capEl.style.opacity = "1";
       capEl.style.setProperty("--drift", `${((1 - k) * window.innerHeight * 0.008).toFixed(3)}px`);

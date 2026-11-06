@@ -101,6 +101,7 @@ export function createSettingsUI({
     const current = cfg();
     const defaults = defs();
     for (const section of SCHEMA) {
+      if (!current[section.id]) continue;
       const det = document.createElement("details");
       det.className = "cfg-sec";
       det.open = section.id === "logo";
