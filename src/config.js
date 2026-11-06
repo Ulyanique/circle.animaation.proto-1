@@ -16,6 +16,15 @@ export const SCHEMA = [
     { key: "liftDuration", label: "Подъём логотипа", type: "range", min: 0.2, max: 3, step: 0.05 },
     { key: "titleDelay", label: "Пауза до надписей", type: "range", min: 0, max: 3, step: 0.05 },
   ] },
+  { id: "decor", title: "Построительная окружность", fields: [
+    { key: "enabled", label: "Показать декор", type: "bool" },
+    { key: "radius", label: "Радиус", type: "range", min: 0.4, max: 2.5, step: 0.01 },
+    { key: "opacity", label: "Прозрачность линий", type: "range", min: 0, max: 1, step: 0.01 },
+    { key: "color", label: "Цвет", type: "color" },
+    { key: "speed", label: "Скорость вращения", type: "range", min: -0.3, max: 0.3, step: 0.005 },
+    { key: "dustOpacity", label: "Яркость пыли", type: "range", min: 0, max: 1, step: 0.01 },
+    { key: "dustSize", label: "Размер пыли", type: "range", min: 0.005, max: 0.06, step: 0.001 },
+  ] },
   { id: "finale", title: "Финальный уход", fields: [
     { key: "retreatDepth", label: "Глубина удаления", type: "range", min: 0, max: 5, step: 0.1 },
     { key: "retreatScale", label: "Конечный масштаб", type: "range", min: 0.2, max: 1, step: 0.01 },

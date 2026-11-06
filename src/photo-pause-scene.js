@@ -11,7 +11,7 @@ const FRAME_DEPTH = 5;
 /** №8: центрированный знак, кольцо из текста и уголки у границ кадра. */
 export class PhotoPauseScene extends BrandScene {
   constructor(canvas, config) {
-    super(canvas, config, { contourWaves: true });
+    super(canvas, config, { contourWaves: true, decor: false });
     this.frameSig = '';
     this.textSig = '';
     this.disposed = false;

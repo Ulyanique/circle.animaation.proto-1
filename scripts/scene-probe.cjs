@@ -108,6 +108,8 @@ async function inspectSceneDesign() {
       tickAngle: scene.corners.sides.left.ticks.rotation.z,
       particleTime: scene.particles.dust.material.uniforms.uTime.value,
       waveVisible: Boolean(scene.contourWaves?.group.visible),
+      decorVisible: Boolean(scene.brandDecor?.group.visible),
+      decorAngle: scene.brandDecor?.ticks.rotation.z ?? null,
       captionSafe: !scene.contourWaves || scene.contourWaves.layers.every(({ material }) => material.uniforms.uCaptionSafe.value === (state.id === "photo-pause" ? 0 : 1)),
       centerRing: scene.corners.centerRing.visible,
       waves: scene.contourWaves?.layers.map(({ layer, material }) => ({
@@ -208,6 +210,12 @@ function assertSceneDesign(state) {
   // Запрос заказчика: знак крупный, титр опущен в нижнюю треть, внизу нет пустого поля.
   assert.ok(state.layout.logoHeight > 0.41, `знак слишком мал: ${state.layout.logoHeight.toFixed(3)} высоты кадра`);
   assert.ok(state.layout.titleCenter > 0.60, `титр слишком высоко: ${state.layout.titleCenter.toFixed(3)}`);
+  }
+  if (state.id === "brand") {
+    assert.ok(state.motion.every((sample) => sample.decorVisible), "нет построительной окружности");
+    assert.notEqual(state.motion[0].decorAngle, state.motion[1].decorAngle, "разметка не вращается");
+  } else {
+    assert.ok(state.motion.every((sample) => !sample.decorVisible), "декор должен быть только в сцене 02");
   }
   if (state.id === "photo-pause") {
     assert.ok(state.motion.every((sample) => sample.waveVisible && sample.captionSafe && sample.centerRing &&
