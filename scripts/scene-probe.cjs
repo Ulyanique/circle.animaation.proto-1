@@ -214,7 +214,7 @@ function assertSceneDesign(state) {
         sample.waves.some((wave) => wave.visible && wave.opacity > 0.02)),
       "в фотопаузе отсутствуют контурные волны");
   } else {
-    assert.ok(state.motion.every((sample) => !sample.waveVisible && !sample.waves),
+    assert.ok(state.motion.every((sample) => !sample.waveVisible && sample.waves.length === 0),
       "волны от логотипа должны быть только в фотопаузе");
   }
   for (let i = 1; i < state.motion.length; i++) {
