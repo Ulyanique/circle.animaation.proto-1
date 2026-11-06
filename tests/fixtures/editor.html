@@ -6,6 +6,7 @@
 <div class="cap-date" data-text="Дата">Дата</div></div>
 <script type="module">
 import * as THREE from 'three';
+import { BackgroundGlow } from '/src/background-glow.js';
 import { createFrameEditor } from '/src/editor.js';
 import { drawCaption } from '/src/caption-compositor.js';
 import { syncCaptionContent } from '/src/caption-content.js';
@@ -26,10 +27,13 @@ const ringLeft = new THREE.Group(), ringRight = new THREE.Group();
 const sides = {left: {group: ringLeft}, right: {group: ringRight}};
 function updateRings() { const halfH = Math.tan(Math.PI / 12) * 9, halfW = halfH * 16 / 9; for (const side of ['left', 'right']) { const p = ringSidePosition(side, config.rings, halfW, halfH); sides[side].group.position.set(p.x, p.y, 0); sides[side].group.visible = config.rings.enabled && config.rings[`${side}Visible`]; sides[side].group.scale.setScalar(config.rings[`${side}Scale`]); } }
 config.photo = {textEnabled: true, offsetX: 0, offsetY: 0, radius: 1.75, text: 'ФОТОПАУЗА', textColor: null, color: '#e8c77e'};
+config.backgroundGlow = {present: false, enabled: true, offsetX: 0, offsetY: 0, radius: 1.6, color: '#ffbd68', intensity: 0.45, pulse: 0.15, speed: 0.15};
 config.particleCloud = {present: false, enabled: true, offsetX: 0, offsetY: 0, radius: 1.2, color: '#e8c77e', count: 180, size: 0.035, opacity: 0.65, speed: 0.08};
 config.decor = {present: false, enabled: true, followLogo: false, offsetX: 0, offsetY: 0, radius: 1.2, color: '#d9b268'};
 updateRings();
-const state = { scene: { logo: { root, mesh }, camera, circularLabel, corners: {sides}, particleCloud: {group: cloudGroup}, brandDecor: {group: brandGroup} }, canvas: document.querySelector('#stage'),
+const backgroundGlow = new BackgroundGlow(new THREE.Texture());
+backgroundGlow.group.visible = false;
+const state = { scene: { logo: { root, mesh }, camera, circularLabel, corners: {sides}, backgroundGlow, particleCloud: {group: cloudGroup}, brandDecor: {group: brandGroup} }, canvas: document.querySelector('#stage'),
   config, defaults: structuredClone(config), id: 'waiting', time: 10 };
 const cap = document.querySelector('#caption');
 function layout() {
@@ -56,6 +60,7 @@ function renderCustom() {
 }
 const editor = createFrameEditor({ onLayoutChange: layout, getState: () => state, onEnable: () => true, onChange: () => {
   updateRings();
+  backgroundGlow.update(state.time, {beforeStart: false, reveal: 1, rings: 1}, config);
   cloudGroup.visible = config.particleCloud.present && config.particleCloud.enabled;
   cloudGroup.position.set(config.particleCloud.offsetX, config.particleCloud.offsetY, -0.25);
   cloudGroup.scale.setScalar(config.particleCloud.radius);
@@ -88,6 +93,7 @@ window.editorFixture = { editor, state, setTime(time) { state.time = time; rende
   state.id = id; document.body.className = `scene-${id === 'photo-pause' ? 'photo' : id} editor-on`;
   config.decor.present = id === 'brand'; config.decor.followLogo = id === 'brand'; brandGroup.visible = config.decor.present && config.decor.enabled;
   config.particleCloud.present = false; cloudGroup.visible = false;
+  config.backgroundGlow.present = false; backgroundGlow.group.visible = false;
   config.logo.offsetX = 0; config.logo.offsetY = id === 'photo-pause' ? 0 : 0.6;
   root.position.set(config.logo.offsetX, config.logo.offsetY, 0);
   circularLabel.position.set(root.position.x + config.photo.offsetX, root.position.y + config.photo.offsetY, 0.1);

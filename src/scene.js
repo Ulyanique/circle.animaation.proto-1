@@ -17,6 +17,7 @@ import {
   ToneMappingMode,
 } from "postprocessing";
 import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
+import { BackgroundGlow } from "./background-glow.js";
 import { ParticleCloud } from "./particle-cloud.js";
 import { BrandDecor } from "./brand-decor.js";
 import { Logo, revealUniforms } from "./logo.js";
@@ -117,6 +118,8 @@ export class LogoScene {
     // Кольца и частицы: только левый верх и правый низ, как в исходной сцене.
     this.corners = new Corners();
     this.scene.add(this.corners.group);
+    this.backgroundGlow = new BackgroundGlow(this.corners.glowTex);
+    this.scene.add(this.backgroundGlow.group);
     this.plotter = new Plotter(this.corners.glowTex, this.logo);
     this.scene.add(this.plotter.group);
     this.solarBokeh = new SolarBokeh();
@@ -322,6 +325,7 @@ export class LogoScene {
     const effectPhase = computePhase(t, cfg.timeline);
     this.brandDecor.update(t, effectPhase, cfg, root);
     this.particleCloud.update(t, effectPhase, cfg);
+    this.backgroundGlow.update(t, effectPhase, cfg);
     this.solarBokeh.update(t, sequence ? { ...ph, rings: env } : ph, cfg, cpos);
     this.plotter.update(ph, cfg, (sequence || finale?.active) ? root.position.y : cfg.logo.offsetY, root.position.x);
     const tilt = THREE.MathUtils.degToRad(cfg.rings.tilt);

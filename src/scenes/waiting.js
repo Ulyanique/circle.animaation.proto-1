@@ -20,6 +20,8 @@ export const WAITING_DEFAULTS = {
   },
   particleCloud: { present: false, enabled: true, offsetX: 0, offsetY: 0,
     radius: 1.2, color: "#e8c77e", count: 180, size: 0.035, opacity: 0.65, speed: 0.08 },
+  backgroundGlow: { present: false, enabled: true, offsetX: 0, offsetY: 0,
+    radius: 1.6, color: "#ffbd68", intensity: 0.45, pulse: 0.15, speed: 0.15 },
   intro: { cornerDuration: 1.1, liftDuration: 1.4, titleDelay: 0.15 },
   timeline: {
     // длительности фаз в секундах; цикл повторяется бесконечно

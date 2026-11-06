@@ -11,6 +11,7 @@ export const EDITOR_LAYERS = [
   { id: 'photoLabel', label: 'Надпись по кругу', kind: 'Текст', visibility: { section: 'photo', key: 'textEnabled' }, scenes: ['photo-pause'] },
   { id: 'brandDecor', label: 'Построительная окружность', kind: 'Декор', optional: true, visibility: { section: 'decor', key: 'enabled' }, scenes: ['waiting', 'brand', 'photo-pause', 'finale'] },
   { id: 'particleCloud', label: 'Облако частиц', kind: 'Эффект', optional: true, presenceSection: 'particleCloud', visibility: { section: 'particleCloud', key: 'enabled' }, scenes: ['waiting', 'brand', 'photo-pause', 'finale'] },
+  { id: 'backgroundGlow', label: 'Фоновое свечение', kind: 'Эффект', optional: true, presenceSection: 'backgroundGlow', visibility: { section: 'backgroundGlow', key: 'enabled' }, scenes: ['waiting', 'brand', 'photo-pause', 'finale'] },
   ...CUSTOM_TEXT_IDS.map((id, i) => ({ id, label: `Текст ${i + 1}`, kind: 'Текст', custom: true,
     visibility: { section: 'textLayers', key: `${id}Visible` }, scenes: ['waiting', 'brand', 'photo-pause', 'finale'] })),
 ];

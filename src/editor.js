@@ -37,14 +37,14 @@ export function createFrameEditor({ getState, onEnable, onChange, onLayoutChange
     box.type = 'button'; box.className = 'editor-box'; box.dataset.element = id;
     box.setAttribute('aria-label', `${label}: перетащить, переместить стрелками или изменить размер клавишами плюс и минус`);
     box.innerHTML = `<span class="editor-label">${label}</span><span class="editor-resize" title="Изменить размер" aria-hidden="true"></span>`;
-    if (id === 'photoLabel' || id === 'brandDecor' || id === 'particleCloud' || id === 'ringLeft' || id === 'ringRight') box.classList.add('editor-handle');
+    if (id === 'photoLabel' || id === 'brandDecor' || id === 'particleCloud' || id === 'backgroundGlow' || id === 'ringLeft' || id === 'ringRight') box.classList.add('editor-handle');
     if (id === 'ringLeft' || id === 'ringRight') box.classList.add('editor-center-handle');
     layer.appendChild(box); boxes[id] = box;
   }
   const layersPanel = document.createElement('aside');
   layersPanel.className = 'editor-sidebar editor-layers';
   layersPanel.setAttribute('aria-label', 'Элементы сцены');
-  layersPanel.innerHTML = '<div class="editor-sidebar-heading"><span>СЦЕНА</span><h2>Элементы</h2></div><div class="editor-layers-list"></div><button type="button" class="editor-add-text" data-add-text>＋ Добавить текст</button><button type="button" class="editor-add-text" data-add-decor>＋ Добавить окружность</button><button type="button" class="editor-add-text" data-add-cloud>＋ Добавить облако частиц</button><p class="editor-sidebar-note">До 8 надписей, одна окружность и одно облако частиц в каждой сцене</p>';
+  layersPanel.innerHTML = '<div class="editor-sidebar-heading"><span>СЦЕНА</span><h2>Элементы</h2></div><div class="editor-layers-list"></div><button type="button" class="editor-add-text" data-add-text>＋ Добавить текст</button><button type="button" class="editor-add-text" data-add-decor>＋ Добавить окружность</button><button type="button" class="editor-add-text" data-add-cloud>＋ Добавить облако частиц</button><button type="button" class="editor-add-text" data-add-glow>＋ Добавить свечение</button><p class="editor-sidebar-note">До 8 надписей и по одному добавляемому эффекту каждого типа в каждой сцене</p>';
   const layerList = layersPanel.querySelector('.editor-layers-list');
   const rows = {}, visibilityButtons = {}, entries = {};
   for (const item of EDITOR_LAYERS) {
@@ -97,7 +97,7 @@ export function createFrameEditor({ getState, onEnable, onChange, onLayoutChange
       <label><span>Плавность <output data-timing-output="Fade"></output></span><input type="range" data-timing="Fade" min="5" max="50" step="1"></label>
       <p>Время — доля цикла после стартовой задержки; секунды указаны по таймлайну. Плавность — доля выбранного интервала.</p>
     </div>
-  </section><button type="button" data-action="align-x">По центру по горизонтали</button><button type="button" data-action="align-y">По центру по вертикали</button><button type="button" data-action="settings">Настройки элемента</button><button type="button" data-action="reset">Сбросить положение</button><button type="button" data-action="reset-size">Сбросить размер</button><button type="button" class="editor-delete-text" data-action="delete-text" hidden>Удалить текст</button><button type="button" class="editor-delete-text" data-action="delete-decor" hidden>Удалить окружность</button><button type="button" class="editor-delete-text" data-action="delete-cloud" hidden>Удалить облако</button>`;
+  </section><button type="button" data-action="align-x">По центру по горизонтали</button><button type="button" data-action="align-y">По центру по вертикали</button><button type="button" data-action="settings">Настройки элемента</button><button type="button" data-action="reset">Сбросить положение</button><button type="button" data-action="reset-size">Сбросить размер</button><button type="button" class="editor-delete-text" data-action="delete-text" hidden>Удалить текст</button><button type="button" class="editor-delete-text" data-action="delete-decor" hidden>Удалить окружность</button><button type="button" class="editor-delete-text" data-action="delete-cloud" hidden>Удалить облако</button><button type="button" class="editor-delete-text" data-action="delete-glow" hidden>Удалить свечение</button>`;
   const textInput = menu.querySelector('[data-appearance="text"]');
   const colorInput = menu.querySelector('[data-appearance="color"]');
   const textRow = menu.querySelector('[data-field="text"]');
@@ -129,7 +129,12 @@ export function createFrameEditor({ getState, onEnable, onChange, onLayoutChange
     el.style.left = `${r.left}px`; el.style.top = `${r.top}px`;
     el.style.width = `${Math.max(1, r.width)}px`; el.style.height = `${Math.max(1, r.height)}px`;
   };
-  const worldSection = { logo: 'logo', photoLabel: 'photo', brandDecor: 'decor', particleCloud: 'particleCloud', ringLeft: 'rings', ringRight: 'rings' };
+  const optionalEffects = [
+    { id: 'brandDecor', section: 'decor', button: 'decor', added: 'Окружность добавлена', add: '＋ Добавить окружность', title: 'Добавить построительную окружность' },
+    { id: 'particleCloud', section: 'particleCloud', button: 'cloud', added: 'Облако добавлено', add: '＋ Добавить облако частиц', title: 'Добавить облако частиц' },
+    { id: 'backgroundGlow', section: 'backgroundGlow', button: 'glow', added: 'Свечение добавлено', add: '＋ Добавить свечение', title: 'Добавить фоновое свечение' },
+  ];
+  const worldSection = { logo: 'logo', photoLabel: 'photo', brandDecor: 'decor', particleCloud: 'particleCloud', backgroundGlow: 'backgroundGlow', ringLeft: 'rings', ringRight: 'rings' };
   const ringSide = id => id === 'ringLeft' ? 'left' : id === 'ringRight' ? 'right' : null;
   const worldKeys = id => ringSide(id) ? [`${ringSide(id)}OffsetX`, `${ringSide(id)}OffsetY`] : ['offsetX', 'offsetY'];
   const textSection = id => CUSTOM_TEXT_IDS.includes(id) ? 'textLayers' : 'caption';
@@ -138,6 +143,7 @@ export function createFrameEditor({ getState, onEnable, onChange, onLayoutChange
     photoLabel: { section: 'photo', key: 'radius', min: 1.1, max: 2.15 },
     brandDecor: { section: 'decor', key: 'radius', min: 0.4, max: 2.5 },
     particleCloud: { section: 'particleCloud', key: 'radius', min: 0.3, max: 3 },
+    backgroundGlow: { section: 'backgroundGlow', key: 'radius', min: 0.3, max: 5 },
     ringLeft: { section: 'rings', key: 'leftScale', min: 0.3, max: 2.5 },
     ringRight: { section: 'rings', key: 'rightScale', min: 0.3, max: 2.5 },
     title: { section: 'caption', key: 'titleScale', min: 0.5, max: 2 },
@@ -149,6 +155,7 @@ export function createFrameEditor({ getState, onEnable, onChange, onLayoutChange
     photoLabel: { text: {section: 'photo', key: 'text'}, color: {section: 'photo', key: 'textColor'}, fallback: '#e8c77e', maxLength: 40 },
     brandDecor: { color: {section: 'decor', key: 'color'}, fallback: '#d9b268' },
     particleCloud: { color: {section: 'particleCloud', key: 'color'}, fallback: '#e8c77e' },
+    backgroundGlow: { color: {section: 'backgroundGlow', key: 'color'}, fallback: '#ffbd68' },
     ringLeft: { color: {section: 'colors', key: 'lightLeft'}, fallback: '#ffb55c' },
     ringRight: { color: {section: 'colors', key: 'lightRight'}, fallback: '#ffcf7a' },
     title: { text: {section: 'caption', key: 'titleText'}, color: {section: 'caption', key: 'titleColor'}, fallback: '#e0b25a' },
@@ -175,8 +182,7 @@ export function createFrameEditor({ getState, onEnable, onChange, onLayoutChange
     ringScaleRow.hidden = !ringSide(id);
     if (!ringScaleRow.hidden) { ringScale.value = cfg.rings[`${ringSide(id)}Scale`]; menu.querySelector('[data-ring-scale-output]').textContent = `${Number(ringScale.value).toFixed(2)}×`; }
     menu.querySelector('[data-action=delete-text]').hidden = !CUSTOM_TEXT_IDS.includes(id);
-    menu.querySelector('[data-action=delete-decor]').hidden = id !== 'brandDecor';
-    menu.querySelector('[data-action=delete-cloud]').hidden = id !== 'particleCloud';
+    for (const effect of optionalEffects) menu.querySelector(`[data-action=delete-${effect.button}]`).hidden = id !== effect.id;
     followRow.hidden = id !== 'brandDecor';
     if (!followRow.hidden) followInput.checked = cfg.decor.followLogo !== false;
     menu.querySelector('[data-action=settings]').hidden = CUSTOM_TEXT_IDS.includes(id);
@@ -322,6 +328,7 @@ export function createFrameEditor({ getState, onEnable, onChange, onLayoutChange
     if (id === 'photoLabel') return scene.circularLabel.position.z;
     if (id === 'brandDecor') return scene.brandDecor.group.position.z;
     if (id === 'particleCloud') return scene.particleCloud.group.position.z;
+    if (id === 'backgroundGlow') return scene.backgroundGlow.group.position.z;
     return 0;
   }
   function worldPoint(event, state, z = 0) {
@@ -371,14 +378,12 @@ export function createFrameEditor({ getState, onEnable, onChange, onLayoutChange
     addButton.disabled = CUSTOM_TEXT_IDS.every(key => config.textLayers?.[`${key}Present`] === true);
     addButton.title = addButton.disabled ? 'Максимум 8 дополнительных надписей' : 'Добавить надпись в сцену';
     addButton.textContent = addButton.disabled ? 'Лимит: 8 надписей' : '＋ Добавить текст';
-    const addDecor = layersPanel.querySelector('[data-add-decor]');
-    addDecor.disabled = config.decor?.present === true;
-    addDecor.title = addDecor.disabled ? 'Окружность уже добавлена' : 'Добавить построительную окружность';
-    addDecor.textContent = addDecor.disabled ? 'Окружность добавлена' : '＋ Добавить окружность';
-    const addCloud = layersPanel.querySelector('[data-add-cloud]');
-    addCloud.disabled = config.particleCloud?.present === true;
-    addCloud.title = addCloud.disabled ? 'Облако уже добавлено' : 'Добавить облако частиц';
-    addCloud.textContent = addCloud.disabled ? 'Облако добавлено' : '＋ Добавить облако частиц';
+    for (const effect of optionalEffects) {
+      const button = layersPanel.querySelector(`[data-add-${effect.button}]`);
+      button.disabled = config[effect.section]?.present === true;
+      button.title = button.disabled ? effect.added : effect.title;
+      button.textContent = button.disabled ? effect.added : effect.add;
+    }
     snapRects = {};
     const rect = canvas.getBoundingClientRect();
     scene.logo.root.updateWorldMatrix(true, true);
@@ -445,6 +450,9 @@ export function createFrameEditor({ getState, onEnable, onChange, onLayoutChange
     const photoLabel = scene.circularLabel;
     handle('photoLabel', id === 'photo-pause' && config.photo?.textEnabled !== false && !!photoLabel?.visible,
       photoLabel?.position, getState().config.photo?.radius ?? 0);
+    const glow = scene.backgroundGlow;
+    handle('backgroundGlow', available.has('backgroundGlow') && config.backgroundGlow?.enabled !== false && !!glow?.group.visible,
+      glow?.group.position, config.backgroundGlow?.radius ?? 0);
     const cloud = scene.particleCloud;
     handle('particleCloud', available.has('particleCloud') && config.particleCloud?.enabled !== false && !!cloud?.group.visible,
       cloud?.group.position, config.particleCloud?.radius ?? 0);
@@ -469,25 +477,15 @@ export function createFrameEditor({ getState, onEnable, onChange, onLayoutChange
     guides.x.hidden = guides.y.hidden = true;
     toggle.textContent = 'Редактировать'; toggle.setAttribute('aria-pressed', 'false');
   }
-  layersPanel.querySelector('[data-add-cloud]').addEventListener('click', () => {
+  for (const effect of optionalEffects) layersPanel.querySelector(`[data-add-${effect.button}]`).addEventListener('click', () => {
     finishInput();
-    const state = getState(), cfg = state.config;
-    if (cfg.particleCloud.present) return;
-    const fields = Object.keys(state.defaults.particleCloud).map(key => ({section: 'particleCloud', key}));
+    const state = getState(), cfg = state.config, section = effect.section;
+    if (cfg[section].present) return;
+    const fields = Object.keys(state.defaults[section]).map(key => ({section, key}));
     const before = snapshot(cfg, fields);
-    for (const {key} of fields) cfg.particleCloud[key] = state.defaults.particleCloud[key];
-    cfg.particleCloud.present = true; cfg.particleCloud.enabled = true;
-    record(state.id, cfg, before); onChange(); select('particleCloud', true);
-  });
-  layersPanel.querySelector('[data-add-decor]').addEventListener('click', () => {
-    finishInput();
-    const state = getState(), cfg = state.config;
-    if (cfg.decor.present) return;
-    const fields = Object.keys(state.defaults.decor).map(key => ({section: 'decor', key}));
-    const before = snapshot(cfg, fields);
-    for (const {key} of fields) cfg.decor[key] = state.defaults.decor[key];
-    cfg.decor.present = true; cfg.decor.enabled = true;
-    record(state.id, cfg, before); onChange(); select('brandDecor', true);
+    for (const {key} of fields) cfg[section][key] = state.defaults[section][key];
+    cfg[section].present = true; cfg[section].enabled = true;
+    record(state.id, cfg, before); onChange(); select(effect.id, true);
   });
   layersPanel.querySelector('[data-add-text]').addEventListener('click', () => {
     finishInput();
@@ -555,7 +553,7 @@ export function createFrameEditor({ getState, onEnable, onChange, onLayoutChange
         const section = worldSection[id];
         const now = worldPoint({ clientX: drag.x + dx, clientY: drag.y + dy }, state, depth(id, state.scene));
         if (!now) return;
-        const next = (ringSide(id) || id === 'brandDecor' || id === 'particleCloud') ? moveWorldOffset(drag.start, now.x - drag.world.x, now.y - drag.world.y) : moveLogo(drag.start, now.x - drag.world.x, now.y - drag.world.y);
+        const next = (ringSide(id) || id === 'brandDecor' || id === 'particleCloud' || id === 'backgroundGlow') ? moveWorldOffset(drag.start, now.x - drag.world.x, now.y - drag.world.y) : moveLogo(drag.start, now.x - drag.world.x, now.y - drag.world.y);
         const [xKey, yKey] = worldKeys(id);
         cfg[section][xKey] = next.x; cfg[section][yKey] = next.y;
       } else {
@@ -594,7 +592,7 @@ export function createFrameEditor({ getState, onEnable, onChange, onLayoutChange
         const section = worldSection[id];
         const [xKey, yKey] = worldKeys(id);
         const start = { x: cfg[section][xKey], y: cfg[section][yKey] };
-        const p = (ringSide(id) || id === 'brandDecor' || id === 'particleCloud') ? moveWorldOffset(start, direction[0] * step, -direction[1] * step) : moveLogo(start, direction[0] * step, -direction[1] * step);
+        const p = (ringSide(id) || id === 'brandDecor' || id === 'particleCloud' || id === 'backgroundGlow') ? moveWorldOffset(start, direction[0] * step, -direction[1] * step) : moveLogo(start, direction[0] * step, -direction[1] * step);
         cfg[section][xKey] = p.x; cfg[section][yKey] = p.y;
       } else {
         const target = cfg[textSection(id)];
@@ -611,15 +609,11 @@ export function createFrameEditor({ getState, onEnable, onChange, onLayoutChange
     if (!selected || !action) return;
     finishInput();
     const state = getState();
-    if (action === 'delete-cloud' && selected === 'particleCloud') {
-      const before = snapshot(state.config, [{section: 'particleCloud', key: 'present'}]);
-      state.config.particleCloud.present = false;
-      record(state.id, state.config, before); onChange(); refresh();
-      return;
-    }
-    if (action === 'delete-decor' && selected === 'brandDecor') {
-      const before = snapshot(state.config, [{section: 'decor', key: 'present'}]);
-      state.config.decor.present = false;
+    const deletedEffect = optionalEffects.find(effect => action === `delete-${effect.button}` && selected === effect.id);
+    if (deletedEffect) {
+      const section = deletedEffect.section;
+      const before = snapshot(state.config, [{section, key: 'present'}]);
+      state.config[section].present = false;
       record(state.id, state.config, before); onChange(); refresh();
       return;
     }
@@ -641,10 +635,10 @@ export function createFrameEditor({ getState, onEnable, onChange, onLayoutChange
         const side = ringSide(selected);
         const position = side ? state.scene.corners.sides[side].group.position : state.scene.logo.root.position;
         const axisPosition = xAxis ? position.x : position.y;
-        // Кольцо хранит сдвиг от исходной позиции, остальные — от знака.
+        // Боковые круги хранят сдвиг от исходной позиции, свободные эффекты — абсолютную позицию.
         const value = side || selected === 'logo' ? state.config[section][key] - axisPosition
-          : (selected === 'particleCloud' || (selected === 'brandDecor' && state.config.decor.followLogo === false)) ? 0 : -axisPosition;
-        const limit = side || selected === 'brandDecor' || selected === 'particleCloud' ? 10 : 2;
+          : (selected === 'particleCloud' || selected === 'backgroundGlow' || (selected === 'brandDecor' && state.config.decor.followLogo === false)) ? 0 : -axisPosition;
+        const limit = side || selected === 'brandDecor' || selected === 'particleCloud' || selected === 'backgroundGlow' ? 10 : 2;
         state.config[section][key] = Math.max(-limit, Math.min(limit, value));
       } else {
         const selector = CUSTOM_TEXT_IDS.includes(selected) ? `[data-custom="${selected}"]` : { title: '.cap-title', subtitle: '.cap-sub', date: '.cap-date' }[selected];

@@ -40,6 +40,17 @@ export const SCHEMA = [
     { key: "speed", label: "Скорость вращения", type: "range", min: -0.5, max: 0.5, step: 0.01 },
     { key: "color", label: "Цвет", type: "color" },
   ] },
+  { id: "backgroundGlow", title: "Фоновое свечение", fields: [
+    { key: "present", label: "Добавить свечение в сцену", type: "bool" },
+    { key: "enabled", label: "Показывать свечение", type: "bool" },
+    { key: "offsetX", label: "Положение по горизонтали", type: "range", min: -10, max: 10, step: 0.01 },
+    { key: "offsetY", label: "Положение по вертикали", type: "range", min: -10, max: 10, step: 0.01 },
+    { key: "radius", label: "Радиус свечения", type: "range", min: 0.3, max: 5, step: 0.01 },
+    { key: "intensity", label: "Яркость", type: "range", min: 0, max: 1, step: 0.01 },
+    { key: "pulse", label: "Пульсация", type: "range", min: 0, max: 1, step: 0.01 },
+    { key: "speed", label: "Скорость пульсации", type: "range", min: 0, max: 1, step: 0.01 },
+    { key: "color", label: "Цвет", type: "color" },
+  ] },
   { id: "finale", title: "Финальный уход", fields: [
     { key: "retreatDepth", label: "Глубина удаления", type: "range", min: 0, max: 5, step: 0.1 },
     { key: "retreatScale", label: "Конечный масштаб", type: "range", min: 0.2, max: 1, step: 0.01 },
