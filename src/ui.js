@@ -36,11 +36,12 @@ export function createSettingsUI({
   panel.setAttribute("aria-hidden", "true");
   panel.innerHTML = `
     <header class="cfg-head">
-      <span class="cfg-title">Настройки <em class="cfg-scene-name"></em></span>
+      <div class="cfg-heading"><span class="cfg-kicker">КОНСТРУКТОР / СЦЕНА <em class="cfg-scene-name"></em></span><span class="cfg-title">Настройки</span></div>
       <button type="button" class="cfg-close" aria-label="Закрыть">×</button>
     </header>
     <nav class="cfg-tabs" aria-label="Сцены"></nav>
     <div class="cfg-tools">
+      <span class="cfg-tools-label">Действия</span>
       <button type="button" data-act="pause">Пауза</button>
       <button type="button" data-act="export">Экспорт сцены</button>
       <button type="button" data-act="export-project">Экспорт проекта</button>
@@ -104,7 +105,7 @@ export function createSettingsUI({
       if (!current[section.id]) continue;
       const det = document.createElement("details");
       det.className = "cfg-sec";
-      det.open = section.id === "logo";
+      det.open = false;
       const sum = document.createElement("summary");
       sum.textContent = section.title;
       det.appendChild(sum);
