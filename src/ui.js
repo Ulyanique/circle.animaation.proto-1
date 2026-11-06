@@ -144,6 +144,15 @@ export function createSettingsUI({
             out.textContent = fmt(holder[f.key]);
             commit();
           });
+        } else if (f.type === "text") {
+          const input = document.createElement("input");
+          input.type = "text";
+          input.maxLength = f.maxLength || 100;
+          input.dataset.key = `${section.id}.${f.key}`;
+          input.value = holder[f.key];
+          input.addEventListener("input", () => { holder[f.key] = input.value; commit(); });
+          inputs.push({ set: () => { input.value = holder[f.key]; } });
+          row.appendChild(input);
         } else if (f.type === "select") {
           const input = document.createElement("select");
           input.dataset.key = `${section.id}.${f.key}`;

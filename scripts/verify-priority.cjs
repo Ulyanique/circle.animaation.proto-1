@@ -1,4 +1,4 @@
-// Виды №8 и №9: фирменный фон, текст под знаком, экспортный canvas и шов.
+// Виды №8 и №9: фон, круговой текст фотопаузы или финальный титр, экспорт и шов.
 // SCENE=photo-pause|finale OUT=docs/photo-pause.jpg npm run verify:priority
 const assert = require("node:assert/strict");
 const { launchBrowser } = require("./browser.cjs");

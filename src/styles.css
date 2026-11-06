@@ -32,6 +32,7 @@ html, body {
 body.scene-brand #caption .cap-rule,
 body.scene-brand #caption .cap-sub,
 body.scene-brand #caption .cap-date,
+body.scene-photo #caption .cap-title,
 body.scene-photo #caption .cap-rule,
 body.scene-photo #caption .cap-sub,
 body.scene-photo #caption .cap-date,
@@ -522,3 +523,5 @@ body.operator-idle:not(.ui-on) .cfg-toggle { opacity: .55; }
 @media (max-height: 500px) {
   .cfg-panel { max-height: calc(100vh - 80px); }
 }
+
+.cfg-text input { width: 100%; max-width: 180px; padding: 6px 8px; background: #20201e; color: #e9e6df; border: 1px solid rgba(255,255,255,.16); border-radius: 3px; font: inherit; }

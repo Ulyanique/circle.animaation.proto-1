@@ -437,7 +437,7 @@ function frame(now) {
   if (!firstFrameRendered) {
     firstFrameRendered = true;
     const fonts = Promise.all([loadFonts(), loadContourFonts(contourSources, parseFont)]).catch((error) => console.warn("Не удалось загрузить контуры шрифтов", error));
-    fonts.then(() => { applyTypography(true); window.__bootReady?.(); });
+    fonts.then(() => { applyTypography(true); scene.refreshTextTexture?.(); window.__bootReady?.(); });
   }
   if (now - lastOperatorRefresh >= 120) {
     operator.refresh();

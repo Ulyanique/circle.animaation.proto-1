@@ -47,6 +47,7 @@ function capVal(sel, name) {
 }
 
 export function drawCaption(ctx, alpha, sceneId) {
+  if (sceneId === "photo-pause") return; // круговой текст уже находится в WebGL-кадре
   const W = REC_W, H = REC_H, u = W / 100;
   const cap = document.getElementById("caption");
   const scale = W / (parseFloat(cap?.style.width) || W);

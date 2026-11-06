@@ -52,6 +52,14 @@ async function inspectSceneDesign() {
           s.layers.some((layer) => layer.mesh.visible && layer.mesh.material.opacity > 0 && layer.u.value > 0);
       }) && scene.background.uniforms.uEnvL.value > 0.1 && scene.background.uniforms.uEnvR.value > 0.1,
     viewfinder: Boolean(scene.viewfinder?.visible),
+    photoRing: scene.circularLabel ? {
+      visible: scene.circularLabel.visible,
+      opacity: scene.circularLabel.material.opacity,
+      aligned: scene.circularLabel.position.distanceTo(scene.logo.root.position) < 1,
+      painted: scene.labelCanvas.getContext("2d").getImageData(0, 0, 1024, 1024).data.some((v, i) => i % 4 === 3 && v > 0),
+      parent: scene.viewfinder.parent === scene.camera && scene.camera.parent === scene.scene,
+      titleHidden: getComputedStyle(title).display === "none",
+    } : null,
   };
 
   const tl = L.cfg.timeline;
@@ -173,7 +181,11 @@ async function inspectSceneDesign() {
 function assertSceneDesign(state) {
   const assert = require("node:assert/strict");
   assert.deepEqual(state.format, [1920, 1080], "размер экспортного кадра");
-  assert.ok(state.captionPixels > 1000, "титр отсутствует в экспортном canvas");
+  if (state.id === "photo-pause") {
+    assert.ok(state.photoRing?.visible && state.photoRing.opacity > 0 && state.photoRing.aligned &&
+      state.photoRing.painted && state.photoRing.parent && state.photoRing.titleHidden,
+      "круговой текст или уголки фотопаузы не подготовлены");
+  } else assert.ok(state.captionPixels > 1000, "титр отсутствует в экспортном canvas");
   assert.ok(state.sharedBackground, "не видны кольца, частицы или угловой свет");
   assert.ok(state.warmCorners.every((ratio) => ratio > 0.05), "золотой фон не попал в WebGL-кадр");
   assert.ok(state.noPlotter, "вступительный циркуль не должен оставаться на удержании");
@@ -189,12 +201,14 @@ function assertSceneDesign(state) {
   assert.ok(early.visible && early.opacity > 0 && early.sweep > late.sweep && late.sweep > 0 &&
     early.curtain === 0 && seekStable, "обратная орбита не отматывается или зависит от seek");
   assert.equal(closed.curtain, 1, "шов не закрылся после отмотки");
+  if (state.id !== "photo-pause") {
   assert.ok(state.layout.visibleLines > 10, "не удалось проверить расположение видимых строк");
   assert.ok(state.layout.minGap > 0, `текст не под логотипом: ${JSON.stringify(state.layout.closest)}`);
   assert.ok(state.layout.maxCenterOffset < 0.02, `текст не по центру: ${JSON.stringify(state.layout.mostOffset)}`);
   // Запрос заказчика: знак крупный, титр опущен в нижнюю треть, внизу нет пустого поля.
   assert.ok(state.layout.logoHeight > 0.41, `знак слишком мал: ${state.layout.logoHeight.toFixed(3)} высоты кадра`);
   assert.ok(state.layout.titleCenter > 0.60, `титр слишком высоко: ${state.layout.titleCenter.toFixed(3)}`);
+  }
   assert.ok(state.motion.every((sample) => sample.waveVisible && sample.captionSafe && sample.centerRing &&
       sample.waves.some((wave) => wave.visible && wave.opacity > 0.04)),
     "контурные волны отсутствуют или не освобождают область титров");
