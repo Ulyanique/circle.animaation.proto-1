@@ -56,3 +56,15 @@ export function exteriorDistance(alpha, width, height) {
   }
   return result;
 }
+
+/** Упаковка расстояния в два 8-битных канала для тонких, плавных линий. */
+export function packDistances(distances, maxDistance) {
+  const pixels = new Uint8Array(distances.length * 4);
+  for (let i = 0; i < distances.length; i++) {
+    const value = Math.round(Math.min(1, Math.max(0, distances[i] / maxDistance)) * 65535);
+    pixels[i * 4] = value >> 8;
+    pixels[i * 4 + 1] = value & 255;
+    pixels[i * 4 + 3] = 255;
+  }
+  return pixels;
+}

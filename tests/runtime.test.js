@@ -121,7 +121,7 @@ test("контурные волны непрерывно расходятся, �
   for (let i = 0; i < 100; i++) {
     const time = i * CONTOUR_WAVE_PERIOD / 100;
     const waves = Array.from({ length: CONTOUR_WAVE_COUNT }, (_, index) => contourWave(time, index));
-    assert.ok(Math.max(...waves.map((wave) => wave.opacity)) > 0.1);
+    assert.ok(Math.max(...waves.map((wave) => wave.opacity)) > 0.05);
     const next = contourWave(time + CONTOUR_WAVE_PERIOD, 0);
     assert.ok(Math.abs(next.distance - waves[0].distance) < 1e-9);
     assert.ok(Math.abs(next.opacity - waves[0].opacity) < 1e-9);

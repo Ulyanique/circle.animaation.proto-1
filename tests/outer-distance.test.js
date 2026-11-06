@@ -24,3 +24,13 @@ test('внешние пустоты и отдельные фрагменты ф�
   assert.equal(d[2 * w + 3], 1);
   assert.equal(d[2 * w + 5], 1);
 });
+
+test('расстояния упаковываются с точностью, достаточной для тонких линий', async () => {
+  const { packDistances } = await import('../src/outer-distance.js');
+  const values = [0, 0.1, 4.7, 30.25, 127.9, 128, 200];
+  const bytes = packDistances(values, 128);
+  for (const [i, value] of values.entries()) {
+    const decoded = (bytes[i * 4] * 256 + bytes[i * 4 + 1]) / 65535 * 128;
+    assert.ok(Math.abs(decoded - Math.min(value, 128)) <= 128 / 65535);
+  }
+});

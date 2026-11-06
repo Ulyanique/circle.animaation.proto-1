@@ -57,7 +57,7 @@ export function contourWave(time, index) {
   return {
     phase,
     // Расстояние от края силуэта: волна не масштабирует внутренние детали.
-    distance: 0.02 + 0.75 * expansion,
-    opacity: 0.15 * smooth(0.04, 0.22, phase) * (1 - smooth(0.38, 1, phase)),
+    distance: 0.02 + 0.44 * expansion,
+    opacity: 0.075 * smooth(0.04, 0.22, phase) * (1 - smooth(0.38, 1, phase)),
   };
 }

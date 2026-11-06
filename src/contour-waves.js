@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import svgText from "./assets/logo.svg?raw";
-import { exteriorDistance } from "./outer-distance.js";
+import { exteriorDistance, packDistances } from "./outer-distance.js";
 import { CONTOUR_WAVE_COUNT, contourWave } from "./scenes/cues.js";
 
 const SIZE = 512;
@@ -30,12 +30,7 @@ function silhouetteMask(logo) {
   const alpha = new Uint8Array(SIZE * SIZE);
   for (let i = 0; i < alpha.length; i++) alpha[i] = rgba[i * 4 + 3] >= 128 ? 1 : 0;
   const distances = exteriorDistance(alpha, SIZE, SIZE);
-  const pixels = new Uint8Array(SIZE * SIZE * 4);
-  for (let i = 0; i < distances.length; i++) {
-    const value = Math.round(Math.min(1, distances[i] / MAX_DISTANCE) * 255);
-    pixels[i * 4] = pixels[i * 4 + 1] = pixels[i * 4 + 2] = value;
-    pixels[i * 4 + 3] = 255;
-  }
+  const pixels = packDistances(distances, MAX_DISTANCE);
   cachedMask = { pixels, worldSize: extent * K };
   return cachedMask;
 }
@@ -60,9 +55,11 @@ const FRAG = /* glsl */ `
   varying float vScreenY;
   void main() {
     // Текстура хранит расстояние только от ВНЕШНЕЙ границы объединённого силуэта.
-    float dist = texture2D(uDistance, vec2(vUv.x, 1.0 - vUv.y)).r * (128.0 / 512.0);
-    float width = max(fwidth(dist) * 0.85, 0.0008);
-    float line = 1.0 - smoothstep(width, width * 2.2, abs(dist - uRadius));
+    vec4 packed = texture2D(uDistance, vec2(vUv.x, 1.0 - vUv.y));
+    float dist = (packed.r * 255.0 * 256.0 + packed.g * 255.0) / 65535.0 * (128.0 / 512.0);
+    // Субпиксельное сглаживание без широкой светящейся полосы.
+    float width = max(fwidth(dist) * 0.35, 0.0001);
+    float line = 1.0 - smoothstep(width * 0.15, width * 1.6, abs(dist - uRadius));
     float captionMask = mix(1.0, smoothstep(-0.42, -0.22, vScreenY), uCaptionSafe);
     gl_FragColor = vec4(uColor, line * uOpacity * captionMask);
   }
