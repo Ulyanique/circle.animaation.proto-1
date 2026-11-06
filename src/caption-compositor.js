@@ -178,6 +178,8 @@ export function drawCaption(ctx, alpha, sceneId) {
     const size = el ? parseFloat(getComputedStyle(el).fontSize) * scale : NaN;
     return Number.isFinite(size) && size > 0 ? size : fallback;
   };
+  const color = (name) => getComputedStyle(cap).getPropertyValue(`--${name}-color`).trim() || null;
+  const titleColor = color("title"), subtitleColor = color("subtitle"), dateColor = color("date");
   const tSize = fontSize(".cap-title", (photo ? 6.7 : finale ? 6.6 : 7.2) * u);
   const subSize = fontSize(".cap-sub", (finale ? 2.55 : 2.4) * u);
   const dateSize = fontSize(".cap-date", 1.5 * u);
@@ -198,22 +200,22 @@ export function drawCaption(ctx, alpha, sceneId) {
   const titlePosition = linePosition(".cap-title", (brand || photo || finale) ? 0.65 * H : 0.55 * H);
   textLine(".cap-title", {
     ...titlePosition,
-    weight: 600, size: tSize, ls: 0, stroke: "#e0b25a", sw: 0.08 * u, shadow: true, fill: titleGrad,
+    weight: 600, size: tSize, ls: 0, stroke: titleColor || "#e0b25a", sw: 0.08 * u, shadow: true, fill: titleColor || titleGrad,
   });
   if (finale) {
     textLine(".cap-sub", {
       ...linePosition(".cap-sub", 0.79 * H), weight: 400, size: subSize, ls: 0.18 * subSize,
-      stroke: "#d9b061", sw: 0.04 * u, fill: "#ecd08c",
+      stroke: subtitleColor || "#d9b061", sw: 0.04 * u, fill: subtitleColor || "#ecd08c",
     });
   }
   if (!brand && !photo && !finale) {
     rule(".r1", 0.66 * H);
     rule(".r2", 0.79 * H);
     textLine(".cap-sub", {
-      ...linePosition(".cap-sub", 0.72 * H), weight: 400, size: subSize, ls: 0.32 * subSize, stroke: "#d9b061", sw: 0.04 * u, fill: "#ecd08c",
+      ...linePosition(".cap-sub", 0.72 * H), weight: 400, size: subSize, ls: 0.32 * subSize, stroke: subtitleColor || "#d9b061", sw: 0.04 * u, fill: subtitleColor || "#ecd08c",
     });
     textLine(".cap-date", {
-      ...linePosition(".cap-date", 0.84 * H), weight: 400, size: dateSize, ls: 0.28 * dateSize, stroke: "#d9b061", sw: 0.035 * u, fill: "#d9b061",
+      ...linePosition(".cap-date", 0.84 * H), weight: 400, size: dateSize, ls: 0.28 * dateSize, stroke: dateColor || "#d9b061", sw: 0.035 * u, fill: dateColor || "#d9b061",
     });
   }
   ctx.restore();

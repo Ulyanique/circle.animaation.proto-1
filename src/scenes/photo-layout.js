@@ -2,7 +2,9 @@
  * @param {string} text @param {number} repeats @param {number} radius
  * @param {(glyph:string) => number} measure */
 export function circularGlyphLayout(text, repeats, radius, measure) {
-  const phrase = (String(text || 'ФОТОПАУЗА').trim() || 'ФОТОПАУЗА').toLocaleUpperCase('ru') + ' • ';
+  const content = String(text ?? 'ФОТОПАУЗА').trim();
+  if (!content) return [];
+  const phrase = content.toLocaleUpperCase('ru') + ' • ';
   const segmenter = typeof Intl.Segmenter === 'function' ? new Intl.Segmenter('ru', { granularity: 'grapheme' }) : null;
   const glyphs = segmenter ? [...segmenter.segment(phrase)].map(p => p.segment) : Array.from(phrase);
   const count = Math.max(1, Math.min(8, Math.round(repeats)));

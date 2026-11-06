@@ -2,6 +2,7 @@ import * as THREE from "three";
 import { BrandScene } from "./brand-scene.js";
 import { computePhase } from "./timeline.js";
 import { captionState } from "./caption.js";
+import { validCustomColor } from "./caption-content.js";
 import { fontName } from "./fonts.js";
 import { circularGlyphLayout, viewfinderSegments, photoLabelCenter } from "./scenes/photo-layout.js";
 
@@ -45,7 +46,7 @@ export class PhotoPauseScene extends BrandScene {
   updateText(config) {
     const p = config.photo;
     const family = fontName(config.typography?.font);
-    const sig = [p.text, p.repeats, p.radius, p.fontSize, p.color, family].join('|');
+    const sig = [p.text, p.repeats, p.radius, p.fontSize, p.color, p.textColor, family].join('|');
     if (sig === this.textSig) return;
     this.textSig = sig;
     const diameter = 2 * (p.radius + p.fontSize * 1.3);
@@ -55,7 +56,7 @@ export class PhotoPauseScene extends BrandScene {
     ctx.clearRect(0, 0, TEX_SIZE, TEX_SIZE);
     ctx.font = `600 ${p.fontSize * pixelsPerUnit}px "${family}", Georgia, serif`;
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillStyle = p.color;
+    ctx.fillStyle = validCustomColor(p.textColor) ?? p.color;
     const layout = circularGlyphLayout(p.text, p.repeats, radius, glyph => ctx.measureText(glyph).width);
     for (const { glyph, angle, scale } of layout) {
       if (!glyph.trim()) continue;

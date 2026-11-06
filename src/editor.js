@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { moveLogo, moveTitle, snapRect, resizeFromDistance } from './editor-math.js';
 import { EditorHistory } from './editor-history.js';
+import { validCustomColor } from './caption-content.js';
 
 /** Рамки редактора находятся только в DOM и не попадают в экспорт. */
 export function createFrameEditor({ getState, onEnable, onChange, onSettings, onHistoryConflict }) {
@@ -39,12 +40,20 @@ export function createFrameEditor({ getState, onEnable, onChange, onSettings, on
   }
   const menu = document.createElement('div');
   menu.className = 'editor-menu'; menu.hidden = true;
-  menu.innerHTML = '<button type="button" data-action="align-x">По центру по горизонтали</button><button type="button" data-action="align-y">По центру по вертикали</button><button type="button" data-action="settings">Настройки элемента</button><button type="button" data-action="reset">Сбросить положение</button><button type="button" data-action="reset-size">Сбросить размер</button>';
+  menu.innerHTML = `<div class="editor-appearance">
+    <label data-field="text">Текст <input type="text" data-appearance="text" maxlength="120" autocomplete="off"></label>
+    <label data-field="color"><span data-color-label>Цвет</span> <input type="color" data-appearance="color"></label>
+    <div class="editor-appearance-reset"><button type="button" data-action="reset-text">Исходный текст</button><button type="button" data-action="reset-color">Исходный цвет</button></div>
+  </div><button type="button" data-action="align-x">По центру по горизонтали</button><button type="button" data-action="align-y">По центру по вертикали</button><button type="button" data-action="settings">Настройки элемента</button><button type="button" data-action="reset">Сбросить положение</button><button type="button" data-action="reset-size">Сбросить размер</button>`;
+  const textInput = menu.querySelector('[data-appearance="text"]');
+  const colorInput = menu.querySelector('[data-appearance="color"]');
+  const textRow = menu.querySelector('[data-field="text"]');
+  const resetTextButton = menu.querySelector('[data-action="reset-text"]');
   layer.appendChild(menu); document.body.appendChild(layer);
 
   const bbox = new THREE.Box3(), point = new THREE.Vector3(), ray = new THREE.Raycaster();
   const plane = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0);
-  let enabled = false, selected = null, drag = null, snapRects = {};
+  let enabled = false, selected = null, drag = null, inputSession = null, snapRects = {};
   const place = (el, r) => {
     el.style.left = `${r.left}px`; el.style.top = `${r.top}px`;
     el.style.width = `${Math.max(1, r.width)}px`; el.style.height = `${Math.max(1, r.height)}px`;
@@ -58,6 +67,53 @@ export function createFrameEditor({ getState, onEnable, onChange, onSettings, on
     subtitle: { section: 'caption', key: 'subtitleScale', min: 0.5, max: 2 },
     date: { section: 'caption', key: 'dateScale', min: 0.5, max: 2 },
   };
+  const appearance = {
+    logo: { color: {section: 'colors', key: 'gold'}, fallback: '#c8962e' },
+    photoLabel: { text: {section: 'photo', key: 'text'}, color: {section: 'photo', key: 'textColor'}, fallback: '#e8c77e', maxLength: 40 },
+    brandDecor: { color: {section: 'decor', key: 'color'}, fallback: '#d9b268' },
+    title: { text: {section: 'caption', key: 'titleText'}, color: {section: 'caption', key: 'titleColor'}, fallback: '#e0b25a' },
+    subtitle: { text: {section: 'caption', key: 'subtitleText'}, color: {section: 'caption', key: 'subtitleColor'}, fallback: '#ecd08c' },
+    date: { text: {section: 'caption', key: 'dateText'}, color: {section: 'caption', key: 'dateColor'}, fallback: '#d9b061' },
+  };
+  function appearanceFields(id, kind) {
+    const field = appearance[id]?.[kind];
+    return field ? [field] : [];
+  }
+  function finishInput() {
+    if (!inputSession) return;
+    const current = inputSession; inputSession = null;
+    record(current.sceneId, current.config, current.before);
+  }
+  function populateAppearance(id) {
+    const info = appearance[id], cfg = getState().config;
+    menu.querySelector('[data-color-label]').textContent = id === 'logo' ? 'Общий цвет золота' : 'Цвет';
+    textRow.hidden = !info.text; resetTextButton.hidden = !info.text;
+    if (info.text) {
+      textInput.value = cfg[info.text.section][info.text.key] ?? '';
+      textInput.maxLength = info.maxLength ?? 120;
+    }
+    const value = cfg[info.color.section][info.color.key];
+    colorInput.value = validCustomColor(value) ??
+      (id === 'photoLabel' ? validCustomColor(cfg.photo.color) : null) ?? info.fallback;
+  }
+  for (const input of [textInput, colorInput]) {
+    const begin = () => {
+      if (inputSession || !selected) return;
+      const state = getState();
+      const field = appearanceFields(selected, input.dataset.appearance);
+      inputSession = { sceneId: state.id, config: state.config, before: snapshot(state.config, field), field: field[0] };
+    };
+    input.addEventListener('focus', begin);
+    input.addEventListener('input', () => {
+      begin();
+      if (!inputSession?.field) return;
+      const {section, key} = inputSession.field;
+      inputSession.config[section][key] = input.value;
+      onChange();
+    });
+    input.addEventListener('change', finishInput);
+    input.addEventListener('blur', finishInput);
+  }
   function positionFields(id) {
     const section = worldSection[id];
     return section ? [{section, key: 'offsetX'}, {section, key: 'offsetY'}]
@@ -78,6 +134,7 @@ export function createFrameEditor({ getState, onEnable, onChange, onSettings, on
   }
   function historyAction(direction) {
     if (!enabled || drag) return;
+    finishInput();
     const state = getState();
     const result = history.apply(state.id, state.config, direction);
     if (result === 'applied') { menu.hidden = true; onChange(); refresh(); }
@@ -108,9 +165,11 @@ export function createFrameEditor({ getState, onEnable, onChange, onSettings, on
     return ray.ray.intersectPlane(plane, new THREE.Vector3());
   }
   function select(id, showMenu) {
+    finishInput();
     selected = id;
     for (const [name, box] of Object.entries(boxes)) box.classList.toggle('selected', name === id);
     menu.hidden = !showMenu;
+    if (showMenu) populateAppearance(id);
     refresh();
   }
   function refresh() {
@@ -169,11 +228,12 @@ export function createFrameEditor({ getState, onEnable, onChange, onSettings, on
       decor?.group.position, getState().config.decor?.radius ?? 0);
     if (selected && !menu.hidden && !boxes[selected].hidden) {
       const r = boxes[selected].getBoundingClientRect();
-      menu.style.left = `${Math.min(window.innerWidth - 200, Math.max(4, r.left))}px`;
-      menu.style.top = `${Math.max(4, Math.min(window.innerHeight - 205, r.bottom + 6))}px`;
+      menu.style.left = `${Math.max(4, Math.min(window.innerWidth - menu.offsetWidth - 4, r.left))}px`;
+      menu.style.top = `${Math.max(4, Math.min(window.innerHeight - menu.offsetHeight - 4, r.bottom + 6))}px`;
     }
   }
   function disable() {
+    finishInput();
     if (drag) {
       record(drag.sceneId, drag.config, drag.before);
       drag = null;
@@ -283,8 +343,12 @@ export function createFrameEditor({ getState, onEnable, onChange, onSettings, on
   menu.addEventListener('click', (event) => {
     const action = event.target.closest('button')?.dataset.action;
     if (!selected || !action) return;
+    finishInput();
     const state = getState();
-    const before = snapshot(state.config, action === 'reset-size' ? sizeFields(selected) : positionFields(selected));
+    const fields = action === 'reset-size' ? sizeFields(selected)
+      : action === 'reset-color' ? appearanceFields(selected, 'color')
+      : action === 'reset-text' ? appearanceFields(selected, 'text') : positionFields(selected);
+    const before = snapshot(state.config, fields);
     if (action === 'align-x' || action === 'align-y') {
       const xAxis = action === 'align-x';
       if (worldSection[selected]) {
@@ -312,6 +376,13 @@ export function createFrameEditor({ getState, onEnable, onChange, onSettings, on
       state.config[size.section][size.key] = state.defaults[size.section][size.key];
       onChange();
     }
+    if (action === 'reset-text' || action === 'reset-color') {
+      const field = fields[0];
+      if (field) {
+        state.config[field.section][field.key] = state.defaults[field.section][field.key];
+        onChange();
+      }
+    }
     if (action === 'settings') onSettings(worldSection[selected] || 'caption');
     if (action === 'reset') {
       if (worldSection[selected]) {
@@ -329,9 +400,9 @@ export function createFrameEditor({ getState, onEnable, onChange, onSettings, on
   });
   window.addEventListener('keydown', (event) => {
     if (!enabled) return;
-    if (event.key === 'Escape') { if (drag) cancelDrag(); else disable(); return; }
     if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement ||
         event.target instanceof HTMLSelectElement || event.target.isContentEditable) return;
+    if (event.key === 'Escape') { if (drag) cancelDrag(); else disable(); return; }
     const modifier = event.ctrlKey || event.metaKey;
     if (modifier && !event.altKey && (event.key.toLowerCase() === 'z' || event.key.toLowerCase() === 'y')) {
       event.preventDefault(); event.stopPropagation();
@@ -340,7 +411,7 @@ export function createFrameEditor({ getState, onEnable, onChange, onSettings, on
   });
   return {
     refresh, disable, cancelDrag,
-    clearHistory(id) { history.clear(id); updateHistory(); },
+    clearHistory(id) { if (getState().id === id) finishInput(); history.clear(id); updateHistory(); },
     invalidateHistory(id, section, key) { history.invalidate(id, section, key); updateHistory(); },
     get enabled() { return enabled; },
   };

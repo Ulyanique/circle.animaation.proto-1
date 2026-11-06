@@ -172,13 +172,20 @@ export function createSettingsUI({
           const input = document.createElement("input");
           input.type = "color";
           input.dataset.key = `${section.id}.${f.key}`;
-          input.value = holder[f.key];
+          input.value = holder[f.key] ?? f.fallback ?? "#000000";
           input.addEventListener("input", () => {
             holder[f.key] = input.value;
             commit(section.id, f.key);
           });
-          inputs.push({ set: () => { input.value = holder[f.key]; } });
+          inputs.push({ set: () => { input.value = holder[f.key] ?? f.fallback ?? "#000000"; } });
           row.appendChild(input);
+          if (f.fallback) {
+            const reset = document.createElement("button");
+            reset.type = "button"; reset.textContent = "Исходный";
+            reset.title = "Вернуть исходное оформление";
+            reset.addEventListener("click", (event) => { event.preventDefault(); event.stopPropagation(); holder[f.key] = defaults[section.id][f.key]; input.value = holder[f.key] ?? f.fallback; commit(section.id, f.key); });
+            row.appendChild(reset);
+          }
         } else if (f.type === "bool") {
           const input = document.createElement("input");
           input.type = "checkbox";

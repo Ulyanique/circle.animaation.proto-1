@@ -5,6 +5,7 @@ import { loadContourFonts } from "./contour-fonts.js";
 import { parse as parseFont } from "opentype.js";
 import { sources as contourSources } from "./contour-font-assets.js";
 import { refreshContours } from "./contour-preview.js";
+import { syncCaptionContent } from "./caption-content.js";
 import {
   cloneDefaults, loadSceneConfig, saveSceneConfig, replaceConfig, mergeConfig, projectToJSON,
 } from "./config.js";
@@ -63,29 +64,6 @@ function toast(msg, isError = false) {
   toastTimer = setTimeout(() => toastEl.classList.remove("show"), 2200);
 }
 
-const sceneCopy = {
-  "photo-pause": { title: "Фотопауза" },
-  finale: { title: "Янтарный циркуль", subtitle: "История продолжается" },
-};
-function activateText(id) {
-  const copy = sceneCopy[id];
-  for (const el of document.querySelectorAll("#caption [data-text]")) {
-    const name = el.classList.contains("cap-title") ? "title" : el.classList.contains("cap-sub") ? "subtitle" : "date";
-    const text = copy?.[name] ?? el.dataset.original;
-    el.dataset.text = text;
-    const letters = typeof Intl.Segmenter === "function"
-      ? [...new Intl.Segmenter("ru", { granularity: "grapheme" }).segment(text)].map((part) => part.segment)
-      : Array.from(text);
-    el.replaceChildren(...letters.map((letter) => {
-      const span = document.createElement("span");
-      span.className = "cap-glyph";
-      span.textContent = letter === " " ? "\u00a0" : letter;
-      span.dataset.glyph = span.textContent;
-      return span;
-    }));
-  }
-}
-for (const el of document.querySelectorAll("#caption [data-text]")) el.dataset.original = el.textContent;
 function activateClasses(id) {
   for (const name of ["brand", "photo-pause", "finale"]) {
     document.body.classList.toggle(`scene-${name === "photo-pause" ? "photo" : name}`, id === name);
@@ -93,18 +71,18 @@ function activateClasses(id) {
   document.body.classList.toggle("scene-waiting", id === "waiting");
 }
 activateClasses(sceneId);
-activateText(sceneId);
 function applyTypography(force = false) {
   const cap = document.getElementById("caption");
   const font = cfg.typography?.font || "cormorant-garamond";
   const sizes = ["title", "subtitle", "date"].map(name => cfg.caption?.[`${name}Scale`] ?? 1);
   const signature = `${font}:${sizes.join(":")}`;
+  const textChanged = syncCaptionContent(cap, cfg.caption);
   const changed = cap.dataset.fontSignature !== signature;
   for (const [i, name] of ["title", "subtitle", "date"].entries()) cap.style.setProperty(`--${name}-scale`, sizes[i]);
   cap.dataset.fontSignature = signature;
   cap.style.fontFamily = `"${fontName(font)}", Georgia, serif`;
   cap.dataset.font = font;
-  if (changed || force || !cap.classList.contains("contours-ready")) refreshContours(font);
+  if (textChanged || changed || force || !cap.classList.contains("contours-ready")) refreshContours(font);
 }
 applyTypography();
 
@@ -257,7 +235,6 @@ function switchScene(id, source) {
   scene = nextScene;
   runtime = new AnimationRuntime(scene, cfg, OUTPUT.fps);
   activateClasses(id);
-  activateText(id);
   applyTypography(true);
   runtime.renderAt(cfg.timeline.startDelay, 1 / OUTPUT.fps);
   oldScene.dispose();
