@@ -411,7 +411,7 @@ export class Corners {
       }
       s.construction?.geometry.setDrawRange(0, Math.ceil(193 * construction));
 
-      const flick = 1 + cfg.rings.flicker * (Math.sin(t * 7.3 + (name === "left" ? 0 : 2.1)) * 0.5 + Math.sin(t * 2.9 + 4.0) * 0.5);
+      const flick = 1 + cfg.rings.flicker * (Math.sin(t * 1.8 + (name === "left" ? 0 : 2.1)) * 0.5 + Math.sin(t * 0.75 + 4.0) * 0.5);
       const lightCol = name === "left" ? cfg.colors.lightLeft : cfg.colors.lightRight;
       const intensity = cfg.rings.lightStrength * flick * 6 * cfg.lights.exposure * env * (1 - 0.55 * focus);
       const light = this.lights[name];

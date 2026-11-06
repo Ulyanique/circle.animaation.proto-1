@@ -29,6 +29,10 @@ const CAM_Z = 9;
 const REVEAL_MAX = 2.9; // радиус проявления, покрывающий весь логотип
 const TAU = Math.PI * 2;
 const easeOutCubic = (x) => 1 - Math.pow(1 - x, 3);
+// Не переписываем сотни неизменившихся CSS-свойств на каждом кадре удержания.
+const setStyleIfChanged = (el, name, value) => {
+  if (el.style.getPropertyValue(name) !== value) el.style.setProperty(name, value);
+};
 
 export { computePhase } from "./timeline.js";
 
@@ -351,17 +355,17 @@ export class LogoScene {
         const el = capEl.querySelector(sel);
         if (!el) continue;
         const accent = captionAccent(name, line, ph.name === "fade" || ph.name === "rest");
-        el.style.setProperty("--p", line.outline.toFixed(4));
-        if (line.fill !== undefined) el.style.setProperty("--f", line.fill.toFixed(4));
-        el.style.setProperty("--lift", `${(accent.rise * u).toFixed(3)}px`);
-        el.style.setProperty("--pen", accent.pen.toFixed(4));
+        setStyleIfChanged(el, "--p", line.outline.toFixed(4));
+        if (line.fill !== undefined) setStyleIfChanged(el, "--f", line.fill.toFixed(4));
+        setStyleIfChanged(el, "--lift", `${(accent.rise * u).toFixed(3)}px`);
+        setStyleIfChanged(el, "--pen", accent.pen.toFixed(4));
         if (line.fill !== undefined) {
           const glyphs = el.children;
           for (let i = 0; i < glyphs.length; i++) {
             const glyph = glyphReveal(line, i, glyphs.length);
-            glyphs[i].style.setProperty("--o", glyph.outline.toFixed(4));
-            glyphs[i].style.setProperty("--f", glyph.fill.toFixed(4));
-            glyphs[i].style.setProperty("--gpen", (accent.pen * Math.sin(Math.PI * glyph.outline)).toFixed(4));
+            setStyleIfChanged(glyphs[i], "--o", glyph.outline.toFixed(4));
+            setStyleIfChanged(glyphs[i], "--f", glyph.fill.toFixed(4));
+            setStyleIfChanged(glyphs[i], "--gpen", (accent.pen * Math.sin(Math.PI * glyph.outline)).toFixed(4));
           }
         }
       }

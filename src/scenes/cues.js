@@ -4,7 +4,7 @@ const clamp = (x) => Math.max(0, Math.min(1, x));
 /** @param {number} a @param {number} b @param {number} x */
 const smooth = (a, b, x) => {
   const v = clamp((x - a) / (b - a));
-  return v * v * (3 - 2 * v);
+  return v * v * v * (v * (v * 6 - 15) + 10);
 };
 
 /** Световой акцент стартового интро: лучи, раскрытие и подъезд камеры.

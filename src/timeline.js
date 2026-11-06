@@ -4,7 +4,8 @@ const smooth = (a, b, x) => {
   const t = clamp01((x - a) / (b - a));
   return t * t * (3 - 2 * t);
 };
-const easeInOutCubic = (x) => (x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2);
+// Нулевая скорость и ускорение на концах: фазы не дают резкого толчка.
+const easeInOutCubic = (x) => { const t = clamp01(x); return t * t * t * (t * (t * 6 - 15) + 10); };
 
 /**
  * Огибающая угловых огней: из пустоты в начале цикла, обратно в пустоту к паузе.
@@ -63,12 +64,13 @@ export function computePhase(t, tl) {
     const p = (local - D - E - H) / Math.max(F, 1e-4);
     // После ухода строк золото уходит в тень, а тонкий контур гаснет последним.
     reveal = 1 - easeInOutCubic(smooth(0.58, 0.94, p));
+    fill = reveal; // без скачка заливки на стыке удержания и ухода
     outline = smooth(0.62, 0.76, p) * (1 - smooth(0.86, 1.0, p));
     // Линия отматывается к первой точке чертежа, а не исчезает целиком.
     draw = 1 - smooth(0.78, 1.0, p);
   }
   // прогресс «удержания» для плавного увеличения (0 → 1 от появления до ухода)
-  const grow = clamp01((local - D) / Math.max(E + H + F, 1e-4));
+  const grow = smooth(0, 1, (local - D) / Math.max(E + H + F, 1e-4));
   const rings = ringsEnvelope({ local }, tl);
   // секунды от начала появления (для искр); -1 — вне интервала
   if (local >= D && local < D + E + H + F) emergeT = local - D;

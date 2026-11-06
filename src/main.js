@@ -144,6 +144,10 @@ window.addEventListener("keydown", (e) => {
 });
 
 let last = performance.now();
+// Возврат из фоновой вкладки не должен перематывать анимацию на минуты вперёд.
+document.addEventListener("visibilitychange", () => {
+  if (!document.hidden && !recording) last = performance.now();
+});
 let recording = null; // один цикл текущей сцены, переключение на время записи заблокировано
 const operator = createOperatorControls({
   getState: () => ({ id: sceneId, time: runtime.time, config: cfg, cycle: runtime.cycle,
@@ -411,6 +415,7 @@ function stopRecording() {
 }
 
 let firstFrameRendered = false;
+let lastOperatorRefresh = 0;
 function frame(now) {
   const elapsed = Math.max(0, (now - last) / 1000);
   const renderDt = Math.min(0.05, elapsed);
@@ -434,7 +439,10 @@ function frame(now) {
     const fonts = Promise.all([loadFonts(), loadContourFonts(contourSources, parseFont)]).catch((error) => console.warn("Не удалось загрузить контуры шрифтов", error));
     fonts.then(() => { applyTypography(true); window.__bootReady?.(); });
   }
-  operator.refresh();
+  if (now - lastOperatorRefresh >= 120) {
+    operator.refresh();
+    lastOperatorRefresh = now;
+  }
   if (recording?.kind === "single") {
     drawCompositeFrame(recording.ctx);
     if (runtime.time >= recording.start + recording.cycle) stopRecording();

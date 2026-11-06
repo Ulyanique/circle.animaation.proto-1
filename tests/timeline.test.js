@@ -270,3 +270,32 @@ test("короткие фазы не дают скачка подписи на �
   assert.ok(Math.abs(captionProgress(short.startDelay + c - 1e-6, short) -
     captionProgress(short.startDelay + c, short)) < 1e-4);
 });
+
+test("буквы раскрываются с перекрытием, а не вспыхивают по одной за кадр", () => {
+  const n = 17;
+  const line = { outline: 0.5, fill: 0 };
+  const visible = Array.from({ length: n }, (_, i) => glyphReveal(line, i, n).outline);
+  assert.ok(visible.filter(p => p > 0 && p < 1).length >= 3);
+  assert.ok(visible.every((v, i) => i === 0 || v <= visible[i - 1]));
+  let maxStep = 0;
+  for (let frame = 1; frame <= 120; frame++) {
+    for (let i = 0; i < n; i++) {
+      const a = glyphReveal(captionLines((frame - 1) / 120 * 0.88).title, i, n).outline;
+      const b = glyphReveal(captionLines(frame / 120 * 0.88).title, i, n).outline;
+      maxStep = Math.max(maxStep, Math.abs(b - a));
+    }
+  }
+  assert.ok(maxStep < 0.12, `рывок контура: ${maxStep}`);
+});
+
+test("масштаб и заливка логотипа непрерывны на границах фаз", () => {
+  const start = tl.drawDuration;
+  const fade = tl.drawDuration + tl.emergeDuration + tl.holdDuration;
+  const epsilon = 1e-4;
+  assert.ok(Math.abs(at(start + epsilon).grow - at(start - epsilon).grow) < 1e-6);
+  assert.ok(Math.abs(at(fade + epsilon).fill - at(fade - epsilon).fill) < 1e-6);
+  assert.ok(Math.abs(at(fade + epsilon).reveal - at(fade - epsilon).reveal) < 1e-6);
+  for (const boundary of [start, start + tl.emergeDuration, fade, fade + tl.fadeDuration]) {
+    assert.ok(Math.abs(at(boundary + epsilon).draw - at(boundary - epsilon).draw) < 1e-3);
+  }
+});

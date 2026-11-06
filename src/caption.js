@@ -8,10 +8,14 @@ const CAP_MAX = 2.9;
 
 /** Общая для DOM и записи в canvas маска: каждая буква обводится, затем заполняется. */
 export function glyphReveal(line, index, count) {
-  const span = Math.max(1, count);
+  const n = Math.max(1, count);
+  // Несколько соседних букв пишутся одновременно: отдельный контур больше
+  // не должен укладываться в один-два кадра на длинной строке.
+  const window = Math.max(1 / n, 0.24);
+  const start = n === 1 ? 0 : clamp(index / (n - 1), 0, 1) * (1 - window);
   return {
-    outline: smooth(index / span, (index + 0.92) / span, line.outline),
-    fill: smooth(index / span, (index + 0.92) / span, line.fill ?? 0),
+    outline: smooth(start, start + window, line.outline),
+    fill: smooth(start, start + window, line.fill ?? 0),
   };
 }
 
