@@ -3,6 +3,7 @@ import { loopLocal } from "./scenes/cues.js";
 const TAU = Math.PI * 2;
 const HALF_H = Math.tan(Math.PI / 12) * 9;
 const HALF_W = HALF_H * 16 / 9;
+const KEYFRAME_PROPS = ["x", "y", "scale", "rotation", "opacity"];
 /** @param {number} x */
 const clamp01 = (x) => Math.max(0, Math.min(1, x));
 /** @param {number} a @param {number} b @param {number} x */
@@ -12,6 +13,18 @@ const smooth = (a, b, x) => {
 };
 /** @param {any} value */
 const clone = (value) => JSON.parse(JSON.stringify(value));
+/** @param {number} t @param {number} cycle */
+const normalizedTime = (t, cycle) => {
+  const c = Math.max(0.1, cycle);
+  return ((Number(t) % c) + c) % c;
+};
+/** @param {number} k @param {string} easing */
+function easeKeyframe(k, easing) {
+  if (easing === "smooth") return k * k * (3 - 2 * k);
+  if (easing === "ease-in") return k * k;
+  if (easing === "ease-out") return 1 - (1 - k) * (1 - k);
+  return k;
+}
 
 /** @param {number} x @param {number} y */
 export function worldToNormalized(x, y) {
@@ -58,7 +71,7 @@ function base(id, x, y, zIndex = 0) {
   return {
     id, x, y, scale: 1, rotation: 0, zIndex, color: "",
     inPreset: "contour-to-fill", outPreset: "reverse-contour", loopPreset: "none",
-    timing: { start: 0, duration: 1 }, locked: false,
+    timing: { start: 0, duration: 1 }, keyframes: [], locked: false,
   };
 }
 
@@ -99,32 +112,83 @@ export function elementBox(id) {
   return ELEMENT_SPECS[id]?.box || { w: 0.2, h: 0.2 };
 }
 
+/** Чистая интерполяция keyframes с бесшовным переходом последнего ключа в первый.
+ * @param {any} el @param {number} t @param {number} cycle
+ */
+export function elementKeyframeState(el, t, cycle) {
+  const c = Math.max(0.1, cycle);
+  /** @type {any[]} */
+  const raw = Array.isArray(el?.keyframes) ? el.keyframes : [];
+  if (!raw.length) return null;
+  /** @type {any[]} */
+  const frames = raw
+    .filter(/** @param {any} k */ (k) => k && Number.isFinite(Number(k.t)))
+    .map(/** @param {any} k */ (k) => ({ ...k, t: normalizedTime(Number(k.t), c) }))
+    .sort(/** @param {any} a @param {any} b */ (a, b) => a.t - b.t);
+  if (!frames.length) return null;
+  const local = normalizedTime(t, c);
+  /** @type {any[]} */
+  const segments = [];
+  for (let i = 0; i < frames.length; i++) {
+    const a = frames[i];
+    const b = frames[(i + 1) % frames.length];
+    segments.push({ a, b, aT: a.t, bT: i === frames.length - 1 ? b.t + c : b.t });
+  }
+  const wrap = {
+    a: frames[frames.length - 1], b: frames[0],
+    aT: frames[frames.length - 1].t - c, bT: frames[0].t,
+  };
+  let seg = segments.find((s) => local >= s.aT && local <= s.bT);
+  if (!seg && local < frames[0].t) seg = wrap;
+  if (!seg) seg = segments[0];
+  const k = easeKeyframe(clamp01((local - seg.aT) / Math.max(1e-4, seg.bT - seg.aT)), seg.a.easing || "smooth");
+  /** @type {Record<string, number | undefined>} */
+  const out = {};
+  for (const prop of KEYFRAME_PROPS) {
+    const av = Number(seg.a[prop]);
+    const bv = Number(seg.b[prop]);
+    out[prop] = Number.isFinite(av) && Number.isFinite(bv)
+      ? av + (bv - av) * k
+      : Number.isFinite(av) ? av : undefined;
+  }
+  return out;
+}
+
 /** Чистая анимация элемента от абсолютного времени: без DOM и истории кадров.
  * @param {any} el @param {number} t @param {number} cycle
  */
 export function elementAnimation(el, t, cycle) {
   const e = el || {};
-  const local = loopLocal(t, Math.max(0.1, cycle));
+  const c = Math.max(0.1, cycle);
+  const local = loopLocal(t, c);
   const start = Math.max(0, Number(e.timing?.start ?? 0) || 0);
   const duration = Math.max(0.01, Number(e.timing?.duration ?? 1) || 1);
   const inK = smooth(start, start + duration, local);
-  const outStart = Math.max(0, cycle - duration);
+  const outStart = Math.max(0, c - duration);
   const outK = 1 - smooth(outStart, outStart + duration, local);
   const presetIn = e.inPreset || "contour-to-fill";
   const presetOut = e.outPreset || "reverse-contour";
   const opacity = (presetIn === "fade" || presetIn === "scale-in" || presetIn === "draw-on" ? inK : 1) *
     (presetOut === "fade" || presetOut === "scale-out" || presetOut === "reverse-contour" ? outK : 1);
   const loop = e.loopPreset || "none";
-  const breath = loop === "none" ? 0 : Math.sin(TAU * local / cycle);
+  const breath = loop === "none" ? 0 : Math.sin(TAU * local / c);
   const scale = (presetIn === "scale-in" ? 0.82 + 0.18 * inK : 1) *
     (presetOut === "scale-out" ? 1 - 0.32 * (1 - outK) : 1) *
     (loop === "quiet-breath" ? 1 + 0.012 * breath : 1);
-  return {
-    opacity, scale,
-    rotation: loop === "slow-drift" ? 0.025 * breath : 0,
-    x: loop === "slow-drift" ? 0.008 * Math.cos(TAU * local / cycle) : 0,
-    y: loop === "slow-drift" ? 0.006 * breath : 0,
-  };
+  const rotation = loop === "slow-drift" ? 0.025 * breath : 0;
+  const x = loop === "slow-drift" ? 0.008 * Math.cos(TAU * local / c) : 0;
+  const y = loop === "slow-drift" ? 0.006 * breath : 0;
+  const kf = elementKeyframeState(e, t, c);
+  if (kf) {
+    return {
+      opacity: kf.opacity ?? opacity,
+      scale: kf.scale ?? scale,
+      rotation: kf.rotation ?? rotation,
+      x: kf.x ?? x,
+      y: kf.y ?? y,
+    };
+  }
+  return { opacity, scale, rotation, x, y };
 }
 
 /** @param {any} el @param {number} t @param {number} cycle
@@ -182,6 +246,54 @@ export function setElementTransform(cfg, id, patch) {
   const current = elements[id] || createElementDefaults("waiting")[id] || base(id, 0.5, 0.5);
   elements[id] = { ...current, ...patch, timing: { ...current.timing, ...(patch.timing || {}) } };
   return elements[id];
+}
+
+/** Добавить/обновить ключ в текущей позиции цикла.
+ * @param {any} el @param {number} t @param {number} cycle @param {Record<string, any>} [patch]
+ */
+export function upsertKeyframe(el, t, cycle, patch = {}) {
+  const c = Math.max(0.1, cycle);
+  const local = normalizedTime(t, c);
+  /** @type {any[]} */
+  const frames = Array.isArray(el?.keyframes)
+    ? el.keyframes.map(/** @param {any} k */ (k) => ({ ...k })) : [];
+  const idx = frames.findIndex(/** @param {any} k */ (k) =>
+    Math.abs(normalizedTime(Number(k.t) || 0, c) - local) < 0.05);
+  const frame = {
+    x: el?.x ?? 0.5, y: el?.y ?? 0.5, scale: el?.scale ?? 1,
+    rotation: el?.rotation ?? 0, opacity: 1, easing: "smooth",
+    ...(idx >= 0 ? frames[idx] : {}), ...patch, t: local,
+  };
+  if (idx >= 0) frames[idx] = frame;
+  else frames.push(frame);
+  return frames.sort(/** @param {any} a @param {any} b */ (a, b) => a.t - b.t);
+}
+
+/** @param {any} el @param {number} t @param {number} cycle */
+export function removeKeyframe(el, t, cycle) {
+  const c = Math.max(0.1, cycle);
+  const local = normalizedTime(t, c);
+  /** @type {any[]} */
+  const frames = Array.isArray(el?.keyframes)
+    ? el.keyframes.map(/** @param {any} k */ (k) => ({ ...k })) : [];
+  return frames.filter(/** @param {any} k */ (k) =>
+    Math.abs(normalizedTime(Number(k.t) || 0, c) - local) >= 0.05);
+}
+
+/** Копирует keyframes и пресеты элемента в те же элементы других сцен.
+ * @param {any} project @param {string} fromScene @param {string} id @param {string[]} toSceneIds
+ */
+export function copyElementAnimation(project, fromScene, id, toSceneIds) {
+  const source = project?.scenes?.[fromScene]?.elements?.[id];
+  if (!source) return project;
+  for (const to of toSceneIds) {
+    const target = project?.scenes?.[to]?.elements?.[id];
+    if (!target) continue;
+    for (const key of ["keyframes", "inPreset", "outPreset", "loopPreset", "timing"]) {
+      if (source[key] !== undefined) target[key] = clone(source[key]);
+    }
+  }
+  return project;
 }
 
 /** @param {string} sceneId */

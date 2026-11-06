@@ -1,13 +1,14 @@
 import { WAITING_DEFAULTS } from "./scenes/waiting.js";
 import {
   SCENE_IDS, SCENE_LABELS, FONT_CHOICES, INTRO_PRESETS, FINAL_CIRCLES,
-  DECOR_PRESETS, ANIMATION_PRESETS, OUT_PRESETS, LOOP_PRESETS,
+  DECOR_PRESETS, ANIMATION_PRESETS, OUT_PRESETS, LOOP_PRESETS, KEYFRAME_EASINGS,
   SETTINGS_VERSION, createDefaultProject, createSceneDefaults,
 } from "./scenes/defaults.js";
 
 export {
   SCENE_IDS, SCENE_LABELS, FONT_CHOICES, INTRO_PRESETS, FINAL_CIRCLES,
   DECOR_PRESETS, ANIMATION_PRESETS, OUT_PRESETS, LOOP_PRESETS, SETTINGS_VERSION,
+  KEYFRAME_EASINGS,
 } from "./scenes/defaults.js";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -349,11 +350,16 @@ export function migrateLegacyProject(project, options = {}) {
     const scene = project.scenes?.[id];
     if (!scene) continue;
     const def = fresh.scenes[id];
-    if (preserve) {
+    // Проект фазы 3a уже хранит пользовательские трансформы элементов:
+    // добавляем только пустые keyframes, не перезаписывая elements.
+    if (preserve || Number(project.settingsVersion) >= 3) {
       fillMissing(scene, def);
+      for (const el of Object.values(scene.elements || {})) {
+        if (!Array.isArray(el.keyframes)) el.keyframes = [];
+      }
       continue;
     }
-    // Старые сохранения не знают о режиссуре фаз 2/3a: новые секции берём
+    // Сохранения до фаз 2/3a не знают новой режиссуры: новые секции берём
     // из defaults, а пользовательские правки таймлайна/текста/света оставляем.
     for (const key of ["decor", "photoPause", "finale", "elements"]) scene[key] = copy(def[key]);
     fillMissing(scene.intro || (scene.intro = {}), def.intro);

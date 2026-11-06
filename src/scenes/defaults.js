@@ -2,7 +2,7 @@ import { WAITING_DEFAULTS } from "./waiting.js";
 import { FIELD_TIMING } from "./cues.js";
 import { createElementDefaults } from "../element-registry.js";
 
-export const SETTINGS_VERSION = 3;
+export const SETTINGS_VERSION = 4;
 
 export const SCENE_IDS = Object.freeze(["waiting", "brand", "photo-pause", "finale"]);
 export const SCENE_LABELS = Object.freeze({
@@ -48,6 +48,12 @@ export const LOOP_PRESETS = Object.freeze([
   { value: "quiet-breath", label: "Тихое дыхание" },
   { value: "none", label: "Без движения" },
   { value: "slow-drift", label: "Медленный дрейф" },
+]);
+export const KEYFRAME_EASINGS = Object.freeze([
+  { value: "linear", label: "Линейно" },
+  { value: "smooth", label: "Плавно" },
+  { value: "ease-in", label: "Ускорение" },
+  { value: "ease-out", label: "Замедление" },
 ]);
 
 /** @param {unknown} value */

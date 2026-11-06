@@ -6,6 +6,7 @@ import { captionFrameState } from "../src/caption-renderer.js";
 import {
   createElementDefaults, elementIdsForScene, elementAnimation, elementWorldTransform,
   setElementTransform, snapValue, worldToNormalized, normalizedToWorld, applyElementOpacity,
+  elementKeyframeState, upsertKeyframe, removeKeyframe, copyElementAnimation,
 } from "../src/element-registry.js";
 
 test("element registry has scene-specific elements and normalized coordinates", () => {
@@ -111,4 +112,35 @@ test("default corners layer is -2 and opacity state is frame-local", () => {
   material.opacity = 0.6;
   applyElementOpacity(object, 0.5, 2);
   assert.equal(material.opacity, 0.3);
+});
+
+test("keyframes are deterministic, wrap at the seam and can be copied", () => {
+  const el = createElementDefaults("brand").logo;
+  el.keyframes = [
+    { t: 0, x: 0.2, y: 0.5, scale: 1, rotation: 0, opacity: 1, easing: "linear" },
+    { t: 5, x: 0.8, y: 0.5, scale: 1, rotation: 0, opacity: 1, easing: "linear" },
+  ];
+  assert.equal(elementKeyframeState(el, 2.5, 10).x, 0.5);
+  assert.deepEqual(elementKeyframeState(el, 1, 10), elementKeyframeState(el, 11, 10));
+  const added = upsertKeyframe(el, 2.5, 10, { x: 0.55 });
+  assert.equal(added.length, 3);
+  assert.equal(removeKeyframe({ keyframes: added }, 2.5, 10).length, 2);
+  const project = createDefaultProject();
+  project.scenes.brand.elements.logo.keyframes = added;
+  copyElementAnimation(project, "brand", "logo", ["photo-pause", "finale"]);
+  assert.deepEqual(project.scenes["photo-pause"].elements.logo.keyframes, added);
+  assert.deepEqual(project.scenes.finale.elements.logo.keyframes, added);
+});
+
+test("settingsVersion 4 migration keeps phase 3a transforms and adds keyframes", () => {
+  const project = createDefaultProject();
+  project.settingsVersion = 3;
+  project.scenes.brand.elements.logo.x = 0.42;
+  delete project.scenes.brand.elements.logo.keyframes;
+  delete project.scenes["photo-pause"].elements.circularText.keyframes;
+  migrateLegacyProject(project, { force: true });
+  assert.equal(project.settingsVersion, 4);
+  assert.equal(project.scenes.brand.elements.logo.x, 0.42);
+  assert.deepEqual(project.scenes.brand.elements.logo.keyframes, []);
+  assert.deepEqual(project.scenes["photo-pause"].elements.circularText.keyframes, []);
 });

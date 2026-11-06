@@ -630,3 +630,16 @@ body.operator-idle:not(.ui-on) .operator-panel:not(.operator-exporting):hover {
 .editor-context strong { font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; padding: 2px 3px 4px; }
 .editor-context button { text-align: left; }
 body.editor-on #caption-layer { opacity: 0.92; }
+
+/* ── Фаза 3b: мини-таймлайн keyframes ─────────────────────────────────────── */
+.editor-keys { margin-top: 11px; padding-top: 9px; border-top: 1px solid rgba(217,176,97,0.2); }
+.editor-keys header { display: flex; justify-content: space-between; font-size: 9px; text-transform: uppercase; letter-spacing: 0.08em; opacity: 0.75; margin-bottom: 6px; }
+.editor-track { position: relative; height: 18px; background: rgba(0,0,0,0.35); border: 1px solid rgba(217,176,97,0.25); border-radius: 2px; }
+.editor-key { position: absolute; top: 50%; width: 8px; height: 8px; padding: 0; border: 1px solid #1b1712; border-radius: 50%; background: #f0d38c; transform: translate(-50%, -50%); cursor: pointer; }
+.editor-playhead { position: absolute; top: -2px; bottom: -2px; width: 1px; background: #ff8a5c; pointer-events: none; }
+.editor-key-actions { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; margin-top: 7px; }
+.editor-key-actions button { font: inherit; color: #ecd8ac; background: transparent; border: 1px solid rgba(217,176,97,0.32); border-radius: 2px; padding: 3px 2px; min-width: 0; cursor: pointer; }
+.editor-key-actions button:hover { background: rgba(217,176,97,0.14); }
+.editor-key-easing { display: flex; flex-direction: column; gap: 3px; margin-top: 7px; }
+.editor-key-easing > span { opacity: 0.7; font-size: 9px; text-transform: uppercase; letter-spacing: 0.08em; }
+.editor-key-easing select { font: inherit; color: #ecd8ac; background: rgba(0,0,0,0.35); border: 1px solid rgba(217,176,97,0.25); border-radius: 2px; padding: 3px 4px; width: 100%; box-sizing: border-box; }

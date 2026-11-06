@@ -647,6 +647,7 @@ function frame(now) {
     applyCaptionFont(cfg).catch(() => {}).then(() => { drawLiveCaption(); window.__bootReady?.(); });
   }
   operator.refresh();
+  editor?.updatePlayhead?.();
   if (recording?.kind === "single") {
     drawCompositeFrame(recording.ctx);
     if (runtime.time >= recording.start + recording.cycle) stopRecording();
