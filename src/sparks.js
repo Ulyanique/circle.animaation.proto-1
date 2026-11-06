@@ -1,6 +1,9 @@
 import * as THREE from "three";
 import { seededRandom } from "./random.js";
 
+// Не создаём новый Color на каждом кадре проявления логотипа.
+const WHITE = new THREE.Color(1, 1, 1);
+
 /* ─────────────────── Искры: всплеск при проявлении логотипа ─────────────────── */
 
 const SPARK_VS = /* glsl */ `
@@ -133,7 +136,7 @@ export class Sparks {
     u.uSpeed.value = cfg.sparks.speed;
     u.uLifeMul.value = cfg.sparks.life;
     u.uColA.value.set(cfg.colors.goldHighlight);
-    u.uColB.value.set(cfg.colors.gold).lerp(new THREE.Color(1, 1, 1), 0.4);
+    u.uColB.value.set(cfg.colors.gold).lerp(WHITE, 0.4);
   }
 
   dispose() {

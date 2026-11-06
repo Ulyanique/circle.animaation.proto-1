@@ -215,6 +215,12 @@ export class Corners {
     };
     this.sig = "";
     this.matCount = 0;
+    // Переиспользуемые объекты: без новых Color/координат на каждом кадре.
+    this._ringColor = new THREE.Color();
+    this._sides = {
+      left: { x: 0, y: 0, dir: 1 },
+      right: { x: 0, y: 0, dir: -1 },
+    };
     // разметка циркулем: пунктирная окружность и «ножка» — плоские, в плоскости фона
     this.constMat = new THREE.LineDashedMaterial({
       color: 0xe0b25a, dashSize: 0.05, gapSize: 0.035, transparent: true, opacity: 0.3,
@@ -349,12 +355,14 @@ export class Corners {
   update(t, cfg, halfW, halfH, env = 1, focus = 0) {
     this.rebuild(cfg);
     this.group.visible = cfg.rings.enabled;
-    const sides = {
-      left: { x: -halfW * cfg.rings.cornerX * 2, y: halfH * cfg.rings.cornerY * 2, dir: 1 },
-      right: { x: halfW * cfg.rings.cornerX * 2, y: -halfH * cfg.rings.cornerY * 2, dir: -1 },
-    };
+    const sides = this._sides;
+    sides.left.x = -halfW * cfg.rings.cornerX * 2;
+    sides.left.y = halfH * cfg.rings.cornerY * 2;
+    sides.right.x = halfW * cfg.rings.cornerX * 2;
+    sides.right.y = -halfH * cfg.rings.cornerY * 2;
     const sp = cfg.rings.speed;
-    const ringCol = new THREE.Color(cfg.colors.gold).multiplyScalar(0.8 + 0.3 * cfg.rings.glowIntensity);
+    const ringCol = this._ringColor.set(cfg.colors.gold)
+      .multiplyScalar(0.8 + 0.3 * cfg.rings.glowIntensity);
     const cOp = (cfg.rings.constructionOpacity ?? 0.3) * env * (1 - 0.52 * focus);
     this.constMat.opacity = cOp;
     this.pivotMat.opacity = Math.min(1, 0.9 * env * (1 - 0.35 * focus));
@@ -491,6 +499,11 @@ export class Particles {
     this.right = null;
     this.dust = null;
     this.mats = [];
+    // Цвета и список сторон постоянны; новые Color/массивы каждый кадр не нужны.
+    this._colA = new THREE.Color();
+    this._colB = new THREE.Color();
+    this._sideKeys = ["left", "right"];
+    this._points = [null, null];
   }
 
   _mat(mode) {
@@ -537,18 +550,17 @@ export class Particles {
       this.dust.frustumCulled = false;
       this.group.add(this.dust);
     }
+    this._points[0] = this.left;
+    this._points[1] = this.right;
   }
 
   update(t, cfg, halfW, halfH, pixelRatio, viewportH, fovRad, ringPos, ringRadius, tilt, env = 1) {
     this.rebuild(cfg);
     this.group.visible = cfg.particles.enabled;
     const pixel = (viewportH * pixelRatio) / (2 * Math.tan(fovRad / 2)) * 0.012;
-    const colA = new THREE.Color(cfg.colors.gold);
-    const colB = new THREE.Color(cfg.colors.goldHighlight);
-    const pos = [this.left, this.right];
-    const sides = ["left", "right"];
-    const dir = [1, -1];
-    pos.forEach((pts, i) => {
+    const colA = this._colA.set(cfg.colors.gold);
+    const colB = this._colB.set(cfg.colors.goldHighlight);
+    this._points.forEach((pts, i) => {
       if (!pts) return;
       const u = pts.material.uniforms;
       u.uTime.value = t;
@@ -559,7 +571,7 @@ export class Particles {
       u.uTilt.value = tilt;
       u.uPixel.value = pixel;
       u.uBright.value = cfg.particles.brightness * env;
-      u.uCenter.value.copy(ringPos[sides[i]]);
+      u.uCenter.value.copy(ringPos[this._sideKeys[i]]);
       u.uColA.value.copy(colA);
       u.uColB.value.copy(colB);
     });

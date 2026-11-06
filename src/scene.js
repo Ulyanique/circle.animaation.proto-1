@@ -33,6 +33,10 @@ export { computePhase } from "./timeline.js";
 export class LogoScene {
   constructor(canvas, cfg) {
     this.cfg = cfg;
+    // Кэш DOM-титра пересоздаётся вместе со сценой и при resize. Он убирает
+    // десятки одинаковых style.setProperty на каждом неподвижном кадре.
+    this._captionRefs = null;
+    this._captionU = 19.2;
     this.renderer = new THREE.WebGLRenderer({
       canvas,
       antialias: false, // сглаживание делаем через composer (MSAA + SMAA)
@@ -183,7 +187,12 @@ export class LogoScene {
       cap.style.width = Math.round(cw) + "px";
       cap.style.height = Math.round(ch) + "px";
       cap.style.setProperty("--u", (cw / 100).toFixed(3) + "px");
+      this._captionU = cw / 100;
+    } else {
+      this._captionU = 19.2;
     }
+    // После смены масштаба все производные от --u значения должны записаться заново.
+    this._captionRefs = null;
     this._w = RW;
     this._h = RH;
     this.renderer.setPixelRatio(1);
@@ -216,6 +225,36 @@ export class LogoScene {
     this.corners.rebuild(cfg);
     this.particles.rebuild(cfg);
     this.sparks.rebuild(cfg);
+  }
+
+  /** Один раз запоминаем узлы титра и последнее записанное значение CSS. */
+  _captionNodes() {
+    if (this._captionRefs) return this._captionRefs;
+    const cap = document.getElementById("caption");
+    if (!cap) return null;
+    const rows = [];
+    for (const [sel, name] of [
+      [".cap-title", "title"], [".r1", "rule1"], [".cap-sub", "subtitle"],
+      [".r2", "rule2"], [".cap-date", "date"],
+    ]) {
+      const el = cap.querySelector(sel);
+      if (!el) continue;
+      const glyphs = Array.from(el.children);
+      rows.push({
+        el, name, glyphs,
+        style: new Map(),
+        glyphStyles: glyphs.map(() => new Map()),
+      });
+    }
+    this._captionRefs = { cap, style: new Map(), rows };
+    return this._captionRefs;
+  }
+
+  /** Пропускаем запись в DOM, если абсолютное время даёт то же значение. */
+  _setCaptionStyle(cache, el, name, value) {
+    if (cache.get(name) === value) return;
+    cache.set(name, value);
+    el.style.setProperty(name, value);
   }
 
   update(t, dt) {
@@ -321,33 +360,36 @@ export class LogoScene {
       cfg.post.anamorphic * 0.055 * edgeFlare, cfg.colors.goldHighlight, 1.1, 1.2);
 
     // Один и тот же t всегда даёт один и тот же кадр подписи, даже после seek.
-    const capEl = document.getElementById("caption");
-    if (capEl) {
+    // Кэш узлов и значений удаляет повторные записи в DOM на неподвижных кадрах.
+    const caption = this._captionNodes();
+    if (caption) {
       const { progress, lines } = captionState(t, cfg.timeline);
       const k = THREE.MathUtils.smoothstep(progress, 0.0, 0.8);
-      capEl.style.opacity = "1";
-      capEl.style.setProperty("--drift", `${((1 - k) * window.innerHeight * 0.008).toFixed(3)}px`);
-      capEl.style.transform = "translate(-50%, calc(-50% + var(--drift)))";
-      const u = parseFloat(capEl.style.getPropertyValue("--u")) || 19.2;
-      for (const [sel, name, line] of [
-        [".cap-title", "title", lines.title], [".r1", "rule1", lines.rule1],
-        [".cap-sub", "subtitle", lines.subtitle], [".r2", "rule2", lines.rule2],
-        [".cap-date", "date", lines.date],
-      ]) {
-        const el = capEl.querySelector(sel);
-        if (!el) continue;
-        const accent = captionAccent(name, line, ph.name === "fade" || ph.name === "rest");
-        el.style.setProperty("--p", line.outline.toFixed(4));
-        if (line.fill !== undefined) el.style.setProperty("--f", line.fill.toFixed(4));
-        el.style.setProperty("--lift", `${(accent.rise * u).toFixed(3)}px`);
-        el.style.setProperty("--pen", accent.pen.toFixed(4));
+      this._setCaptionStyle(caption.style, caption.cap, "opacity", "1");
+      this._setCaptionStyle(caption.style, caption.cap, "--drift",
+        `${((1 - k) * window.innerHeight * 0.008).toFixed(3)}px`);
+      this._setCaptionStyle(caption.style, caption.cap, "transform",
+        "translate(-50%, calc(-50% + var(--drift)))");
+      const u = this._captionU;
+      const exiting = ph.name === "fade" || ph.name === "rest";
+      for (const row of caption.rows) {
+        const line = lines[row.name];
+        if (!line) continue;
+        const accent = captionAccent(row.name, line, exiting);
+        this._setCaptionStyle(row.style, row.el, "--p", line.outline.toFixed(4));
         if (line.fill !== undefined) {
-          const glyphs = el.children;
-          for (let i = 0; i < glyphs.length; i++) {
-            const glyph = glyphReveal(line, i, glyphs.length);
-            glyphs[i].style.setProperty("--o", glyph.outline.toFixed(4));
-            glyphs[i].style.setProperty("--f", glyph.fill.toFixed(4));
-            glyphs[i].style.setProperty("--gpen", (accent.pen * Math.sin(Math.PI * glyph.outline)).toFixed(4));
+          this._setCaptionStyle(row.style, row.el, "--f", line.fill.toFixed(4));
+        }
+        this._setCaptionStyle(row.style, row.el, "--lift", `${(accent.rise * u).toFixed(3)}px`);
+        this._setCaptionStyle(row.style, row.el, "--pen", accent.pen.toFixed(4));
+        if (line.fill !== undefined) {
+          for (let i = 0; i < row.glyphs.length; i++) {
+            const glyph = glyphReveal(line, i, row.glyphs.length);
+            const cache = row.glyphStyles[i];
+            this._setCaptionStyle(cache, row.glyphs[i], "--o", glyph.outline.toFixed(4));
+            this._setCaptionStyle(cache, row.glyphs[i], "--f", glyph.fill.toFixed(4));
+            this._setCaptionStyle(cache, row.glyphs[i], "--gpen",
+              (accent.pen * Math.sin(Math.PI * glyph.outline)).toFixed(4));
           }
         }
       }
