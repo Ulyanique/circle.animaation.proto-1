@@ -2,6 +2,8 @@ import { captionAccent, captionState, glyphReveal } from "./caption.js";
 import { computePhase, introCaptionDelay } from "./timeline.js";
 import { fieldCues, finaleCues } from "./scenes/cues.js";
 import { finaleSequence } from "./finale-sequence.js";
+import { cycleDuration } from "./runtime.js";
+import { elementAnimation } from "./element-registry.js";
 
 const clamp01 = (x) => Math.max(0, Math.min(1, x));
 const smooth = (a, b, x) => {
@@ -133,6 +135,25 @@ export function captionFrameState(t, cfg, sceneId, options = {}) {
     });
   }
 
+  // Фаза 3a: строки титра читают тот же ElementRegistry, что и WebGL-объекты.
+  const elements = cfg.elements || {};
+  const cycle = sceneId === "waiting"
+    ? Math.max(0.1, cycleDuration(cfg.timeline))
+    : Math.max(0.1, cfg.timeline.holdDuration || cycleDuration(cfg.timeline));
+  for (const line of lines) {
+    const el = elements[line.key];
+    if (!el) continue;
+    const anim = elementAnimation(el, t, cycle);
+    line.x = clamp01((el.x ?? 0.5) + anim.x);
+    line.y = clamp01((el.y ?? line.y / H) + anim.y) * H;
+    line.scale = (el.scale ?? 1) * anim.scale;
+    line.rotation = (el.rotation ?? 0) + anim.rotation;
+    line.opacity = anim.opacity;
+    line.zIndex = el.zIndex ?? 0;
+    line.color = el.color || "";
+  }
+  lines.sort((a, b) => (a.zIndex ?? 0) - (b.zIndex ?? 0));
+
   return { W, H, u, family, titleWeight, layers, offsetPx, strokeScale, penGlow, fillDelay, drift, lines, rules };
 }
 
@@ -207,13 +228,20 @@ export class CaptionRenderer {
       const glyphs = segmentText(line.text);
       if (!glyphs.length) return;
       const y = line.y + line.lift;
+      const cx = (line.x ?? 0.5) * W;
+      ctx.save();
+      ctx.globalAlpha *= line.opacity ?? 1;
+      ctx.translate(cx, y);
+      ctx.rotate(line.rotation ?? 0);
+      ctx.scale(line.scale ?? 1, line.scale ?? 1);
+      ctx.translate(-cx, -y);
       ctx.font = font(line.weight, line.size);
       /** @type {any} */ (ctx).letterSpacing = "0px";
       const widths = glyphs.map((glyph) => ctx.measureText(glyph).width);
       const total = widths.reduce((a, b) => a + b, 0) + line.ls * Math.max(0, glyphs.length - 1);
-      let x = W / 2 - total / 2 + line.ls / 2;
+      let x = cx - total / 2 + line.ls / 2;
       ctx.textAlign = "left";
-      ctx.strokeStyle = line.stroke;
+      ctx.strokeStyle = line.color || line.stroke;
       ctx.lineWidth = line.sw / (state.layers > 1 ? Math.sqrt(state.layers) : 1);
       ctx.lineJoin = "round";
       // №9: надписи стираются справа налево обратным контуром, а не просто гаснут.
@@ -247,7 +275,8 @@ export class CaptionRenderer {
             ctx.shadowBlur = 0.5 * u;
             ctx.shadowOffsetY = 0.2 * u;
           }
-          ctx.fillStyle = makeFill(ctx, line.paint, y, line.size);
+          const paint = line.color && typeof line.paint === "string" ? line.color : line.paint;
+          ctx.fillStyle = makeFill(ctx, paint, y, line.size);
           ctx.fillText(glyph, x, y);
           ctx.restore();
         }
@@ -268,6 +297,7 @@ export class CaptionRenderer {
       });
       if (eraseClip) ctx.restore();
       ctx.textAlign = "center";
+      ctx.restore();
     };
 
     let rulesDrawn = false;

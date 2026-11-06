@@ -29,6 +29,7 @@ export class IntroScene extends LogoScene {
 
   update(t, dt) {
     super.update(t, dt);
+    this.applyEditorElements(t);
     const phase = computePhase(t, this.cfg.timeline);
     const cue = openingAccent(phase, this.cfg.timeline, introCaptionDelay(this.cfg));
     // Всплеск следует за начавшимся проявлением металла; финальный штрих

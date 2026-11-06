@@ -81,6 +81,7 @@ export class BrandScene extends LogoScene {
     this.decor.update(t, this.cfg, cycle, ph.rings);
     const cue = fieldCues(t, cycle);
     this._letterLine(".cap-title", cue.titleOutline, cue.titleFill, 0.72);
+    this.applyEditorElements(t);
   }
 
   /** Общая для №2/8/9 посимвольная маска: DOM и экспортный canvas читают

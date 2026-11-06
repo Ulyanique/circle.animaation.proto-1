@@ -11,7 +11,9 @@ import "@fontsource/montserrat/cyrillic-600.css";
 import "@fontsource/montserrat/cyrillic-700.css";
 import {
   loadProject, saveProject, mergeProject, projectToJSON, projectToURL,
+  migrateLegacyProject, SETTINGS_VERSION,
 } from "./config.js";
+import { createEditor } from "./editor.js";
 import { applyCaptionFont } from "./fonts.js";
 import { CaptionRenderer } from "./caption-renderer.js";
 import { IntroScene } from "./intro-scene.js";
@@ -27,7 +29,9 @@ import { exportPlan, outgoingOpacity } from "./export-plan.js";
 
 // Публичное имя первого ролика — intro. Старый ?scene=waiting сохраняем как
 // совместимый адрес; внутри не переименовываем id настроек и плана экспорта.
-const requestedScene = new URLSearchParams(location.search).get("scene") || "intro";
+const urlParams = new URLSearchParams(location.search);
+const requestedScene = urlParams.get("scene") || "intro";
+const editorRequested = urlParams.get("editor") === "1";
 let sceneId = requestedScene === "intro" ? "waiting" : requestedScene;
 let activeScene = sceneById(sceneId);
 if (!activeScene?.defaults || activeScene.status !== "ready") {
@@ -35,6 +39,7 @@ if (!activeScene?.defaults || activeScene.status !== "ready") {
 }
 const project = loadProject();
 project.activeScene = sceneId;
+project.editor.enabled = Boolean(project.editor.enabled || editorRequested);
 function configFor(id) { return project.scenes[id]; }
 let cfg = configFor(sceneId);
 let canvas = document.getElementById("stage");
@@ -42,6 +47,7 @@ let scene = null;
 let runtime = null;
 let settings = null;
 let operator = null;
+let editor = null;
 let captionLayer = null;
 let captionLayerCtx = null;
 let captionRenderer = null;
@@ -128,7 +134,11 @@ function applyCaptionConfig() {
 /** Импорт JSON проекта без замены объектов сцен: ссылки scene.cfg остаются живыми. */
 function applyProjectText(text, asDefaults = false) {
   const parsed = JSON.parse(text);
+  if (parsed?.scenes && !(Number(parsed.settingsVersion) >= SETTINGS_VERSION)) {
+    migrateLegacyProject(parsed, { force: true, preserve: true });
+  }
   mergeProject(project, parsed);
+  project.settingsVersion = SETTINGS_VERSION;
   cfg = project.scenes[sceneId];
   project.activeScene = sceneId;
   saveProject(project);
@@ -152,7 +162,9 @@ settings = createSettingsUI(project, {
     runtime?.renderAt?.(runtime.time, 1 / OUTPUT.fps);
     drawLiveCaption();
     operator?.refresh?.();
+    editor?.refresh?.();
   },
+  onToggleEditor: () => editor?.toggle?.(),
   onImportProject: (text, asDefaults) => applyProjectText(text, asDefaults),
   onRenderWithConfig: () => startOfflineExport("single"),
   onPauseToggle: () => {
@@ -162,6 +174,22 @@ settings = createSettingsUI(project, {
   },
   onToast: toast,
   onExportVideo: () => startOfflineExport("single"),
+});
+
+// Фаза 3a: DOM-оверлей конструктора живёт только в браузере и не попадает
+// в покадровый compositeFrameAt / WebM. ?editor=1 открывает его сразу.
+editor = createEditor({
+  project,
+  getActiveSceneId: () => sceneId,
+  onProjectChange: () => {
+    applyCaptionConfig();
+    scene?.applyStatic?.();
+    runtime?.renderAt?.(runtime.time, 1 / OUTPUT.fps);
+    drawLiveCaption();
+    operator?.refresh?.();
+  },
+  onToast: toast,
+  enabled: editorRequested,
 });
 applyCaptionConfig();
 scene.invalidateCaptionCache();
@@ -310,6 +338,7 @@ function switchScene(id, source) {
   activateText(id);
   applyCaptionConfig();
   settings?.setActiveScene?.(id);
+  editor?.setActiveScene?.(id);
   saveProject(project);
   runtime.renderAt(cfg.timeline.startDelay, 1 / OUTPUT.fps);
   resizeCaptionLayer();
@@ -631,6 +660,7 @@ window.__logo = {
   switchScene,
   operator,
   settings,
+  editor,
   get project() { return project; },
   getProjectJSON: () => projectToJSON(project),
   applyProjectJSON: (text, asDefaults = false) => applyProjectText(text, asDefaults),

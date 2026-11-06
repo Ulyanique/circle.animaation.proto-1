@@ -21,6 +21,8 @@ import { Plotter } from "./plotter.js";
 import { SolarBokeh } from "./bokeh.js";
 import { captionState, captionAccent, glyphReveal } from "./caption.js";
 import { computePhase, compositionFocus, heroGlint, seamCurtainOpacity, introCaptionDelay, introLogoLift } from "./timeline.js";
+import { cycleDuration } from "./runtime.js";
+import { elementWorldTransform, applyElementOpacity, applyElementColor } from "./element-registry.js";
 
 const FOV = 30;
 const CAM_Z = 9;
@@ -445,6 +447,35 @@ export class LogoScene {
     this.bloom.luminanceMaterial.threshold = p.bloomThreshold;
     this.bloom.radius = p.bloomRadius;
     this.chroma.offset.set(p.chromaticAberration, p.chromaticAberration);
+  }
+
+  /** Фаза 3a: трансформы из ElementRegistry поверх уже рассчитанной анимации.
+   * Вызывается в конце update конкретной сцены, чтобы не затираться её режиссурой. */
+  applyEditorElements(t) {
+    const cfg = this.cfg;
+    if (!cfg?.elements) return;
+    const cycle = cycleDuration(cfg.timeline);
+    const map = {
+      logo: this.logo?.root,
+      corners: this.corners?.group,
+      plotter: this.plotter?.group,
+      decor: this.decor?.group,
+      circularText: this.photoDecor?.circularText,
+      edgeCorners: this.photoDecor?.edgeGroup,
+      finalCircle: this.finalCircle,
+    };
+    for (const [id, object] of Object.entries(map)) {
+      const el = cfg.elements[id];
+      if (!el || !object) continue;
+      const p = elementWorldTransform(el, t, cycle, this.halfW, this.halfH);
+      object.position.x += p.x;
+      object.position.y += p.y;
+      object.scale.multiplyScalar(p.scale);
+      object.rotation.z += p.rotation;
+      object.renderOrder = p.zIndex;
+      applyElementOpacity(object, p.opacity);
+      applyElementColor(object, p.color);
+    }
   }
 
   render(dt) {

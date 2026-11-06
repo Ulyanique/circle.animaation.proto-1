@@ -1,5 +1,8 @@
 import { WAITING_DEFAULTS } from "./waiting.js";
 import { FIELD_TIMING } from "./cues.js";
+import { createElementDefaults } from "../element-registry.js";
+
+export const SETTINGS_VERSION = 3;
 
 export const SCENE_IDS = Object.freeze(["waiting", "brand", "photo-pause", "finale"]);
 export const SCENE_LABELS = Object.freeze({
@@ -178,18 +181,24 @@ const FINALE_VISUALS = {
  */
 export function createSceneDefaults(id) {
   const base = clone(WAITING_DEFAULTS);
-  if (id === "waiting") return base;
-  if (id === "brand") return merge(base, FIELD_VISUALS);
-  if (id === "photo-pause") return merge(base, merge(clone(FIELD_VISUALS), PHOTO_VISUALS));
-  if (id === "finale") return merge(base, merge(clone(FIELD_VISUALS), FINALE_VISUALS));
-  throw new Error(`Неизвестная сцена: ${id}`);
+  let result;
+  if (id === "waiting") result = base;
+  else if (id === "brand") result = merge(base, FIELD_VISUALS);
+  else if (id === "photo-pause") result = merge(base, merge(clone(FIELD_VISUALS), PHOTO_VISUALS));
+  else if (id === "finale") result = merge(base, merge(clone(FIELD_VISUALS), FINALE_VISUALS));
+  else throw new Error(`Неизвестная сцена: ${id}`);
+  result.elements = createElementDefaults(id);
+  return result;
 }
 
 export function createDefaultProject() {
   /** @type {Record<string, ReturnType<typeof createSceneDefaults>>} */
   const scenes = {};
   for (const id of SCENE_IDS) scenes[id] = createSceneDefaults(id);
-  return { version: 2, activeScene: "waiting", scenes, editor: { enabled: false, snap: 0.01, grid: false } };
+  return {
+    version: 2, settingsVersion: SETTINGS_VERSION, activeScene: "waiting", scenes,
+    editor: { enabled: false, snap: 0.01, grid: false, selection: null },
+  };
 }
 
 /** Внутренний таймлайн полевых сцен: фазы фиксированы, удержание тянется от внешнего цикла.

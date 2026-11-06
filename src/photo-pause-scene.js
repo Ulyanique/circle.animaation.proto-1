@@ -48,6 +48,7 @@ export class PhotoPauseScene extends BrandScene {
       Math.min(1, this.logo.root.scale.x / 0.5) *
       Math.min(1, this.background.uniforms.uEnvL.value / envL);
     this.photoDecor.update(t, this.cfg, cycle, ph.rings, this.halfW, this.halfH);
+    this.applyEditorElements(t);
   }
 
   dispose() {

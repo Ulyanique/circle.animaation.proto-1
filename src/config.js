@@ -2,12 +2,12 @@ import { WAITING_DEFAULTS } from "./scenes/waiting.js";
 import {
   SCENE_IDS, SCENE_LABELS, FONT_CHOICES, INTRO_PRESETS, FINAL_CIRCLES,
   DECOR_PRESETS, ANIMATION_PRESETS, OUT_PRESETS, LOOP_PRESETS,
-  createDefaultProject, createSceneDefaults,
+  SETTINGS_VERSION, createDefaultProject, createSceneDefaults,
 } from "./scenes/defaults.js";
 
 export {
   SCENE_IDS, SCENE_LABELS, FONT_CHOICES, INTRO_PRESETS, FINAL_CIRCLES,
-  DECOR_PRESETS, ANIMATION_PRESETS, OUT_PRESETS, LOOP_PRESETS,
+  DECOR_PRESETS, ANIMATION_PRESETS, OUT_PRESETS, LOOP_PRESETS, SETTINGS_VERSION,
 } from "./scenes/defaults.js";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -247,6 +247,21 @@ export const SCHEMA = [
 const STORAGE_KEY = "circle-anim-settings-v1";
 const PROJECT_STORAGE_KEY = "circle-anim-settings-v2";
 const PROJECT_VERSION = 2;
+const copy = (value) => JSON.parse(JSON.stringify(value));
+const isLegacy = (data) => !data || !(Number(data.settingsVersion) >= SETTINGS_VERSION);
+
+/** Заполняет только отсутствующие ключи, сохраняя явно заданные значения ?config/JSON. */
+function fillMissing(target, defaults) {
+  for (const [key, value] of Object.entries(defaults || {})) {
+    if (value && typeof value === "object" && !Array.isArray(value)) {
+      if (!target[key] || typeof target[key] !== "object") target[key] = {};
+      fillMissing(target[key], value);
+    } else if (target[key] === undefined) {
+      target[key] = copy(value);
+    }
+  }
+  return target;
+}
 
 export function deepMerge(target, source) {
   for (const k of Object.keys(source || {})) {
@@ -307,6 +322,7 @@ export function configToJSON(cfg) {
 export function mergeProject(target, source) {
   if (!source || typeof source !== "object") return target;
   if (source.scenes || Number(source.version) === PROJECT_VERSION) {
+    if (source.settingsVersion !== undefined) target.settingsVersion = Number(source.settingsVersion) || SETTINGS_VERSION;
     if (source.activeScene && SCENE_IDS.includes(source.activeScene)) target.activeScene = source.activeScene;
     if (source.editor) deepMerge(target.editor, source.editor);
     for (const id of SCENE_IDS) {
@@ -318,6 +334,38 @@ export function mergeProject(target, source) {
   }
   target.version = PROJECT_VERSION;
   return target;
+}
+
+/** localStorage/ссылка ?config= могли сохранить проект до фазы 2/3a.
+ * Обновляем только новые секции и ключи режиссуры, сохраняя пользовательские
+ * правки таймлайна, текста, шрифтов, света и постобработки. */
+export function migrateLegacyProject(project, options = {}) {
+  const { force = false, preserve = false } = options;
+  if (!project || typeof project !== "object") return project;
+  if (!force && !isLegacy(project)) return project;
+  const fresh = createDefaultProject();
+  project.editor = { ...fresh.editor, ...(project.editor || {}) };
+  for (const id of SCENE_IDS) {
+    const scene = project.scenes?.[id];
+    if (!scene) continue;
+    const def = fresh.scenes[id];
+    if (preserve) {
+      fillMissing(scene, def);
+      continue;
+    }
+    // Старые сохранения не знают о режиссуре фаз 2/3a: новые секции берём
+    // из defaults, а пользовательские правки таймлайна/текста/света оставляем.
+    for (const key of ["decor", "photoPause", "finale", "elements"]) scene[key] = copy(def[key]);
+    fillMissing(scene.intro || (scene.intro = {}), def.intro);
+    if (scene.layout && def.layout) {
+      for (const key of ["logoY", "viewfinderOpacity", "cornerBrackets"]) {
+        if (def.layout[key] !== undefined) scene.layout[key] = def.layout[key];
+      }
+    }
+  }
+  project.version = PROJECT_VERSION;
+  project.settingsVersion = SETTINGS_VERSION;
+  return project;
 }
 
 function decodeConfigParam(param) {
@@ -332,12 +380,23 @@ function decodeConfigParam(param) {
 /** Defaults + localStorage v2 (или миграция v1) + ?config=<URL-encoded JSON|base64>. */
 export function loadProject() {
   const project = createDefaultProject();
+  let migrated = false;
   try {
     const savedV2 = typeof localStorage !== "undefined" && localStorage.getItem(PROJECT_STORAGE_KEY);
-    if (savedV2) mergeProject(project, JSON.parse(savedV2));
-    else {
+    if (savedV2) {
+      const saved = JSON.parse(savedV2);
+      mergeProject(project, saved);
+      if (isLegacy(saved)) {
+        migrateLegacyProject(project, { force: true });
+        migrated = true;
+      }
+    } else {
       const savedV1 = typeof localStorage !== "undefined" && localStorage.getItem(STORAGE_KEY);
-      if (savedV1) deepMerge(project.scenes.waiting, JSON.parse(savedV1));
+      if (savedV1) {
+        deepMerge(project.scenes.waiting, JSON.parse(savedV1));
+        migrateLegacyProject(project, { force: true });
+        migrated = true;
+      }
     }
   } catch (e) {
     console.warn("Не удалось прочитать настройки", e);
@@ -345,10 +404,18 @@ export function loadProject() {
   if (typeof location !== "undefined") {
     const param = new URLSearchParams(location.search).get("config");
     if (param) {
-      try { mergeProject(project, decodeConfigParam(param)); }
-      catch (e) { console.warn("Не удалось применить ?config", e); }
+      try {
+        const decoded = decodeConfigParam(param);
+        if (decoded?.scenes && isLegacy(decoded)) {
+          migrateLegacyProject(decoded, { force: true, preserve: true });
+          migrated = true;
+        }
+        mergeProject(project, decoded);
+      } catch (e) { console.warn("Не удалось применить ?config", e); }
     }
   }
+  if (migrated) saveProject(project);
+  project.settingsVersion = SETTINGS_VERSION;
   return project;
 }
 
@@ -370,7 +437,10 @@ export function resetStoredProject() {
 }
 
 export function parseProjectJSON(text, project = createDefaultProject()) {
-  mergeProject(project, JSON.parse(text));
+  const data = JSON.parse(text);
+  if (data?.scenes && isLegacy(data)) migrateLegacyProject(data, { force: true, preserve: true });
+  mergeProject(project, data);
+  project.settingsVersion = SETTINGS_VERSION;
   return project;
 }
 

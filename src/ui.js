@@ -1,5 +1,5 @@
 import {
-  SCHEMA, SCENE_IDS, SCENE_LABELS, FONT_CHOICES,
+  SCHEMA, SCENE_IDS, SCENE_LABELS, FONT_CHOICES, SETTINGS_VERSION,
   projectToJSON, saveProject, resetStoredProject, resetProjectScene, projectToURL,
 } from "./config.js";
 import { createDefaultProject } from "./scenes/defaults.js";
@@ -21,6 +21,7 @@ export function createSettingsUI(project, options = {}) {
     onPauseToggle = () => {},
     onToast = () => {},
     onExportVideo = () => {},
+    onToggleEditor = () => {},
   } = options;
 
   const btn = document.createElement("button");
@@ -43,6 +44,7 @@ export function createSettingsUI(project, options = {}) {
       <button type="button" data-act="pause">Пауза</button>
       <button type="button" data-act="export">JSON</button>
       <button type="button" data-act="import">Импорт</button>
+      <button type="button" data-act="editor" title="Конструктор (E)">Конструктор</button>
       <details class="cfg-more">
         <summary aria-label="Дополнительные действия">···</summary>
         <div class="cfg-more-menu">
@@ -108,6 +110,7 @@ export function createSettingsUI(project, options = {}) {
   }
 
   function commit() {
+    project.settingsVersion = SETTINGS_VERSION;
     saveProject(project);
     onProjectChange();
   }
@@ -311,6 +314,7 @@ export function createSettingsUI(project, options = {}) {
     else if (act === "export") showIO("export");
     else if (act === "import") showIO("import");
     else if (act === "render") { onRenderWithConfig(); close(); }
+    else if (act === "editor") { onToggleEditor(); close(); }
     else if (act === "reset-scene") {
       if (!confirm("Сбросить настройки текущей сцены к умолчанию?")) return;
       resetProjectScene(project, currentSceneId);
@@ -323,6 +327,7 @@ export function createSettingsUI(project, options = {}) {
       for (const id of SCENE_IDS) resetProjectScene(project, id);
       project.activeScene = fresh.activeScene;
       project.editor = fresh.editor;
+      project.settingsVersion = SETTINGS_VERSION;
       commit(); bindConfig(getActiveSceneId());
       onToast("Все настройки сброшены");
     } else if (ioAct === "copy") { await copyText(ta); onToast("JSON скопирован"); }

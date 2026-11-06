@@ -61,5 +61,6 @@ export class FinaleScene extends BrandScene {
     this.finalCircle.material.color.set(this.cfg.colors.ringColor);
     this._letterLine(".cap-title", cue.titleOutline, cue.titleFill, 0.72, seq.captionErase);
     this._letterLine(".cap-sub", cue.phraseOutline, cue.phraseFill, 0.48, seq.captionErase);
+    this.applyEditorElements(t);
   }
 }
