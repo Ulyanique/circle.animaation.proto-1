@@ -34,3 +34,32 @@ test('четыре уголка равномерно отступают от к�
   assert.deepEqual(v.slice(36, 39), [x, y, 0]);
   assert.ok(Math.abs(v[3] - (-x + 18 * 0.08)) < 1e-9);
 });
+
+test('старое стандартное смещение фотопаузы переносится в центр только один раз', async () => {
+  const { loadSceneConfig, saveSceneConfig, sceneStorageKey } = await import('../src/config.js');
+  const data = new Map();
+  const prev = globalThis.localStorage;
+  globalThis.localStorage = {
+    getItem: (key) => data.has(key) ? data.get(key) : null,
+    setItem: (key, value) => data.set(key, String(value)),
+    removeItem: (key) => data.delete(key),
+  };
+  try {
+    data.set(sceneStorageKey('photo-pause'), JSON.stringify({logo: {offsetY: 0.86, scale: 0.58}, photo: {text: 'МОЙ ТЕКСТ'}}));
+    const cfg = loadSceneConfig('photo-pause', PHOTO_PAUSE_DEFAULTS);
+    assert.equal(cfg.logo.offsetY, 0);
+    assert.equal(cfg.logo.scale, 0.58);
+    assert.equal(cfg.photo.text, 'МОЙ ТЕКСТ');
+    assert.equal(JSON.parse(data.get(sceneStorageKey('photo-pause'))).logo.offsetY, 0);
+    cfg.logo.offsetY = 0.86;
+    saveSceneConfig('photo-pause', cfg);
+    assert.equal(loadSceneConfig('photo-pause', PHOTO_PAUSE_DEFAULTS).logo.offsetY, 0.86);
+    data.clear();
+    data.set(sceneStorageKey('photo-pause'), JSON.stringify({logo: {offsetY: -0.4}}));
+    assert.equal(loadSceneConfig('photo-pause', PHOTO_PAUSE_DEFAULTS).logo.offsetY, -0.4);
+    data.clear();
+    loadSceneConfig('photo-pause', PHOTO_PAUSE_DEFAULTS);
+    data.set(sceneStorageKey('photo-pause'), JSON.stringify({logo: {offsetY: 0.86}}));
+    assert.equal(loadSceneConfig('photo-pause', PHOTO_PAUSE_DEFAULTS).logo.offsetY, 0.86);
+  } finally { globalThis.localStorage = prev; }
+});

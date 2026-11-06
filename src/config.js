@@ -169,6 +169,7 @@ export const SCHEMA = [
 const STORAGE_PREFIX = "circle-anim-settings-v2";
 // Старый единственный ключ читаем один раз, чтобы не потерять настройки интро.
 const LEGACY_KEY = "circle-anim-settings-v1";
+const PHOTO_CENTER_MIGRATION = "circle-anim-photo-center-v1";
 export const PROJECT_VERSION = 2;
 
 export function sceneStorageKey(sceneId) {
@@ -217,16 +218,34 @@ export function mergeConfig(defaults, patch) {
 export function loadSceneConfig(sceneId, defaults) {
   const cfg = cloneDefaults(defaults);
   let raw = null;
+  let migratePhotoCenter = false;
   try {
     raw = localStorage.getItem(sceneStorageKey(sceneId));
     if (!raw && sceneId === "waiting") raw = localStorage.getItem(LEGACY_KEY);
+    if (sceneId === "photo-pause") migratePhotoCenter = !localStorage.getItem(PHOTO_CENTER_MIGRATION);
   } catch (e) {
     console.warn("Не удалось прочитать настройки", e);
     return cfg;
   }
-  if (!raw) return cfg;
+  if (!raw) {
+    if (migratePhotoCenter) {
+      try { localStorage.setItem(PHOTO_CENTER_MIGRATION, "1"); } catch (e) { /* noop */ }
+    }
+    return cfg;
+  }
   try {
-    deepMerge(cfg, JSON.parse(raw));
+    const saved = JSON.parse(raw);
+    // Старое стандартное положение фона было 0.86. Оно ошибочно переносилось
+    // в новую центрированную фотопаузу. Иные значения пользовательских правок
+    // не трогаем; после первого переноса произвольное положение снова сохраняется.
+    if (migratePhotoCenter && saved?.logo?.offsetY === 0.86) {
+      saved.logo.offsetY = defaults.logo.offsetY;
+      try { localStorage.setItem(sceneStorageKey(sceneId), JSON.stringify(saved)); } catch (e) { /* noop */ }
+    }
+    if (migratePhotoCenter) {
+      try { localStorage.setItem(PHOTO_CENTER_MIGRATION, "1"); } catch (e) { /* noop */ }
+    }
+    deepMerge(cfg, saved);
   } catch (e) {
     console.warn("Сохранённые настройки повреждены, взяты умолчания", e);
   }
