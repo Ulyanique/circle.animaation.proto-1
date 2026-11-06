@@ -84,11 +84,23 @@ export function createFrameEditor({ getState, onEnable, onChange, onLayoutChange
     <label data-field="text">Текст <input type="text" data-appearance="text" maxlength="120" autocomplete="off"></label>
     <label data-field="color"><span data-color-label>Цвет</span> <input type="color" data-appearance="color"></label>
     <div class="editor-appearance-reset"><button type="button" data-action="reset-text">Исходный текст</button><button type="button" data-action="reset-color">Исходный цвет</button></div>
-  </div><button type="button" data-action="align-x">По центру по горизонтали</button><button type="button" data-action="align-y">По центру по вертикали</button><button type="button" data-action="settings">Настройки элемента</button><button type="button" data-action="reset">Сбросить положение</button><button type="button" data-action="reset-size">Сбросить размер</button><button type="button" class="editor-delete-text" data-action="delete-text" hidden>Удалить текст</button>`;
+  </div><section class="editor-timing" hidden>
+    <h3>Время надписи</h3>
+    <label class="editor-timing-mode">Анимация <select data-timing-mode><option value="scene">Вместе с названием</option><option value="custom">Своё время</option></select></label>
+    <div class="editor-timing-fields" hidden>
+      <label><span>Появление <output data-timing-output="Start"></output></span><input type="range" data-timing="Start" min="0" max="99" step="1"></label>
+      <label><span>Уход <output data-timing-output="End"></output></span><input type="range" data-timing="End" min="1" max="100" step="1"></label>
+      <label><span>Плавность <output data-timing-output="Fade"></output></span><input type="range" data-timing="Fade" min="5" max="50" step="1"></label>
+      <p>Время — доля цикла после стартовой задержки; секунды указаны по таймлайну. Плавность — доля выбранного интервала.</p>
+    </div>
+  </section><button type="button" data-action="align-x">По центру по горизонтали</button><button type="button" data-action="align-y">По центру по вертикали</button><button type="button" data-action="settings">Настройки элемента</button><button type="button" data-action="reset">Сбросить положение</button><button type="button" data-action="reset-size">Сбросить размер</button><button type="button" class="editor-delete-text" data-action="delete-text" hidden>Удалить текст</button>`;
   const textInput = menu.querySelector('[data-appearance="text"]');
   const colorInput = menu.querySelector('[data-appearance="color"]');
   const textRow = menu.querySelector('[data-field="text"]');
   const resetTextButton = menu.querySelector('[data-action="reset-text"]');
+  const timing = menu.querySelector('.editor-timing');
+  const timingMode = menu.querySelector('[data-timing-mode]');
+  const timingFields = menu.querySelector('.editor-timing-fields');
   inspector.appendChild(menu); layer.appendChild(inspector); document.body.appendChild(layer);
   const panelToggles = Object.fromEntries([...historyBar.querySelectorAll('[data-panel]')].map(button => [button.dataset.panel, button]));
   function setCompactPanel(name) {
@@ -146,6 +158,8 @@ export function createFrameEditor({ getState, onEnable, onChange, onLayoutChange
     menu.querySelector('[data-color-label]').textContent = id === 'logo' ? 'Общий цвет золота' : 'Цвет';
     menu.querySelector('[data-action=delete-text]').hidden = !CUSTOM_TEXT_IDS.includes(id);
     menu.querySelector('[data-action=settings]').hidden = CUSTOM_TEXT_IDS.includes(id);
+    timing.hidden = !CUSTOM_TEXT_IDS.includes(id);
+    if (!timing.hidden) populateTiming(id);
     textRow.hidden = !info.text; resetTextButton.hidden = !info.text;
     if (info.text) {
       textInput.value = cfg[info.text.section][info.text.key] ?? '';
@@ -169,6 +183,48 @@ export function createFrameEditor({ getState, onEnable, onChange, onLayoutChange
       const {section, key} = inputSession.field;
       inputSession.config[section][key] = input.value;
       onChange();
+    });
+    input.addEventListener('change', finishInput);
+    input.addEventListener('blur', finishInput);
+  }
+  function populateTiming(id) {
+    const config = getState().config;
+    const values = config.textLayers;
+    const mode = values[`${id}TimingMode`] === 'custom' ? 'custom' : 'scene';
+    timingMode.value = mode; timingFields.hidden = mode !== 'custom';
+    const tl = config.timeline;
+    const cycle = tl ? tl.drawDuration + tl.emergeDuration + tl.holdDuration + tl.fadeDuration + tl.restDuration : 0;
+    for (const [key, fallback] of [['Start', 25], ['End', 90], ['Fade', 15]]) {
+      const input = timingFields.querySelector(`[data-timing="${key}"]`);
+      input.value = Number.isFinite(values[`${id}${key}`]) ? values[`${id}${key}`] : fallback;
+      const value = Number(input.value);
+      timingFields.querySelector(`[data-timing-output="${key}"]`).textContent = key === 'Fade' ? `${value}%` : `${value}% · ${(cycle * value / 100).toFixed(1)} с`;
+    }
+  }
+  timingMode.addEventListener('change', () => {
+    if (!selected || !CUSTOM_TEXT_IDS.includes(selected)) return;
+    finishInput();
+    const state = getState(), key = `${selected}TimingMode`;
+    const before = snapshot(state.config, [{section: 'textLayers', key}]);
+    state.config.textLayers[key] = timingMode.value;
+    record(state.id, state.config, before); onChange(); populateTiming(selected);
+  });
+  for (const input of timingFields.querySelectorAll('[data-timing]')) {
+    const begin = () => {
+      if (inputSession || !selected || !CUSTOM_TEXT_IDS.includes(selected)) return;
+      const state = getState(), kind = input.dataset.timing;
+      const keys = kind === 'Fade' ? [`${selected}Fade`] : [`${selected}Start`, `${selected}End`];
+      inputSession = {sceneId: state.id, config: state.config, before: snapshot(state.config, keys.map(key => ({section: 'textLayers', key}))), timingId: selected};
+    };
+    input.addEventListener('focus', begin);
+    input.addEventListener('input', () => {
+      begin();
+      if (!inputSession?.timingId) return;
+      const id = inputSession.timingId, values = inputSession.config.textLayers, kind = input.dataset.timing;
+      values[`${id}${kind}`] = Number(input.value);
+      if (kind === 'Start' && values[`${id}Start`] >= values[`${id}End`]) values[`${id}End`] = values[`${id}Start`] + 1;
+      if (kind === 'End' && values[`${id}End`] <= values[`${id}Start`]) values[`${id}Start`] = values[`${id}End`] - 1;
+      onChange(); populateTiming(id);
     });
     input.addEventListener('change', finishInput);
     input.addEventListener('blur', finishInput);

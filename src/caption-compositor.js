@@ -222,8 +222,11 @@ export function drawCaption(ctx, alpha, sceneId) {
     const selector = `[data-custom="${el.dataset.custom}"]`;
     const size = fontSize(selector, 3.5 * u);
     const fill = getComputedStyle(el).getPropertyValue('--custom-color').trim() || '#ecd08c';
+    ctx.save();
+    if (el.dataset.independent === 'true') ctx.translate(0, -drift * scale);
     textLine(selector, { ...linePosition(selector, 0.75 * H), weight: 600, size, ls: 0,
       stroke: fill, sw: 0.04 * u, fill });
+    ctx.restore();
   }
   ctx.restore();
 }

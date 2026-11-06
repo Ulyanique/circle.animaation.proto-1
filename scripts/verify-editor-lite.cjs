@@ -55,6 +55,33 @@ const { launchBrowser } = require('./browser.cjs');
     assert.equal(await page.$eval('[data-custom=text1]', el => el.textContent.replaceAll('\u00a0', ' ')), 'Свой текст');
     let customPaint = await page.evaluate(() => window.editorFixture.exportedTitle());
     assert.equal(customPaint.filter(v => v.color === '#127abc').map(v => v.text).join(''), 'Свойтекст', 'новый текст отсутствует в canvas');
+    assert.equal(await page.$eval('[data-timing-mode]', el => el.value), 'scene');
+    await page.select('[data-timing-mode]', 'custom');
+    for (const [field, value] of [['Start', 20], ['End', 80], ['Fade', 20]]) {
+      await page.$eval(`[data-timing=${field}]`, (el, value) => { el.focus(); el.value = value; el.dispatchEvent(new Event('input', {bubbles:true})); el.dispatchEvent(new Event('change', {bubbles:true})); }, value);
+    }
+    assert.equal(await page.$eval('[data-timing-output=Start]', el => el.textContent), '20% · 4.0 с');
+    await page.evaluate(() => window.editorFixture.setTime(2));
+    assert.equal((await page.evaluate(() => window.editorFixture.exportedTitle())).filter(v => v.color === '#127abc').length, 0, 'текст виден до интервала');
+    await page.evaluate(() => window.editorFixture.setTime(10));
+    assert.equal((await page.evaluate(() => window.editorFixture.exportedTitle())).filter(v => v.color === '#127abc').map(v => v.text).join(''), 'Свойтекст');
+    await page.evaluate(() => window.editorFixture.setTime(18));
+    assert.equal((await page.evaluate(() => window.editorFixture.exportedTitle())).filter(v => v.color === '#127abc').length, 0, 'текст виден после интервала');
+    await page.evaluate(() => {
+      window.editorFixture.setTime(10);
+      const cap = document.querySelector('#caption'); cap.style.setProperty('--drift', '10px');
+      cap.style.transform = 'translate(-50%, calc(-50% + var(--drift)))';
+    });
+    const positionBefore = await page.$eval('[data-custom=text1]', el => el.getBoundingClientRect().top);
+    await page.$eval('#caption', el => el.style.setProperty('--drift', '20px'));
+    const positionAfter = await page.$eval('[data-custom=text1]', el => el.getBoundingClientRect().top);
+    assert.ok(Math.abs(positionBefore - positionAfter) < 0.01, 'надпись с собственным временем унаследовала движение титра');
+    assert.ok((await page.evaluate(() => window.editorFixture.exportedTitle())).filter(v => v.color === '#127abc').every(v => Math.abs(v.transformY) < 0.01), 'canvas не компенсирует движение титра');
+    await page.$eval('#caption', el => { el.style.removeProperty('--drift'); el.style.transform = ''; });
+    await page.$eval('[data-timing=Start]', el => { el.focus(); el.value = '95'; el.dispatchEvent(new Event('input', {bubbles:true})); el.dispatchEvent(new Event('change', {bubbles:true})); });
+    assert.equal(await page.evaluate(() => window.editorFixture.state.config.textLayers.text1End), 96);
+    await page.click('[data-history=undo]');
+    assert.deepEqual(await page.evaluate(() => [window.editorFixture.state.config.textLayers.text1Start, window.editorFixture.state.config.textLayers.text1End]), [20, 80]);
     await drag('[data-element=text1]', 40, 20);
     assert.ok(await page.evaluate(() => window.editorFixture.state.config.textLayers.text1X) > 0);
     await resize('text1', 35, 20);

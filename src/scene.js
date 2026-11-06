@@ -1,3 +1,4 @@
+import { customTextAnimation } from "./custom-text.js";
 import { editorViewport } from "./editor-layers.js";
 import * as THREE from "three";
 import { OUTPUT } from "./scenes/catalog.js";
@@ -372,7 +373,8 @@ export class LogoScene {
         [".cap-title", "title", lines.title], [".r1", "rule1", lines.rule1],
         [".cap-sub", "subtitle", lines.subtitle], [".r2", "rule2", lines.rule2],
         [".cap-date", "date", lines.date],
-        ...Array.from(capEl.querySelectorAll(".cap-custom"), el => [`[data-custom="${el.dataset.custom}"]`, "title", lines.title]),
+        ...Array.from(capEl.querySelectorAll(".cap-custom"), el => [`[data-custom="${el.dataset.custom}"]`, "title",
+          el.dataset.independent === 'true' ? customTextAnimation(t, cfg.timeline, cfg.textLayers, el.dataset.custom) : lines.title]),
       ]) {
         const el = capEl.querySelector(sel);
         if (!el) continue;

@@ -45,6 +45,7 @@ export function syncCaptionContent(cap, caption, custom = {}) {
       const next = CUSTOM_TEXT_IDS.slice(index + 1).map(key => cap.querySelector(`[data-custom="${key}"]`)).find(Boolean);
       cap.insertBefore(el, next ?? null); changed = true;
     }
+    el.dataset.independent = String(custom[`${id}TimingMode`] === 'custom');
     const color = validCustomColor(custom[`${id}Color`]) ?? '#ecd08c';
     el.style.setProperty('--custom-color', color);
     el.style.visibility = custom[`${id}Visible`] === false ? 'hidden' : '';
