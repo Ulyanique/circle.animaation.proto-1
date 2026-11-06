@@ -56,9 +56,8 @@ export function contourWave(time, index) {
   const expansion = 1 - (1 - phase) * (1 - phase);
   return {
     phase,
-    // Эхо рождается уже больше знака: тонкие копии расходятся вокруг него,
-    // а не ложатся двойным контуром прямо по силуэту.
-    scale: 1.32 + 0.66 * expansion,
+    // Расстояние от края силуэта: волна не масштабирует внутренние детали.
+    distance: 0.02 + 0.75 * expansion,
     opacity: 0.15 * smooth(0.04, 0.22, phase) * (1 - smooth(0.38, 1, phase)),
   };
 }

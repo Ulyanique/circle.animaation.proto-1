@@ -109,22 +109,21 @@ test("интро раскрывается светом и движением к�
 
 test("контурные волны непрерывно расходятся, замедляются и затухают без скачка при перезапуске", () => {
   assert.equal(contourWave(0, 0).opacity, 0);
-  // Эхо рождается уже больше знака: копии расходятся вокруг него, а не ложатся по силуэту.
-  assert.ok(contourWave(0, 0).scale >= 1.3, "эхо начинается прямо на контуре логотипа");
+  assert.ok(contourWave(0, 0).distance > 0, "волна начинается с внешнего края");
   const near = contourWave(CONTOUR_WAVE_PERIOD * 0.2, 0);
   const far = contourWave(CONTOUR_WAVE_PERIOD * 0.8, 0);
-  assert.ok(far.scale > near.scale);
+  assert.ok(far.distance > near.distance);
   assert.ok(near.opacity > far.opacity && far.opacity > 0);
   const step = CONTOUR_WAVE_PERIOD * 0.1;
-  assert.ok(contourWave(step, 0).scale - contourWave(0, 0).scale >
-    contourWave(CONTOUR_WAVE_PERIOD * 0.9, 0).scale - contourWave(CONTOUR_WAVE_PERIOD * 0.8, 0).scale);
+  assert.ok(contourWave(step, 0).distance - contourWave(0, 0).distance >
+    contourWave(CONTOUR_WAVE_PERIOD * 0.9, 0).distance - contourWave(CONTOUR_WAVE_PERIOD * 0.8, 0).distance);
   assert.ok(contourWave(CONTOUR_WAVE_PERIOD - 1e-4, 0).opacity < 1e-6);
   for (let i = 0; i < 100; i++) {
     const time = i * CONTOUR_WAVE_PERIOD / 100;
     const waves = Array.from({ length: CONTOUR_WAVE_COUNT }, (_, index) => contourWave(time, index));
     assert.ok(Math.max(...waves.map((wave) => wave.opacity)) > 0.1);
     const next = contourWave(time + CONTOUR_WAVE_PERIOD, 0);
-    assert.ok(Math.abs(next.scale - waves[0].scale) < 1e-9);
+    assert.ok(Math.abs(next.distance - waves[0].distance) < 1e-9);
     assert.ok(Math.abs(next.opacity - waves[0].opacity) < 1e-9);
   }
 });

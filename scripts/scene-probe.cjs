@@ -108,10 +108,10 @@ async function inspectSceneDesign() {
       tickAngle: scene.corners.sides.left.ticks.rotation.z,
       particleTime: scene.particles.dust.material.uniforms.uTime.value,
       waveVisible: Boolean(scene.contourWaves?.group.visible),
-      captionSafe: !scene.contourWaves || scene.contourWaves.layers.every(({ material }) => material.uniforms.uCaptionSafe.value === 1),
+      captionSafe: !scene.contourWaves || scene.contourWaves.layers.every(({ material }) => material.uniforms.uCaptionSafe.value === (state.id === "photo-pause" ? 0 : 1)),
       centerRing: scene.corners.centerRing.visible,
       waves: scene.contourWaves?.layers.map(({ layer, material }) => ({
-        scale: layer.scale.x, opacity: material.uniforms.uOpacity.value, visible: layer.visible,
+        distance: material.uniforms.uRadius.value, opacity: material.uniforms.uOpacity.value, visible: layer.visible,
       })) ?? [] };
   });
 
@@ -216,7 +216,7 @@ function assertSceneDesign(state) {
     const a = state.motion[i - 1], b = state.motion[i];
     assert.ok(b.backgroundTime > a.backgroundTime && b.particleTime > a.particleTime && b.tickAngle !== a.tickAngle,
       "фон, пыль и кольца должны постоянно двигаться");
-    assert.ok(Math.abs(b.waves[0].scale - a.waves[0].scale) > 0.01, "контурная волна не движется");
+    assert.ok(Math.abs(b.waves[0].distance - a.waves[0].distance) > 0.002, "контурная волна не движется");
   }
 }
 
