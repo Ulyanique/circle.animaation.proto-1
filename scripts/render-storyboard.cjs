@@ -15,9 +15,11 @@ const url = process.env.URL || "http://localhost:5173/";
     const errors = [];
     page.on("pageerror", (e) => errors.push(e.message));
     await page.goto(url, { waitUntil: "networkidle0", timeout: 120000 });
+    await page.waitForFunction(() => document.body.classList.contains("boot-ready"), { timeout: 240000 });
+    await page.waitForSelector("#boot-screen", { hidden: true, timeout: 10000 });
     const frames = await page.evaluate(async () => {
       await document.fonts.ready;
-      if (window.__logo.activeScene.id !== "waiting") throw new Error("Эта раскадровка относится к первой заставке; для фирменного фона используйте verify:brand");
+      if (window.__logo.activeScene.id !== "waiting") throw new Error("Эта раскадровка относится к интро; для фирменного фона используйте verify:brand");
       const t = window.__logo.cfg.timeline;
       window.__logo.cfg.playback.paused = true;
       const D = t.drawDuration, E = t.emergeDuration, H = t.holdDuration, F = t.fadeDuration;
@@ -28,7 +30,8 @@ const url = process.env.URL || "http://localhost:5173/";
         ["04-gold", t.startDelay + D + E * 0.65],
         ["05-light-pass", t.startDelay + D + E + Math.min(0.58, H * 0.08)],
         ["06-tableau", t.startDelay + D + E + H * 0.55],
-        ["07-final-contour", t.startDelay + D + E + H + F * 0.92],
+        // Чуть раньше закрытия шва: виден последний контур, а не почти чёрный кадр.
+        ["07-final-contour", t.startDelay + D + E + H + F * 0.82],
       ];
     });
     await page.addStyleTag({ content: ".cfg-toggle,.cfg-panel,.toast,.review-panel,.operator-panel{display:none!important}" });

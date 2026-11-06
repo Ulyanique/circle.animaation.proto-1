@@ -9,17 +9,20 @@ import { FinaleScene } from "./finale-scene.js";
 import { createSettingsUI } from "./ui.js";
 import { AnimationRuntime } from "./runtime.js";
 import { OUTPUT, RECORDING_CHAIN, sceneById } from "./scenes/catalog.js";
-import { glyphReveal } from "./caption.js";
+import { drawCaption } from "./caption-compositor.js";
 import { createOperatorControls, crossedBoundary } from "./operator.js";
 
-let sceneId = new URLSearchParams(location.search).get("scene") || "waiting";
-let activeScene = sceneById(sceneId);
+const requestedScene = new URLSearchParams(location.search).get("scene") || "intro";
+let activeScene = sceneById(requestedScene);
 if (!activeScene?.defaults || activeScene.status !== "ready") {
-  throw new Error(`Сцена «${sceneId}» пока не подготовлена`);
+  throw new Error(`Сцена «${requestedScene}» пока не подготовлена`);
 }
+// "waiting" остаётся внутренним идентификатором для старых ссылок и настроек.
+let sceneId = activeScene.id;
 const configs = new Map();
 configs.set("waiting", loadConfig(sceneById("waiting").defaults));
 function configFor(id) {
+  id = sceneById(id)?.id || id;
   if (!configs.has(id)) configs.set(id, cloneDefaults(sceneById(id).defaults));
   return configs.get(id);
 }
@@ -102,8 +105,10 @@ const operator = createOperatorControls({
   setDuration: (value) => {
     const tl = cfg.timeline;
     const other = runtime.cycle - tl.holdDuration;
-    const minHold = sceneId === "finale" ? 12 : sceneId === "waiting" ? 1 : 4;
-    tl.holdDuration = Math.max(minHold, Math.min(300, value - other));
+    // Для других видов вход/уход теперь тоже занимают время; сохраняем
+    // не менее четырёх секунд фазы удержания и ограничение полного цикла.
+    const minHold = sceneId === "waiting" ? 1 : 4;
+    tl.holdDuration = Math.max(minHold, Math.min(300 - other, value - other));
     if (sceneId === "waiting") { saveConfig(cfg); settings.refresh(); }
     runtime.renderAt(Math.min(runtime.time, tl.startDelay + runtime.cycle - 1 / OUTPUT.fps));
   },
@@ -118,136 +123,12 @@ const operator = createOperatorControls({
 
 const REC_W = OUTPUT.width, REC_H = OUTPUT.height;
 
-// подпись на канвасе повторяет DOM-макет (--u = 1% ширины кадра) и ту же анимацию:
-// прогресс обводки и заливки каждой строки читается из --p / --f на элементах #caption
-function capVal(sel, name) {
-  const el = document.querySelector(`#caption ${sel}`);
-  return el ? parseFloat(getComputedStyle(el).getPropertyValue(name)) || 0 : 0;
-}
-
-function drawCaption(ctx, alpha) {
-  const W = REC_W, H = REC_H, u = W / 100;
-  const cap = document.getElementById("caption");
-  const scale = W / (parseFloat(cap?.style.width) || W);
-  const drift = parseFloat(cap?.style.getPropertyValue("--drift")) || 0;
-  const font = (w, size) => `${w} ${size}px "Cormorant Garamond", Georgia, serif`;
-  ctx.save();
-  ctx.translate(0, drift * scale);
-  ctx.globalAlpha = alpha;
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-
-  // Рендерим те же отдельные графемы, что и DOM: запись WebM не теряет
-  // посимвольную обводку/заливку (HTML-оверлей в captureStream не попадает).
-  const textLine = (sel, text, o) => {
-    const line = { outline: capVal(sel, "--p"), fill: capVal(sel, "--f") };
-    if (line.outline <= 0.001) return;
-    const y = o.y + capVal(sel, "--lift") * scale;
-    const glyphs = [...document.querySelectorAll(`#caption ${sel} .cap-glyph`)]
-      .map((span) => span.textContent === "\u00a0" ? " " : span.textContent);
-    ctx.font = font(o.weight, o.size);
-    ctx.letterSpacing = "0px";
-    const widths = glyphs.map((glyph) => ctx.measureText(glyph).width);
-    const w = widths.reduce((a, b) => a + b, 0) + o.ls * Math.max(0, glyphs.length - 1);
-    let x = (o.centerX ?? W / 2) - w / 2 + o.ls / 2; // то же центрирование, что padding-left в DOM
-    ctx.textAlign = "left";
-    ctx.strokeStyle = o.stroke; ctx.lineWidth = o.sw; ctx.lineJoin = "round";
-    const pen = capVal(sel, "--pen");
-    glyphs.forEach((glyph, i) => {
-      const reveal = glyphReveal(line, i, glyphs.length);
-      const width = widths[i];
-      if (glyph !== " " && reveal.outline > 0.001) {
-        ctx.save();
-        ctx.beginPath(); ctx.rect(x - o.sw, 0, (width + o.sw * 2) * reveal.outline, H); ctx.clip();
-        ctx.strokeText(glyph, x, y);
-        ctx.restore();
-      }
-      if (glyph !== " " && reveal.fill > 0.001) {
-        ctx.save();
-        ctx.beginPath(); ctx.rect(x, 0, width * reveal.fill, H); ctx.clip();
-        if (o.shadow) { ctx.shadowColor = "rgba(0,0,0,0.7)"; ctx.shadowBlur = 0.5 * u; ctx.shadowOffsetY = 0.2 * u; }
-        ctx.fillStyle = typeof o.fill === "function" ? o.fill(y) : o.fill;
-        ctx.fillText(glyph, x, y);
-        ctx.restore();
-      }
-      const glowPower = pen * Math.sin(Math.PI * reveal.outline);
-      if (glyph !== " " && glowPower > 0.001) {
-        const head = x + width * reveal.outline, spread = 0.225 * u;
-        const glow = ctx.createLinearGradient(head - spread, 0, head + spread, 0);
-        glow.addColorStop(0, "rgba(255,231,164,0)");
-        glow.addColorStop(0.5, "rgba(255,231,164,0.55)");
-        glow.addColorStop(1, "rgba(255,231,164,0)");
-        ctx.save(); ctx.globalAlpha *= glowPower;
-        ctx.fillStyle = glow;
-        ctx.fillRect(head - spread, y - o.size * 0.38, spread * 2, o.size * 0.8);
-        ctx.restore();
-      }
-      x += width + o.ls;
-    });
-    ctx.textAlign = "center";
-  };
-
-  // разделитель с ромбом: раскрывается от центра (--p), ромб появляется вместе с ним
-  const rule = (sel, y) => {
-    const p = capVal(sel, "--p");
-    if (p <= 0.001) return;
-    y += capVal(sel, "--lift") * scale;
-    const half = 17 * u, gap = 1 * u, d = 0.9 * u;
-    ctx.save();
-    ctx.beginPath(); ctx.rect(W / 2 - half * p, 0, 2 * half * p, H); ctx.clip();
-    const lg = ctx.createLinearGradient(W / 2 - half, 0, W / 2 + half, 0);
-    lg.addColorStop(0, "rgba(217,176,97,0)"); lg.addColorStop(0.5, "#d9b061"); lg.addColorStop(1, "rgba(217,176,97,0)");
-    ctx.fillStyle = lg;
-    ctx.fillRect(W / 2 - half, y - 0.5, half - d / 2 - gap, 1);
-    ctx.fillRect(W / 2 + d / 2 + gap, y - 0.5, half - d / 2 - gap, 1);
-    ctx.globalAlpha *= p;
-    ctx.save();
-    ctx.translate(W / 2, y); ctx.rotate(Math.PI / 4);
-    ctx.strokeStyle = "#e0b25a"; ctx.lineWidth = 1;
-    ctx.strokeRect(-d / 2, -d / 2, d, d);
-    ctx.restore();
-    ctx.restore();
-  };
-
-  const brand = activeScene.id === "brand";
-  const photo = activeScene.id === "photo-pause";
-  const finale = activeScene.id === "finale";
-  const tSize = (brand ? 5.7 : photo ? 6.7 : finale ? 6.6 : 7.2) * u;
-  const titleGrad = (y) => {
-    const g = ctx.createLinearGradient(0, y - tSize / 2, 0, y + tSize / 2);
-    g.addColorStop(0, "#fff3cc"); g.addColorStop(0.4, "#f0cc78");
-    g.addColorStop(0.75, "#c08c36"); g.addColorStop(1, "#e8c06a");
-    return g;
-  };
-  textLine(".cap-title", photo ? "Фотопауза" : "Янтарный циркуль", {
-    y: (brand ? 0.50 : photo ? 0.69 : 0.55) * H, centerX: brand ? 0.62 * W : W / 2,
-    weight: 600, size: tSize, ls: 0, stroke: "#e0b25a", sw: 0.08 * u, shadow: true, fill: titleGrad,
-  });
-  if (finale) {
-    textLine(".cap-sub", "ИСТОРИЯ ПРОДОЛЖАЕТСЯ", {
-      y: 0.71 * H, weight: 400, size: 2.55 * u, ls: 0.18 * 2.55 * u,
-      stroke: "#d9b061", sw: 0.04 * u, fill: "#ecd08c",
-    });
-  }
-  if (!brand && !photo && !finale) {
-    rule(".r1", 0.66 * H);
-    rule(".r2", 0.79 * H);
-    textLine(".cap-sub", "ВЕЧЕР РЕТРОСПЕКТИВА", {
-      y: 0.72 * H, weight: 400, size: 2.4 * u, ls: 0.32 * 2.4 * u, stroke: "#d9b061", sw: 0.04 * u, fill: "#ecd08c",
-    });
-    textLine(".cap-date", "20 НОЯБРЯ 2026 ГОДА", {
-      y: 0.84 * H, weight: 400, size: 1.5 * u, ls: 0.28 * 1.5 * u, stroke: "#d9b061", sw: 0.035 * u, fill: "#d9b061",
-    });
-  }
-  ctx.restore();
-}
-
 // Одна и та же сборка WebGL + типографики для MediaRecorder и контроля PNG.
 function drawCompositeFrame(ctx, includeCaption = true) {
   ctx.drawImage(canvas, 0, 0, REC_W, REC_H);
   const cap = document.getElementById("caption");
   const op = includeCaption && cap ? parseFloat(getComputedStyle(cap).opacity) : 0;
-  if (op > 0.001) drawCaption(ctx, op);
+  if (op > 0.001) drawCaption(ctx, op, activeScene.id);
 }
 
 /** Тот же композит, что записывает MediaRecorder; includeCaption=false — эталон для теста. */
@@ -265,6 +146,7 @@ function compositeFrameAt(time, dt = 1 / OUTPUT.fps, includeCaption = true) {
 let transition = null;
 const SEQUENCE_SWITCH = Symbol("sequence transition");
 function switchScene(id, source) {
+  id = sceneById(id)?.id || id;
   if (id === sceneId) return true;
   if (!adapters[id] || transition || (recording && !(source === SEQUENCE_SWITCH && recording.kind === "sequence"))) return false;
   const nextCfg = configFor(id);
@@ -300,7 +182,7 @@ function switchScene(id, source) {
   runtime.renderAt(cfg.timeline.startDelay, 1 / OUTPUT.fps);
   oldScene.dispose();
   const url = new URL(location.href);
-  url.searchParams.set("scene", id);
+  url.searchParams.set("scene", id === "waiting" ? "intro" : id);
   history.replaceState(null, "", url);
   transition = snapshot;
   requestAnimationFrame(() => snapshot.classList.add("transition-out"));
@@ -334,7 +216,7 @@ function startRecording() {
     window.__lastVideoBlob = blob;
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
-    a.download = `${activeScene.id}-1920x1080.webm`;
+    a.download = `${activeScene.id === "waiting" ? "intro" : activeScene.id}-1920x1080.webm`;
     document.body.appendChild(a);
     a.click();
     a.remove();

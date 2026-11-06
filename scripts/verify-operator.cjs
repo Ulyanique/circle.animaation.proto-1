@@ -7,12 +7,14 @@ const { launchBrowser } = require("./browser.cjs");
     const errors = [];
     page.on("pageerror", (error) => errors.push(error.message));
     page.on("console", (msg) => { if (msg.type() === "error") errors.push(msg.text()); });
-    await page.goto("http://localhost:5173/?scene=waiting", { waitUntil: "networkidle0", timeout: 120000 });
+    await page.goto("http://localhost:5173/?scene=intro", { waitUntil: "networkidle0", timeout: 120000 });
     await page.waitForFunction(() => document.body.classList.contains("boot-ready"), { timeout: 240000 });
     const first = await page.evaluate(() => ({
       cursor: getComputedStyle(document.body).cursor,
       panel: !!document.querySelector(".operator-panel"),
       settings: getComputedStyle(document.querySelector(".cfg-toggle")).display !== "none",
+      label: document.querySelector('[data-scene="waiting"]')?.textContent.trim(),
+      isIntro: window.__logo.scene.isIntro && !window.__logo.scene.contourWaves,
     }));
     await page.evaluate(() => document.querySelector('[data-scene="brand"]').click());
     await page.waitForFunction(() => window.__logo.activeScene.id === "brand", { timeout: 120000 });
@@ -21,6 +23,7 @@ const { launchBrowser } = require("./browser.cjs");
       canvasCount: document.querySelectorAll("#stage").length,
       samePage: location.search.includes("scene=brand"),
       brandTitle: document.querySelector(".cap-title").textContent.replaceAll("\u00a0", " "),
+      hasWaves: !!window.__logo.scene.contourWaves && !window.__logo.scene.isIntro,
     }));
     await page.waitForFunction(() => !document.querySelector(".transition-frame"), { timeout: 60000 });
     const edit = await page.evaluate(() => {
@@ -55,6 +58,8 @@ const { launchBrowser } = require("./browser.cjs");
     const returnState = await page.evaluate(() => ({
       title: document.querySelector(".cap-title").textContent.replaceAll("\u00a0", " "),
       settings: getComputedStyle(document.querySelector(".cfg-toggle")).display !== "none",
+      isIntro: window.__logo.scene.isIntro && !window.__logo.scene.contourWaves,
+      introUrl: location.search.includes("scene=intro"),
     }));
     await page.waitForFunction(() => document.body.classList.contains("operator-idle") &&
       Number(getComputedStyle(document.querySelector(".cfg-toggle")).opacity) < 0.01,
@@ -70,13 +75,14 @@ const { launchBrowser } = require("./browser.cjs");
     const result = { first, crossfade, edit, auto, finalState, returnState, idle, awakened, errors };
     console.log(result);
     if (errors.length || first.cursor !== "auto" || !first.panel || !first.settings ||
-        !crossfade.overlay || crossfade.canvasCount !== 1 || !crossfade.samePage ||
+        !first.label.includes("Интро") || !first.isIntro ||
+        !crossfade.overlay || crossfade.canvasCount !== 1 || !crossfade.samePage || !crossfade.hasWaves ||
         crossfade.brandTitle !== "Янтарный циркуль" || edit.cycle !== 30 ||
         !edit.paused || Math.abs(edit.time - 15) > 0.01 || !auto ||
         finalState.title !== "Янтарный циркуль" ||
         finalState.phrase !== "История продолжается" ||
         finalState.stage.join("x") !== "1920x1080" ||
-        returnState.title !== "Янтарный циркуль" || !returnState.settings ||
+        returnState.title !== "Янтарный циркуль" || !returnState.settings || !returnState.isIntro || !returnState.introUrl ||
         idle.cursor !== "auto" || Number(idle.buttonOpacity) > 0.01 ||
         Number(idle.panelOpacity) > 0.01 || !awakened) process.exitCode = 1;
   } finally { await browser.close(); }

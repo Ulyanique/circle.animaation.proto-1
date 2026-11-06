@@ -1,4 +1,4 @@
-// Чистые такты для фоновых заставок: не зависят от кадров RAF и WebGL.
+// Чистые такты фоновых эффектов: зависят от времени, а не от частоты кадров.
 /** @param {number} x */
 const clamp = (x) => Math.max(0, Math.min(1, x));
 /** @param {number} a @param {number} b @param {number} x */
@@ -7,31 +7,37 @@ const smooth = (a, b, x) => {
   return v * v * (3 - 2 * v);
 };
 
-/** @param {number} t @param {number} cycle */
-export function loopLocal(t, cycle) {
-  return ((t % cycle) + cycle) % cycle;
+/** Световой акцент стартового интро: лучи, раскрытие и подъезд камеры.
+ * Все огибающие вычисляются по времени цикла и не затрагивают другие сцены.
+ * @param {{local: number, beforeStart: boolean}} phase
+ * @param {{drawDuration: number, emergeDuration: number}} timeline */
+export function introCues(phase, timeline) {
+  if (phase.beforeStart) return { beams: 0, strike: 0, approach: 0 };
+  const D = Math.max(0.05, timeline.drawDuration);
+  const E = Math.max(0.05, timeline.emergeDuration);
+  const t = phase.local;
+  const beams = smooth(D * 0.10, D * 0.55, t) *
+    (1 - smooth(D + E * 0.50, D + E * 1.15, t));
+  const strike = smooth(D + E * 0.22, D + E * 0.47, t) *
+    (1 - smooth(D + E * 0.50, D + E * 0.78, t));
+  const approach = 1 - smooth(D * 0.65, D + E * 0.90, t);
+  return { beams, strike, approach };
 }
 
-/** Периодическое «дыхание» с неподвижными отрезками перед стыком и после него.
- * @param {number} t @param {number} cycle */
-export function quietBreath(t, cycle) {
-  const local = loopLocal(t, cycle);
-  const settle = smooth(0.25, 1.5, local) *
-    (1 - smooth(cycle - 1.5, cycle - 0.25, local));
-  return settle === 0 ? 0 : Math.sin(local * Math.PI * 2 / cycle) * settle;
-}
+export const CONTOUR_WAVE_COUNT = 3;
+export const CONTOUR_WAVE_PERIOD = 5.4;
 
-/** Финальная реплика: символ → название → «История продолжается» → тишина.
- * @param {number} t @param {number} cycle */
-export function finaleCues(t, cycle) {
-  const local = loopLocal(t, cycle);
-  const close = 1 - smooth(cycle - 3.0, cycle - 0.55, local);
+/** Расходящийся контур: рождается у символа и гаснет до перезапуска.
+ * @param {number} time @param {number} index */
+export function contourWave(time, index) {
+  const phase = ((time / CONTOUR_WAVE_PERIOD - index / CONTOUR_WAVE_COUNT) % 1 + 1) % 1;
+  // Волна движется быстрее у знака, затем постепенно замедляется и растворяется.
+  const expansion = 1 - (1 - phase) * (1 - phase);
   return {
-    symbol: smooth(0.55, 2.4, local) * close,
-    titleOutline: smooth(1.9, 3.45, local) * close,
-    titleFill: smooth(3.55, 4.7, local) * close,
-    phraseOutline: smooth(4.9, 6.45, local) * close,
-    phraseFill: smooth(6.55, 7.45, local) * close,
-    light: smooth(1.0, 3.6, local) * (1 - smooth(cycle - 3.3, cycle - 0.55, local)),
+    phase,
+    // Эхо рождается уже больше знака: тонкие копии расходятся вокруг него,
+    // а не ложатся двойным контуром прямо по силуэту.
+    scale: 1.32 + 0.66 * expansion,
+    opacity: 0.17 * smooth(0.04, 0.22, phase) * (1 - smooth(0.38, 1, phase)),
   };
 }

@@ -119,8 +119,8 @@ export class Plotter {
   }
 
   update(phase, cfg) {
-    const { sweep, transfer, opacity, head } = plotSequence(phase, cfg.timeline);
-    this.group.visible = cfg.rings.enabled && opacity > 0.001;
+    const { sweep, transfer, opacity, head, trace, reverse } = plotSequence(phase, cfg.timeline);
+    this.group.visible = cfg.rings.enabled && (opacity > 0.001 || head > 0.001);
     if (!this.group.visible) return;
     this.group.position.set(0, cfg.logo.offsetY, -0.08);
     this.group.scale.setScalar(cfg.rings.radius * 0.8);
@@ -131,9 +131,14 @@ export class Plotter {
     const a = START_ANGLE - sweep * TAU;
     this.head.position.set(Math.cos(a), Math.sin(a), 0.025);
     if (transfer > 0 && head > 0 && this.logo.outlineAnchors?.length >= 2) {
-      // Перемещаем тот же световой наконечник с окружности к реальной первой
-      // точке SVG-контура. Учитываем текущий масштаб и поворот логотипа.
-      this._target.set(this.logo.outlineAnchors[0], this.logo.outlineAnchors[1], 0);
+      // В начале точка идёт к первой точке SVG. При обратном уходе она
+      // следует за кончиком последней дуги и затем возвращается на орбиту.
+      if (reverse) {
+        const point = this.logo.parsed.subPaths[0].getPointAt(trace);
+        this._target.set(point.x - this.logo.parsed.cx, point.y - this.logo.parsed.cy, 0);
+      } else {
+        this._target.set(this.logo.outlineAnchors[0], this.logo.outlineAnchors[1], 0);
+      }
       this.logo.root.updateWorldMatrix(true, true);
       this.logo.outline.localToWorld(this._target);
       this.group.worldToLocal(this._target);

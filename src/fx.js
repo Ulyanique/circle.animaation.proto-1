@@ -34,6 +34,8 @@ const bgFS = /* glsl */ `
   uniform float uRays;
   uniform float uFog;
   uniform float uBrushed;
+  uniform float uIntroLight;
+  uniform vec2 uIntroCenter;
 
   // хеш без синусов и без разводов (Dave Hoskins) — чистое зерно без полос
   float hash(vec2 p){ vec3 p3 = fract(vec3(p.xyx) * 0.1031); p3 += dot(p3, p3.yzx + 33.33); return fract((p3.x + p3.y) * p3.z); }
@@ -116,6 +118,24 @@ const bgFS = /* glsl */ `
     float edge = smoothstep(0.2, 1.0, length(p * vec2(0.62, 0.95)));
     col = mix(col * 0.45, col, edge);
 
+    // Только для интро: объёмный золотой свет раскрывается из-за знака.
+    // Экранная маска мягко освобождает нижнюю зону для надписей.
+    if (uIntroLight > 0.001) {
+      vec2 screen = (gl_FragCoord.xy / uRes - 0.5) * 2.0 * asp;
+      vec2 h = screen - uIntroCenter;
+      float radius = length(h);
+      float angle = atan(h.y, h.x);
+      // Нерегулярные лучи больше похожи на объёмный свет, чем на геометрическую звезду.
+      float warpedAngle = angle + 0.14 * sin(angle * 3.0 + 0.8);
+      float ray1 = pow(0.5 + 0.5 * cos(warpedAngle * 7.0 + 0.2 * sin(radius * 2.0) - t * 0.10), 8.0);
+      float ray2 = pow(0.5 + 0.5 * cos(warpedAngle * 12.0 - 0.4 + t * 0.08), 11.0);
+      float mist = 0.65 + 0.35 * noise(h * 3.0 + vec2(t * 0.03, 0.0));
+      float rays = (0.62 * ray1 + 0.28 * ray2) * smoothstep(0.10, 0.35, radius) * exp(-radius) * mist;
+      float halo = exp(-radius * radius * 1.55);
+      float clearCaption = smoothstep(-0.12, 0.28, screen.y);
+      col += uCL * uIntensity * uIntroLight * (0.30 * halo + 0.50 * rays) * clearCaption;
+    }
+
     // виньетка
     float vig = 1.0 - uVig * dot(p*0.45, p*0.45);
     col *= clamp(vig, 0.0, 1.0);
@@ -156,6 +176,8 @@ export class Background {
       uRays: { value: 0.35 },
       uFog: { value: 0.6 },
       uBrushed: { value: 0.35 },
+      uIntroLight: { value: 0 },
+      uIntroCenter: { value: new THREE.Vector2(0, 0.4) },
     };
     this.material = new THREE.ShaderMaterial({
       uniforms: this.uniforms,
@@ -206,13 +228,28 @@ function makeGlowTexture() {
 }
 
 export class Corners {
-  constructor() {
+  /** @param {{distributed?: boolean}} [options] distributed — малые группы в двух
+   *  свободных углах; у интро остаются только основная пара, как в исходной сцене. */
+  constructor({ distributed = true } = {}) {
     this.group = new THREE.Group();
     this.glowTex = makeGlowTexture();
+    this.distributed = distributed;
+    // Основная диагональ — крупные кольца; вторая пара — тише и мельче,
+    // чтобы мотив был распределён по всему кадру.
     this.sides = {
       left: this._makeSide("left"),
       right: this._makeSide("right"),
     };
+    this.faint = { left: false, right: false };
+    this.sideScale = { left: 1, right: 1 };
+    if (distributed) {
+      this.sides.tr = this._makeSide("tr");
+      this.sides.bl = this._makeSide("bl");
+      this.faint.tr = true;
+      this.faint.bl = true;
+      this.sideScale.tr = 0.58;
+      this.sideScale.bl = 0.58;
+    }
     this.sig = "";
     this.matCount = 0;
     // разметка циркулем: пунктирная окружность и «ножка» — плоские, в плоскости фона
@@ -240,7 +277,18 @@ export class Corners {
     });
     this.sprites = {};
     this.lights = {};
-    for (const side of ["left", "right"]) {
+    // Мягкие ореолы в свободных квадрантах: свет распределён по кадру,
+    // а не собран только в двух противоположных углах.
+    this.veils = (distributed ? ["tr", "bl", "bottom"] : []).map((name) => {
+      const sprite = new THREE.Sprite(new THREE.SpriteMaterial({
+        map: this.glowTex, color: 0xffc172, transparent: true, depthWrite: false,
+        blending: THREE.AdditiveBlending, opacity: 0,
+      }));
+      sprite.position.z = -0.32;
+      this.group.add(sprite);
+      return { name, sprite };
+    });
+    for (const side of Object.keys(this.sides)) {
       const s = this.sides[side];
       const sprite = new THREE.Sprite(new THREE.SpriteMaterial({
         map: this.glowTex, color: 0xffb55c, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, opacity: 0.8,
@@ -291,17 +339,19 @@ export class Corners {
     const sig = [cfg.rings.radius, cfg.rings.thickness, cfg.rings.layers].join("|");
     if (sig === this.sig) return;
     this.sig = sig;
-    for (const side of ["left", "right"]) {
+    for (const side of Object.keys(this.sides)) {
       const s = this.sides[side];
+      const scale = this.sideScale[side];
+      const faint = this.faint[side];
       for (const l of s.layers) { s.group.remove(l.mesh); l.mesh.geometry.dispose(); l.mesh.material.dispose(); }
       if (s.ticks) { s.group.remove(s.ticks); s.ticks.geometry.dispose(); s.ticks = null; }
       if (s.construction) { s.group.remove(s.construction); s.construction.geometry.dispose(); }
       if (s.pivot) { s.group.remove(s.pivot); s.pivot.geometry.dispose(); }
       s.layers = [];
-      const layers = Math.round(cfg.rings.layers);
+      const layers = Math.max(faint ? 2 : 1, Math.round(cfg.rings.layers) - (faint ? 1 : 0));
       for (let i = 0; i < layers; i++) {
-        const r = cfg.rings.radius * (1 + i * 0.14);
-        const tube = cfg.rings.thickness * (i === 0 ? 1.2 : 0.7);
+        const r = cfg.rings.radius * scale * (1 + i * 0.14);
+        const tube = cfg.rings.thickness * (i === 0 ? 1.2 : 0.7) * (faint ? 0.8 : 1);
         const geo = new THREE.RingGeometry(r - tube * 0.5, r + tube * 0.5, 256, 1);
         const { mat, u } = this._ringMat(0xe0b25a);
         const mesh = new THREE.Mesh(geo, mat);
@@ -310,15 +360,17 @@ export class Corners {
         s.layers.push({ mesh, u, idx: i });
       }
       // архитектурные риски на внешнем кольце — плоские штрихи
-      const tickCount = 96;
-      const tickGeo = new THREE.PlaneGeometry(cfg.rings.thickness * 0.8, cfg.rings.radius * 0.07);
+      const tickCount = faint ? 48 : 96;
+      s.tickTotal = tickCount;
+      const tickGeo = new THREE.PlaneGeometry(cfg.rings.thickness * 0.8, cfg.rings.radius * scale * 0.07);
       const ticks = new THREE.InstancedMesh(tickGeo, this.tickMat, tickCount);
       const m = new THREE.Matrix4(), q = new THREE.Quaternion(), p = new THREE.Vector3(), sc = new THREE.Vector3(1, 1, 1);
       for (let i = 0; i < tickCount; i++) {
         const a = (i / tickCount) * Math.PI * 2;
         const major = i % 8 === 0 ? 1.8 : 1;
         sc.set(1, major, 1);
-        p.set(Math.cos(a) * cfg.rings.radius * 1.03, Math.sin(a) * cfg.rings.radius * 1.03, 0);
+        p.set(Math.cos(a) * cfg.rings.radius * scale * 1.03,
+          Math.sin(a) * cfg.rings.radius * scale * 1.03, 0);
         q.setFromAxisAngle(new THREE.Vector3(0, 0, 1), a);
         m.compose(p, q, sc);
         ticks.setMatrixAt(i, m);
@@ -330,16 +382,19 @@ export class Corners {
       const pts = [];
       for (let i = 0; i <= 192; i++) {
         const a = (i / 192) * Math.PI * 2;
-        pts.push(new THREE.Vector3(Math.cos(a) * cfg.rings.radius * 1.5, Math.sin(a) * cfg.rings.radius * 1.5, -0.05));
+        pts.push(new THREE.Vector3(Math.cos(a) * cfg.rings.radius * scale * 1.5,
+          Math.sin(a) * cfg.rings.radius * scale * 1.5, -0.05));
       }
       const construction = new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), this.constMat);
       construction.computeLineDistances();
       s.construction = construction;
       s.group.add(construction);
-      const pivot = new THREE.Mesh(new THREE.CircleGeometry(cfg.rings.radius * 0.03, 24), this.pivotMat);
-      pivot.position.z = 0.02;
-      s.pivot = pivot;
-      s.group.add(pivot);
+      if (!faint) {
+        const pivot = new THREE.Mesh(new THREE.CircleGeometry(cfg.rings.radius * 0.03, 24), this.pivotMat);
+        pivot.position.z = 0.02;
+        s.pivot = pivot;
+        s.group.add(pivot);
+      }
     }
   }
 
@@ -352,6 +407,9 @@ export class Corners {
     const sides = {
       left: { x: -halfW * cfg.rings.cornerX * 2, y: halfH * cfg.rings.cornerY * 2, dir: 1 },
       right: { x: halfW * cfg.rings.cornerX * 2, y: -halfH * cfg.rings.cornerY * 2, dir: -1 },
+      // Малые группы чуть отведены от кромки, чтобы читались целиком.
+      tr: { x: halfW * cfg.rings.cornerX * 1.72, y: halfH * cfg.rings.cornerY * 1.84, dir: -1 },
+      bl: { x: -halfW * cfg.rings.cornerX * 1.72, y: -halfH * cfg.rings.cornerY * 1.84, dir: 1 },
     };
     const sp = cfg.rings.speed;
     const ringCol = new THREE.Color(cfg.colors.gold).multiplyScalar(0.8 + 0.3 * cfg.rings.glowIntensity);
@@ -366,38 +424,59 @@ export class Corners {
     cr.scale.setScalar(cfg.rings.radius * (0.8 - 0.06 * focus));
     this.centerMat.opacity = 0.18 * env * (1 - 0.67 * focus);
     this.tickMat.opacity = 0.8 * env * (1 - 0.2 * focus);
-    for (const name of ["left", "right"]) {
+    for (const name of Object.keys(this.sides)) {
       const s = this.sides[name];
       const c = sides[name];
+      const faint = this.faint[name];
+      // Мелкие группы живут тише и разгораются позже — свет распределён, но не спорит.
+      const sideEnv = env * (faint ? 0.62 : 1);
       s.group.position.set(c.x, c.y, 0);
-      s.group.visible = cfg.rings.enabled && env > 0.0005;
+      s.group.visible = cfg.rings.enabled && sideEnv > 0.0005;
       s.group.scale.setScalar(1);
       // кольца рисуются дугой из плоскости фона: появление и уход — через проход дуги, без масштаба
       s.layers.forEach((l) => {
         l.mesh.material.color.copy(ringCol);
         l.u.value = ringSweep(env, l.idx);
-        l.mesh.material.opacity = 1 - 0.38 * focus;
+        l.mesh.material.opacity = (1 - 0.38 * focus) * (faint ? 0.50 : 1);
       });
       // Риски и пунктир не должны заранее выдавать уже замкнутый круг:
       // отрисовываем только построенный сектор, как у основных дуг.
       const construction = ringSweep(env, 0);
       if (s.ticks) {
-        s.ticks.count = Math.ceil(96 * construction);
+        s.ticks.count = Math.ceil((s.tickTotal || 96) * construction);
         s.ticks.rotation.set(0, 0, t * sp * 0.2 * c.dir);
       }
       s.construction?.geometry.setDrawRange(0, Math.ceil(193 * construction));
 
-      const flick = 1 + cfg.rings.flicker * (Math.sin(t * 7.3 + (name === "left" ? 0 : 2.1)) * 0.5 + Math.sin(t * 2.9 + 4.0) * 0.5);
-      const lightCol = name === "left" ? cfg.colors.lightLeft : cfg.colors.lightRight;
-      const intensity = cfg.rings.lightStrength * flick * 6 * cfg.lights.exposure * env * (1 - 0.55 * focus);
+      const phaseShift = name === "left" ? 0 : name === "right" ? 2.1 : name === "tr" ? 4.4 : 5.6;
+      const flick = 1 + cfg.rings.flicker * (Math.sin(t * 7.3 + phaseShift) * 0.5 + Math.sin(t * 2.9 + 4.0) * 0.5);
+      const lightCol = name === "left" || name === "bl" ? cfg.colors.lightLeft : cfg.colors.lightRight;
+      const intensity = cfg.rings.lightStrength * flick * 6 * cfg.lights.exposure * sideEnv *
+        (1 - 0.55 * focus) * (faint ? 0.45 : 1);
       const light = this.lights[name];
       light.color.set(lightCol);
       light.intensity = intensity;
       light.distance = 10 + cfg.background.lightSpread * 4;
       const sprite = this.sprites[name];
       sprite.material.color.set(lightCol);
-      sprite.material.opacity = Math.min(1, 0.45 * cfg.rings.glowIntensity * flick) * env * (1 - 0.50 * focus);
-      sprite.scale.setScalar(cfg.rings.radius * 4.2 * cfg.background.lightSpread);
+      sprite.material.opacity = Math.min(1, 0.45 * cfg.rings.glowIntensity * flick) * sideEnv *
+        (1 - 0.50 * focus) * (faint ? 0.55 : 1);
+      sprite.scale.setScalar(cfg.rings.radius * 4.2 * cfg.background.lightSpread * this.sideScale[name]);
+    }
+    // Заполняющий свет: заметно тише основных углов, чтобы не спорить с титром.
+    const veilPositions = {
+      tr: { x: halfW * cfg.rings.cornerX * 1.72, y: halfH * cfg.rings.cornerY * 1.84 },
+      bl: { x: -halfW * cfg.rings.cornerX * 1.72, y: -halfH * cfg.rings.cornerY * 1.84 },
+      bottom: { x: 0, y: -halfH * 0.92 },
+    };
+    for (const { name, sprite } of this.veils) {
+      const p = veilPositions[name];
+      const flick = 1 + cfg.rings.flicker * 0.5 * Math.sin(t * 1.7 + (name === "tr" ? 1.2 : name === "bl" ? 3.4 : 5.1));
+      sprite.position.set(p.x, p.y, -0.32);
+      sprite.material.color.set(name === "tr" ? cfg.colors.lightRight : cfg.colors.lightLeft);
+      sprite.material.opacity = (name === "bottom" ? 0.11 : 0.20) * env * flick * (1 - 0.6 * focus);
+      sprite.scale.setScalar(cfg.rings.radius * (name === "bottom" ? 7.0 : 2.3) *
+        cfg.background.lightSpread * flick);
     }
     return { left: this.sides.left.group.position, right: this.sides.right.group.position };
   }

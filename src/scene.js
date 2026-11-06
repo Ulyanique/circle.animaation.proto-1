@@ -15,12 +15,14 @@ import {
 } from "postprocessing";
 import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
 import { Logo, revealUniforms } from "./logo.js";
+import { ContourWaves } from "./contour-waves.js";
 import { Background, Corners, Particles } from "./fx.js";
 import { Sparks, AnamorphicFlare } from "./sparks.js";
 import { Plotter } from "./plotter.js";
 import { SolarBokeh } from "./bokeh.js";
 import { captionState, captionAccent, glyphReveal } from "./caption.js";
-import { computePhase, compositionFocus, heroGlint, seamCurtainOpacity } from "./timeline.js";
+import { computePhase, ringsEnvelope, compositionFocus, heroGlint, seamCurtainOpacity } from "./timeline.js";
+import { introCues } from "./scenes/cues.js";
 
 const FOV = 30;
 const CAM_Z = 9;
@@ -31,8 +33,10 @@ const easeOutCubic = (x) => 1 - Math.pow(1 - x, 3);
 export { computePhase } from "./timeline.js";
 
 export class LogoScene {
-  constructor(canvas, cfg) {
+  constructor(canvas, cfg, { intro = true } = {}) {
     this.cfg = cfg;
+    this.isIntro = intro;
+    this._introCenter = new THREE.Vector3();
     this.renderer = new THREE.WebGLRenderer({
       canvas,
       antialias: false, // сглаживание делаем через composer (MSAA + SMAA)
@@ -92,13 +96,17 @@ export class LogoScene {
     this.logo = new Logo();
     this.logo.root.position.set(0, 0, 0);
     this.scene.add(this.logo.root);
+    // В интро чистый знак; расходящиеся копии контура — язык фоновых роликов.
+    this.contourWaves = intro ? null : new ContourWaves(this.logo);
+    if (this.contourWaves) this.scene.add(this.contourWaves.group);
 
-    // Кольца и частицы
-    this.corners = new Corners();
+    // Кольца и частицы. Интро сохраняет исходную пару углов; фирменный фон
+    // и родственные сцены получают распределённые по кадру малые группы.
+    this.corners = new Corners({ distributed: !this.isIntro });
     this.scene.add(this.corners.group);
     this.plotter = new Plotter(this.corners.glowTex, this.logo);
     this.scene.add(this.plotter.group);
-    this.solarBokeh = new SolarBokeh();
+    this.solarBokeh = new SolarBokeh({ distributed: !this.isIntro });
     this.scene.add(this.solarBokeh.group);
     this.particles = new Particles();
     this.sparks = new Sparks(this.logo);
@@ -218,6 +226,7 @@ export class LogoScene {
   update(t, dt) {
     const cfg = this.cfg;
     const ph = computePhase(t, cfg.timeline);
+    const opening = this.isIntro ? introCues(ph, cfg.timeline) : { beams: 0, strike: 0, approach: 0 };
     const TAUt = TAU;
     const exposure = cfg.lights.exposure;
 
@@ -249,7 +258,8 @@ export class LogoScene {
     // проявление из тени
     revealUniforms.uReveal.value = ph.reveal * REVEAL_MAX;
     revealUniforms.uRevealNoise.value = cfg.logo.revealNoise;
-    revealUniforms.uRevealGlow.value = cfg.logo.revealGlow * (ph.name === "emerge" || ph.name === "fade" ? 1.0 : 0.6);
+    revealUniforms.uRevealGlow.value = cfg.logo.revealGlow * (ph.name === "emerge" || ph.name === "fade" ? 1.0 : 0.6) *
+      (1 + opening.strike * 0.55);
     revealUniforms.uGlowColor.value.set(cfg.colors.glowColor);
     revealUniforms.uK.value = this.logo.parsed.K;
 
@@ -262,18 +272,23 @@ export class LogoScene {
     const root = this.logo.root;
     root.position.set(0, Math.sin(TAUt * quant(cfg.logo.swaySpeed * 0.5) * t) * 0.02 + (cfg.logo.offsetY ?? 0), z);
     root.scale.setScalar(cfg.logo.scale * scaleGrow * pulse * (0.55 + 0.45 * easeOutCubic(ph.reveal)));  // сначала контур в малом размере, затем логотип растёт
+    // У интро знак входит с небольшого ракурса и разворачивается к зрителю.
     root.rotation.set(
-      Math.cos(TAUt * quant(cfg.logo.swaySpeed * 0.7) * t + 1.0) * cfg.logo.swayAmount * 0.6,
-      Math.sin(TAUt * quant(cfg.logo.swaySpeed) * t) * cfg.logo.swayAmount,
+      Math.cos(TAUt * quant(cfg.logo.swaySpeed * 0.7) * t + 1.0) * cfg.logo.swayAmount * 0.6 + 0.14 * opening.approach,
+      Math.sin(TAUt * quant(cfg.logo.swaySpeed) * t) * cfg.logo.swayAmount - 0.50 * opening.approach,
       0
     );
     this.logo.updateOutline(ph.draw, ph.outline, cfg, ph.fill, ph.name === "fade");
+    this.contourWaves?.update(t, ph, cfg);
 
     // кольца, свет из углов
-    const env = ph.rings;
+    // В интро угловые огни разгораются быстрее обычного черчения дуг:
+    // первый кадр должен открываться светом, а не долгой темнотой.
+    const env = this.isIntro ? ringsEnvelope(ph, cfg.timeline, { fast: true }) : ph.rings;
     const focus = compositionFocus(ph, cfg.timeline);
     const cornerEnv = env * (1 - 0.44 * focus);
     const cpos = this.corners.update(t, cfg, this.halfW, this.halfH, env, focus);
+    if (this.isIntro) this.corners.centerRing.visible = false;
     this.solarBokeh.update(t, ph, cfg, cpos);
     this.plotter.update(ph, cfg);
     const tilt = THREE.MathUtils.degToRad(cfg.rings.tilt);
@@ -281,6 +296,7 @@ export class LogoScene {
     this.background.update(t, cfg);
     this.background.uniforms.uEnvL.value = cornerEnv;
     this.background.uniforms.uEnvR.value = cornerEnv;
+    this.background.uniforms.uIntroLight.value = opening.beams;
     // На удержании фон остаётся живым, но перестаёт спорить с названием.
     this.background.uniforms.uShimmer.value *= 1 - 0.32 * focus;
     this.background.uniforms.uRays.value *= 1 - 0.22 * focus;
@@ -315,7 +331,8 @@ export class LogoScene {
     this.glintLight.intensity = cfg.logo.glint * 7 * cue.intensity * exposure;
     const edgeFlare = 4 * ph.reveal * (1 - ph.reveal);
     this.flare.set(cue.intensity > 0 ? gx : 0, cfg.post.anamorphic * cfg.logo.glint * 0.16 * cue.intensity +
-      cfg.post.anamorphic * 0.055 * edgeFlare, cfg.colors.goldHighlight, 1.1, 1.2);
+      cfg.post.anamorphic * (0.055 * edgeFlare + 0.30 * opening.strike), cfg.colors.goldHighlight, 1.1,
+      1.2 + 2.0 * opening.strike);
 
     // Один и тот же t всегда даёт один и тот же кадр подписи, даже после seek.
     const capEl = document.getElementById("caption");
@@ -350,10 +367,13 @@ export class LogoScene {
       }
     }
 
-    // камера слегка смещена при появлении и возвращается в фронтальный вид
+    // Камера интро плавно подъезжает к знаку; остальные ролики сохраняют общую композицию.
     const camK = (1 - ph.reveal) * 0.6;
-    this.camera.position.set(-0.6 * camK, 0.35 * camK, CAM_Z);
+    this.camera.position.set(-0.6 * camK, 0.35 * camK, CAM_Z + 1.2 * opening.approach);
     this.camera.lookAt(0, 0, 0);
+    this.camera.updateMatrixWorld();
+    this._introCenter.copy(root.position).project(this.camera);
+    this.background.uniforms.uIntroCenter.value.set(this._introCenter.x * OUTPUT.width / OUTPUT.height, this._introCenter.y);
 
     // верхнее свечение: появляется вместе с логотипом
     this.topLight.intensity = cfg.lights.topGlow * ph.reveal * exposure;
@@ -362,6 +382,7 @@ export class LogoScene {
     // искры при проявлении
     const pixel = (this.viewportH * this.pixelRatio) / (2 * Math.tan(this.fovRad / 2)) * 0.012;
     this.sparks.update(ph.emergeT, cfg, pixel, cfg.timeline.emergeDuration * 0.8);
+    this.sparks.uniforms.uIntensity.value *= 1 + 0.8 * opening.strike;
 
     // Темнота полностью закрывает шов, в том числе непрерывный шум фона.
     this.seamCurtain.material.opacity = seamCurtainOpacity(ph, cfg.timeline);
@@ -389,6 +410,7 @@ export class LogoScene {
   }
 
   dispose() {
+    this.contourWaves?.dispose();
     this.logo.dispose();
     this.particles.dispose();
     this.plotter.dispose();

@@ -22,7 +22,7 @@ export function createReviewControls(cfg, { getTime, seek, onPause, isRecording 
   panel.setAttribute("aria-label", "Режиссёрский просмотр");
   panel.hidden = true;
   panel.innerHTML = `
-    <div class="review-header"><span>ПРОСМОТР · ПЕРВАЯ ЗАСТАВКА</span><button type="button" class="review-close" aria-label="Скрыть панель">×</button></div>
+    <div class="review-header"><span>ПРОСМОТР · ИНТРО</span><button type="button" class="review-close" aria-label="Скрыть панель">×</button></div>
     <div class="review-actions">
       <button type="button" class="review-play" aria-label="Пауза или воспроизведение"></button>
       <button type="button" class="review-step" data-step="-1" aria-label="Предыдущий кадр">−1 кадр</button>

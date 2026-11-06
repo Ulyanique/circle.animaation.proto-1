@@ -353,8 +353,10 @@ const RIBBON_VS = /* glsl */ `
   varying float vSide;
   varying float vVis;
   varying float vHead;
+  varying float vScreenY;
   void main(){
     vec4 cA = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+    vScreenY = cA.y / cA.w;
     vec4 cB = projectionMatrix * modelViewMatrix * vec4(aOther, 1.0);
     vec4 cN = projectionMatrix * modelViewMatrix * vec4(aNb, 1.0);
     vec2 pA = cA.xy / cA.w * uRes * 0.5;
@@ -391,14 +393,18 @@ const RIBBON_FS = /* glsl */ `
   uniform vec3 uColor;
   uniform vec3 uHeadColor;
   uniform float uOpacity;
+  uniform float uCaptionSafe;
   varying float vSide;
   varying float vVis;
   varying float vHead;
+  varying float vScreenY;
   void main(){
     float edge = 1.0 - smoothstep(0.5, 1.0, abs(vSide));
     float a = edge * vVis * uOpacity;
     vec3 col = uColor * vVis + uHeadColor * vHead * vVis * 1.6;
-    gl_FragColor = vec4(col, a);
+    // Только для фоновых эхо: плавно освобождаем нижнюю область с титрами.
+    float captionMask = mix(1.0, smoothstep(0.035, 0.13, vScreenY), uCaptionSafe);
+    gl_FragColor = vec4(col, a * captionMask);
   }
 `;
 
@@ -416,6 +422,7 @@ function makeRibbonMaterial(shared, widthMul, alphaMul) {
       uRetire: shared.uRetire,
       uWidth: { value: 1 * widthMul },
       uOpacity: { value: alphaMul },
+      uCaptionSafe: { value: 0 },
       uColor: { value: new THREE.Color(0xffd98a) },
       uHeadColor: { value: new THREE.Color(1, 0.97, 0.85) },
     },

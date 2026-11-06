@@ -1,8 +1,7 @@
-// Восьмой вид: самостоятельная спокойная заставка фотопаузы.
+import { createSceneTimeline } from "./scene-timeline.js";
+
+// Фотопауза использует общий 24-секундный жест и собственную рамку.
 export const PHOTO_PAUSE_DEFAULTS = {
-  timeline: {
-    drawDuration: 0, emergeDuration: 0, holdDuration: 24,
-    fadeDuration: 0, restDuration: 0, startDelay: 0, ringsIntro: 0, speed: 1,
-  },
+  timeline: createSceneTimeline(24),
   playback: { paused: false },
 };

@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { DEFAULTS } from "../src/config.js";
-import { computePhase, compositionFocus, heroGlint, plotSequence, ringSweep, seamCurtainOpacity } from "../src/timeline.js";
+import { computePhase, ringsEnvelope, compositionFocus, heroGlint, plotSequence, ringSweep, seamCurtainOpacity } from "../src/timeline.js";
 import { captionLines, captionProgress, captionState, captionAccent, glyphReveal } from "../src/caption.js";
 import { seededRandom } from "../src/random.js";
 import { advanceTimeline } from "../src/playback.js";
@@ -21,6 +21,18 @@ test("фазы и границы цикла", () => {
   assert.equal(at(cycle).name, "draw");
   assert.equal(at(D + E).reveal, 1);
   assert.equal(at(D + E + H + F).reveal, 0);
+});
+
+test("интро зажигает угловой свет раньше обычного черчения дуг", () => {
+  const early = { local: 0.75 };
+  const normal = ringsEnvelope(early, tl);
+  const fast = ringsEnvelope(early, tl, { fast: true });
+  assert.ok(fast > normal * 3, `интро слишком тёмное: ${fast} против ${normal}`);
+  assert.ok(fast > 0.3, "свет должен быть заметным уже в первую секунду");
+  // Шов и уход остаются прежними: на первом и последнем кадре огибающая равна нулю.
+  assert.equal(ringsEnvelope({ local: 0 }, tl, { fast: true }), 0);
+  const fadeEnd = tl.drawDuration + tl.emergeDuration + tl.holdDuration + tl.fadeDuration;
+  assert.equal(ringsEnvelope({ local: fadeEnd }, tl, { fast: true }), 0);
 });
 
 test("фазы и подпись периодичны на любом кадре", () => {
@@ -198,6 +210,27 @@ test("темнота замыкает цикл, но не скрывает со�
   const end = noRest.drawDuration + noRest.emergeDuration + noRest.holdDuration + noRest.fadeDuration;
   const phase = computePhase(noRest.startDelay + end - 1 / 60, noRest);
   assert.equal(seamCurtainOpacity(phase, noRest), 1);
+});
+
+test("первая задержка и короткая пауза не показывают обратный жест до старта или на шве", () => {
+  const delayed = { ...tl, startDelay: 5 };
+  for (const time of [0, 0.5, 2.5, 4.99]) {
+    const phase = computePhase(time, delayed);
+    assert.equal(seamCurtainOpacity(phase, delayed), 1);
+    assert.equal(plotSequence(phase, delayed).head, 0);
+  }
+  for (const restDuration of [0, 0.2, 0.4]) {
+    const short = { ...tl, restDuration };
+    const duration = short.drawDuration + short.emergeDuration + short.holdDuration + short.fadeDuration + restDuration;
+    const phase = computePhase(short.startDelay + duration - 1 / 60, short);
+    assert.equal(seamCurtainOpacity(phase, short), 1);
+    assert.equal(plotSequence(phase, short).head, 0);
+  }
+  const long = { ...tl, restDuration: 6 };
+  const fadeEnd = long.drawDuration + long.emergeDuration + long.holdDuration + long.fadeDuration;
+  const phase = computePhase(long.startDelay + fadeEnd + 1.2, long);
+  assert.equal(seamCurtainOpacity(phase, long), 1, "длинная пауза после жеста остаётся тёмной");
+  assert.equal(plotSequence(phase, long).head, 0);
 });
 
 test("все кольца мягко замыкаются даже при максимальном числе слоёв", () => {

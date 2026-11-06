@@ -17,8 +17,11 @@ const { launchBrowser } = require("./browser.cjs");
       const w = L.getSceneConfig("waiting").timeline;
       Object.assign(w, { drawDuration: .2, emergeDuration: .2, holdDuration: 2.1,
         fadeDuration: .2, restDuration: .2, startDelay: 0, ringsIntro: .1, speed: 1 });
-      for (const id of ["brand", "photo-pause", "finale"])
-        L.getSceneConfig(id).timeline.holdDuration = 3;
+      for (const id of ["brand", "photo-pause", "finale"]) {
+        const timeline = L.getSceneConfig(id).timeline;
+        Object.assign(timeline, { drawDuration: .2, emergeDuration: .2, holdDuration: 2.1,
+          fadeDuration: .2, restDuration: .2, startDelay: 0, ringsIntro: .1, speed: 1 });
+      }
       return { accepted: L.startSequenceRecording({ download: false }),
         button: !!document.querySelector('[data-action="record-chain"]') };
     });

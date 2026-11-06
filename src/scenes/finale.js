@@ -1,8 +1,7 @@
-// Девятый вид: финальная реплика без новых неподтверждённых текстов.
+import { createSceneTimeline } from "./scene-timeline.js";
+
+// Финальная реплика: тот же вход и обратный уход в 18-секундном цикле.
 export const FINALE_DEFAULTS = {
-  timeline: {
-    drawDuration: 0, emergeDuration: 0, holdDuration: 18,
-    fadeDuration: 0, restDuration: 0, startDelay: 0, ringsIntro: 0, speed: 1,
-  },
+  timeline: createSceneTimeline(18),
   playback: { paused: false },
 };

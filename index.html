@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="Золотая анимация логотипа: прорисовка контура, проявление из тени, зацикленный свет из углов." />
-    <title>Logo · Gold Reveal</title>
+    <title>Янтарный циркуль · Интро и заставки</title>
     <link rel="icon" href="data:," />
     <!-- Критические стили здесь, а не в JS: даже при медленной загрузке модулей
          не показываем белую страницу и неоформленный текст титра. -->
@@ -39,6 +39,24 @@
       @keyframes boot-turn { to { transform: rotate(360deg); } }
       @media (prefers-reduced-motion: reduce) { .boot-symbol { animation: none; } #boot-screen { transition: none; } }
     </style>
+    <script>
+      (() => {
+        // Стили сборки могут не загрузиться ещё до появления экрана в body.
+        // Сохраняем только ошибки помеченных файлов приложения; сторонние
+        // аналитические скрипты и другие необязательные ресурсы не мешают запуску.
+        const pending = [];
+        window.__drainBootAssetErrors = () => pending.splice(0);
+        window.addEventListener("error", (event) => {
+          const target = event.target;
+          if (!(target instanceof HTMLScriptElement || target instanceof HTMLLinkElement) ||
+              !target.hasAttribute("data-boot-critical")) return;
+          let path = "";
+          try { path = new URL(target.src || target.href, location.href).pathname; } catch (_) { /* noop */ }
+          if (window.__bootAssetError) window.__bootAssetError(path);
+          else pending.push(path);
+        }, true);
+      })();
+    </script>
   </head>
   <body>
     <div id="boot-screen" data-state="loading" role="status" aria-live="polite">
@@ -83,13 +101,20 @@
           title.textContent = "Не удалось открыть заставку";
           detail.textContent = message || "Попробуйте обновить страницу или открыть её в браузере с WebGL.";
         };
+        window.__bootAssetError = (path) => {
+          // Путь не содержит query-параметров и не раскрывает данные из URL.
+          const file = path ? ` (${path})` : "";
+          const hint = location.protocol === "file:"
+            ? "Откройте проект через npm run dev, а не как локальный файл."
+            : "Проверьте соединение и повторите загрузку.";
+          window.__bootFail(`Не загрузились файлы приложения${file}. ${hint}`);
+        };
+        for (const path of window.__drainBootAssetErrors()) window.__bootAssetError(path);
+        delete window.__drainBootAssetErrors;
         window.addEventListener("error", (event) => {
-          const target = event.target;
-          if (target instanceof HTMLScriptElement || target instanceof HTMLLinkElement) {
-            window.__bootFail("Не загрузились файлы приложения. Проверьте соединение и повторите загрузку.");
-          } else if (event.message) {
-            window.__bootFail(`Ошибка при запуске: ${event.message}`);
-          }
+          // События ресурсов уже обработаны в head; исключения JS ловим отдельно.
+          if (event.target instanceof HTMLScriptElement || event.target instanceof HTMLLinkElement) return;
+          if (event.message) window.__bootFail(`Ошибка при запуске: ${event.message}`);
         }, true);
         window.addEventListener("unhandledrejection", (event) => {
           window.__bootFail(`Ошибка при запуске: ${event.reason?.message || "не удалось загрузить сцену"}`);
@@ -114,6 +139,6 @@
       <div class="cap-date" data-text="20 ноября 2026 года">20 ноября 2026 года</div>
     </div>
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
-    <script type="module" src="/src/main.js"></script>
+    <script type="module" data-boot-critical src="/src/main.js"></script>
   </body>
 </html>

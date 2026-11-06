@@ -13,9 +13,9 @@ export function createOperatorControls({ getState, seek, setDuration, togglePaus
   panel.setAttribute("aria-label", "Пульт заставок");
   panel.innerHTML = `
     <div class="operator-row">
-      <span class="operator-label">ЗАСТАВКИ</span>
-      <nav class="operator-scenes" aria-label="Выбор заставки">
-        <button type="button" data-scene="waiting" title="Заставка ожидания">01 <small>Ожидание</small></button>
+      <span class="operator-label">РОЛИКИ</span>
+      <nav class="operator-scenes" aria-label="Выбор ролика">
+        <button type="button" data-scene="waiting" title="Интро — открытие вечера">01 <small>Интро</small></button>
         <button type="button" data-scene="brand" title="Фирменный фон">02 <small>Фон</small></button>
         <button type="button" data-scene="photo-pause" title="Фотопауза">08 <small>Фотопауза</small></button>
         <button type="button" data-scene="finale" title="Финал">09 <small>Финал</small></button>

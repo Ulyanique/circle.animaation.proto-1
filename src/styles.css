@@ -28,10 +28,7 @@ html, body {
   pointer-events: none; /* никакой реакции на мышь */
 }
 
-/* Фирменное поле: один символ и одно название, без даты и декора титров. */
-body.scene-brand #caption .cap-title {
-  left: 62%; top: 50%; font-size: calc(var(--u) * 5.7);
-}
+/* Фирменное поле: название под знаком, без даты и дополнительных строк. */
 body.scene-brand #caption .cap-rule,
 body.scene-brand #caption .cap-sub,
 body.scene-brand #caption .cap-date,
@@ -41,7 +38,7 @@ body.scene-photo #caption .cap-date,
 body.scene-finale #caption .cap-rule,
 body.scene-finale #caption .cap-date { display: none; }
 body.scene-photo #caption .cap-title {
-  left: 50%; top: 69%; font-size: calc(var(--u) * 6.7);
+  left: 50%; top: 55%; font-size: calc(var(--u) * 6.7);
 }
 body.scene-finale #caption .cap-title {
   left: 50%; top: 55%; font-size: calc(var(--u) * 6.6);
