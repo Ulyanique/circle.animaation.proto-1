@@ -165,13 +165,16 @@ export function drawCaption(ctx, alpha, sceneId) {
     g.addColorStop(0.75, "#c08c36"); g.addColorStop(1, "#e8c06a");
     return g;
   };
+  // У интро три строки, поэтому название остаётся выше; в фоновых сценах титр
+  // опущен в нижнюю треть, чтобы под ним не оставалось пустого поля.
+  const titleY = (brand || photo || finale) ? 0.65 * H : 0.55 * H;
   textLine(".cap-title", {
-    y: 0.55 * H, centerX: W / 2,
+    y: titleY, centerX: W / 2,
     weight: 600, size: tSize, ls: 0, stroke: "#e0b25a", sw: 0.08 * u, shadow: true, fill: titleGrad,
   });
   if (finale) {
     textLine(".cap-sub", {
-      y: 0.71 * H, weight: 400, size: 2.55 * u, ls: 0.18 * 2.55 * u,
+      y: 0.79 * H, weight: 400, size: 2.55 * u, ls: 0.18 * 2.55 * u,
       stroke: "#d9b061", sw: 0.04 * u, fill: "#ecd08c",
     });
   }

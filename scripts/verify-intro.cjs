@@ -66,10 +66,8 @@ url.searchParams.set("scene", "intro");
         cameraZ: scene.camera.position.z, waveCount: scene.contourWaves?.layers.length ?? 0,
         centerRing: scene.corners.centerRing.visible,
         backgroundTime: scene.background.uniforms.uTime.value,
-        // В интро остаются только исходные углы: левый верх и правый низ.
-        cornerGroups: Object.keys(scene.corners.sides),
-        veils: scene.corners.veils.length,
-        freeBokeh: scene.solarBokeh.free.length };
+        // Угловые огни только в двух местах: левый верх и правый низ.
+        cornerGroups: Object.keys(scene.corners.sides) };
       scene.update(times.light, 1 / 60);
       const again = [scene.background.uniforms.uIntroLight.value, scene.camera.position.z, scene.logo.root.rotation.y];
       const first = [lightState.beams, lightState.cameraZ, lightState.yaw];
@@ -100,10 +98,8 @@ url.searchParams.set("scene", "intro");
     assert.equal(result.holdState.waveCount, 0, "в интро не должно быть фоновых контуров");
     assert.equal(result.holdState.centerRing, false, "вокруг знака интро не должно быть фонового кольца");
     assert.equal(result.holdState.beams, 0, "эффектный вход не должен мешать титрам на удержании");
-    // Никаких дополнительных кругов в интро: только исходные левый верх и правый низ.
+    // Никаких добавленных кругов: только исходные левый верх и правый низ.
     assert.deepEqual(result.holdState.cornerGroups.sort(), ["left", "right"]);
-    assert.equal(result.holdState.veils, 0, "в интро не должно быть добавочных ореолов");
-    assert.equal(result.holdState.freeBokeh, 0, "в интро не должно быть свободных линзовых кружков");
     assert.ok(Math.abs(result.holdState.cameraZ - 9) < 1e-9 && result.seekStable);
   } finally {
     await browser.close();

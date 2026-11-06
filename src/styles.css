@@ -37,14 +37,16 @@ body.scene-photo #caption .cap-sub,
 body.scene-photo #caption .cap-date,
 body.scene-finale #caption .cap-rule,
 body.scene-finale #caption .cap-date { display: none; }
+/* Фоновые сцены: титр опущен в нижнюю треть, знак крупнее. */
+body.scene-brand #caption .cap-title { left: 50%; top: 65%; }
 body.scene-photo #caption .cap-title {
-  left: 50%; top: 55%; font-size: calc(var(--u) * 6.7);
+  left: 50%; top: 65%; font-size: calc(var(--u) * 6.7);
 }
 body.scene-finale #caption .cap-title {
-  left: 50%; top: 55%; font-size: calc(var(--u) * 6.6);
+  left: 50%; top: 65%; font-size: calc(var(--u) * 6.6);
 }
 body.scene-finale #caption .cap-sub {
-  left: 50%; top: 71%; font-size: calc(var(--u) * 2.55);
+  left: 50%; top: 79%; font-size: calc(var(--u) * 2.55);
   letter-spacing: .18em; padding-left: .18em;
 }
 /* Мышь видна всегда. Только элементы пульта исчезают после бездействия. */

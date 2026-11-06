@@ -46,8 +46,7 @@ async function inspectSceneDesign() {
     noPlotter: !scene.plotter.group.visible,
     sharedBackground: scene.corners.group.visible && scene.particles.group.visible &&
       scene.solarBokeh.group.visible && scene.particles.dust?.material.uniforms.uBright.value > 0 &&
-      // Свет и кольца распределены по всем четырём углам кадра.
-      ["left", "right", "tr", "bl"].every((side) => {
+      ["left", "right"].every((side) => {
         const s = scene.corners.sides[side];
         return s.group.visible && s.layers.length > 0 &&
           s.layers.some((layer) => layer.mesh.visible && layer.mesh.material.opacity > 0 && layer.u.value > 0);
@@ -148,7 +147,22 @@ async function inspectSceneDesign() {
   }
   // Оставляем на экране средний кадр для необязательного снимка OUT.
   scene.update(middle, 1 / 60);
-  state.layout = { visibleLines, minGap, maxCenterOffset, closest, mostOffset };
+  // Композиция фоновых сцен: крупный знак и титр в нижней трети кадра.
+  scene.camera.updateMatrixWorld(true);
+  mesh.updateWorldMatrix(true, false);
+  let topPx = Infinity, bottomPx = -Infinity;
+  for (const x of [box.min.x, box.max.x]) for (const y of [box.min.y, box.max.y]) {
+    for (const z of [box.min.z, box.max.z]) {
+      const point = box.min.clone().set(x, y, z).applyMatrix4(mesh.matrixWorld).project(scene.camera);
+      const py = stage.top + (1 - point.y) * stage.height / 2;
+      topPx = Math.min(topPx, py); bottomPx = Math.max(bottomPx, py);
+    }
+  }
+  const titleRect = document.querySelector("#caption .cap-title").getBoundingClientRect();
+  state.layout = { visibleLines, minGap, maxCenterOffset, closest, mostOffset,
+    logoHeight: (bottomPx - topPx) / stage.height,
+    logoTop: (topPx - stage.top) / stage.height,
+    titleCenter: (titleRect.top + titleRect.bottom) / 2 / stage.height };
   state.intro = intro;
   state.exit = exit;
   state.rewind = rewind;
@@ -178,6 +192,9 @@ function assertSceneDesign(state) {
   assert.ok(state.layout.visibleLines > 10, "не удалось проверить расположение видимых строк");
   assert.ok(state.layout.minGap > 0, `текст не под логотипом: ${JSON.stringify(state.layout.closest)}`);
   assert.ok(state.layout.maxCenterOffset < 0.02, `текст не по центру: ${JSON.stringify(state.layout.mostOffset)}`);
+  // Запрос заказчика: знак крупный, титр опущен в нижнюю треть, внизу нет пустого поля.
+  assert.ok(state.layout.logoHeight > 0.41, `знак слишком мал: ${state.layout.logoHeight.toFixed(3)} высоты кадра`);
+  assert.ok(state.layout.titleCenter > 0.60, `титр слишком высоко: ${state.layout.titleCenter.toFixed(3)}`);
   assert.ok(state.motion.every((sample) => sample.waveVisible && sample.captionSafe && sample.centerRing &&
       sample.waves.some((wave) => wave.visible && wave.opacity > 0.04)),
     "контурные волны отсутствуют или не освобождают область титров");

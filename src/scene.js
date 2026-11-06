@@ -100,13 +100,12 @@ export class LogoScene {
     this.contourWaves = intro ? null : new ContourWaves(this.logo);
     if (this.contourWaves) this.scene.add(this.contourWaves.group);
 
-    // Кольца и частицы. Интро сохраняет исходную пару углов; фирменный фон
-    // и родственные сцены получают распределённые по кадру малые группы.
-    this.corners = new Corners({ distributed: !this.isIntro });
+    // Кольца и частицы: только левый верх и правый низ, как в исходной сцене.
+    this.corners = new Corners();
     this.scene.add(this.corners.group);
     this.plotter = new Plotter(this.corners.glowTex, this.logo);
     this.scene.add(this.plotter.group);
-    this.solarBokeh = new SolarBokeh({ distributed: !this.isIntro });
+    this.solarBokeh = new SolarBokeh();
     this.scene.add(this.solarBokeh.group);
     this.particles = new Particles();
     this.sparks = new Sparks(this.logo);

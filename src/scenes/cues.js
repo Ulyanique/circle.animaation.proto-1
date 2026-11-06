@@ -38,6 +38,6 @@ export function contourWave(time, index) {
     // Эхо рождается уже больше знака: тонкие копии расходятся вокруг него,
     // а не ложатся двойным контуром прямо по силуэту.
     scale: 1.32 + 0.66 * expansion,
-    opacity: 0.17 * smooth(0.04, 0.22, phase) * (1 - smooth(0.38, 1, phase)),
+    opacity: 0.15 * smooth(0.04, 0.22, phase) * (1 - smooth(0.38, 1, phase)),
   };
 }

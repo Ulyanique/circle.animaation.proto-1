@@ -42,9 +42,7 @@ const smooth = (a, b, x) => {
 
 /** Небольшие детерминированные линзовые кружки, прикреплённые к крайним кольцам. */
 export class SolarBokeh {
-  /** @param {{distributed?: boolean}} [options] distributed — свободные кружки
-   *  в остальных квадрантах; интро сохраняет только прежние блики у колец. */
-  constructor({ distributed = true } = {}) {
+  constructor() {
     this.group = new THREE.Group();
     this.geometry = new THREE.PlaneGeometry(1, 1);
     this.discs = [];
@@ -68,31 +66,6 @@ export class SolarBokeh {
         this.discs.push({ mesh, uniforms, side, i, seed });
       }
     }
-    // Свободные кружки в других квадрантах: блики распределены по всему кадру.
-    // Координаты заданы в долях от угла: положительный x — правая часть кадра,
-    // положительный y — верхняя. Пустые квадранты получают свои блики.
-    this.free = (distributed ? [
-      { at: [0.85, 0.62], size: 0.34, seed: 61.2, drift: 0.9 },
-      { at: [-0.8, -0.7], size: 0.27, seed: 73.9, drift: 1.3 },
-      { at: [0.5, -0.55], size: 0.22, seed: 88.4, drift: 0.7 },
-      { at: [-0.55, 0.4], size: 0.19, seed: 95.1, drift: 1.1 },
-    ] : []).map(({ at, size, seed, drift }) => {
-      const uniforms = {
-        uColor: { value: new THREE.Color(0xffc884) },
-        uSeed: { value: seed },
-        uTime: { value: 0 },
-        uOpacity: { value: 0 },
-        uFlare: { value: 0 },
-      };
-      const mesh = new THREE.Mesh(this.geometry, new THREE.ShaderMaterial({
-        vertexShader: VERT, fragmentShader: FRAG, uniforms,
-        transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
-        side: THREE.DoubleSide,
-      }));
-      mesh.renderOrder = 1;
-      this.group.add(mesh);
-      return { mesh, uniforms, at, size, seed, drift };
-    });
   }
 
   update(t, ph, cfg, positions) {
@@ -115,21 +88,10 @@ export class SolarBokeh {
       uniforms.uOpacity.value = (i === 0 ? (0.15 + 0.7 * sun) : 0.20 + 0.06 * Math.sin(seed)) *
         env * (1 - 0.76 * focus);
     }
-    // Равномерное поле: кружки держатся дальше от титра и не спорят с ним.
-    for (const { mesh, uniforms, at, size, seed, drift } of this.free) {
-      const baseX = at[0] < 0 ? positions.left.x : positions.right.x;
-      const baseY = at[1] > 0 ? positions.left.y : positions.right.y;
-      mesh.position.set(baseX * Math.abs(at[0]) + 0.05 * Math.sin(ph.local * 0.3 + drift),
-        baseY * Math.abs(at[1]) + 0.04 * Math.cos(ph.local * 0.24 + drift), -0.24);
-      mesh.scale.setScalar(size * cfg.rings.radius * 1.1);
-      uniforms.uTime.value = ph.local;
-      uniforms.uOpacity.value = (0.16 + 0.05 * Math.sin(seed)) * env * (1 - 0.82 * focus);
-    }
   }
 
   dispose() {
     this.geometry.dispose();
     for (const { mesh } of this.discs) mesh.material.dispose();
-    for (const { mesh } of this.free) mesh.material.dispose();
   }
 }
