@@ -96,14 +96,14 @@ test("интро раскрывается светом и движением к�
   const at = (local) => introCues(computePhase(tl.startDelay + local, tl), tl);
   assert.deepEqual(introCues(computePhase(0, tl), tl), { beams: 0, strike: 0, approach: 0 });
   assert.equal(at(0).beams, 0);
-  const drawing = at(tl.drawDuration * 0.6);
+  const drawing = at(tl.drawDuration * 0.90);
   assert.ok(drawing.beams > 0.9 && drawing.approach > 0.9 && drawing.strike === 0);
   const reveal = at(tl.drawDuration + tl.emergeDuration * 0.5);
   assert.ok(reveal.beams > 0.9 && reveal.strike > 0.9 && reveal.approach > 0);
   const held = at(tl.drawDuration + tl.emergeDuration + 2);
   assert.deepEqual(held, { beams: 0, strike: 0, approach: 0 });
-  assert.deepEqual(at(cycleDuration(tl) - 1 / 60), held);
-  const again = at(tl.drawDuration * 0.6 + cycleDuration(tl));
+  assert.deepEqual(at(cycleDuration(tl) - 1 / 60), {beams:0, strike:0, approach:1});
+  const again = at(tl.drawDuration * 0.90 + cycleDuration(tl));
   for (const key of ["beams", "strike", "approach"]) assert.ok(Math.abs(again[key] - drawing[key]) < 1e-9);
 });
 
@@ -141,9 +141,9 @@ test("каждая сцена получает полный независимы
     assert.deepEqual(cfg[key], WAITING_DEFAULTS[key], key);
     assert.notEqual(cfg[key], WAITING_DEFAULTS[key], key);
   }
-  // Фоновые сцены крупнее и ниже интро, но это их собственные значения.
+  // Фирменная сцена сохраняет размер и теперь центрирована.
   assert.equal(cfg.logo.scale, 0.58);
-  assert.equal(cfg.logo.offsetY, 0.86);
+  assert.equal(cfg.logo.offsetY, 0);
   assert.equal(WAITING_DEFAULTS.logo.scale, 0.47);
   cfg.rings.radius = 123;
   assert.notEqual(WAITING_DEFAULTS.rings.radius, 123);

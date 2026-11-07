@@ -1,4 +1,4 @@
-import { CUSTOM_TEXT_IDS } from './custom-text.js';
+import { CUSTOM_TEXT_IDS, customTextOrder } from './custom-text.js';
 
 /** Применение текста и цветов к DOM и общим настройкам canvas-экспорта. */
 export function validCustomColor(value) {
@@ -41,7 +41,7 @@ export function syncCaptionContent(cap, caption, custom = {}) {
     }
     if (!el) {
       el = document.createElement('div'); el.className = 'cap-custom'; el.dataset.custom = id;
-      // Постоянный порядок слотов одинаков до и после импорта/перезагрузки.
+      // Временное размещение; сохранённый порядок восстанавливается ниже.
       const next = CUSTOM_TEXT_IDS.slice(index + 1).map(key => cap.querySelector(`[data-custom="${key}"]`)).find(Boolean);
       cap.insertBefore(el, next ?? null); changed = true;
     }
@@ -67,6 +67,13 @@ export function syncCaptionContent(cap, caption, custom = {}) {
       return span;
     }));
     changed = true;
+  }
+  // Слои размещаются в порядке рисования: последний находится поверх остальных.
+  // Canvas-композитор обходит те же DOM-элементы в этом порядке.
+  const ordered = customTextOrder(custom, true);
+  const existing = [...cap.querySelectorAll('.cap-custom')].map(el => el.dataset.custom);
+  if (ordered.length === existing.length && ordered.some((id, i) => existing[i] !== id)) {
+    for (const id of ordered) cap.appendChild(cap.querySelector(`[data-custom="${id}"]`));
   }
   return changed;
 }

@@ -147,6 +147,7 @@ const operator = createOperatorControls({
     // Для других видов вход/уход теперь тоже занимают время; сохраняем
     // не менее четырёх секунд фазы удержания и ограничение полного цикла.
     const minHold = sceneId === "waiting" ? 1 : 4;
+    editor?.invalidateHistory(sceneId, "timeline", "holdDuration");
     tl.holdDuration = Math.max(minHold, Math.min(300 - other, value - other));
     saveScene();
     settings.refresh();
@@ -163,7 +164,7 @@ const operator = createOperatorControls({
 });
 
 editor = createFrameEditor({
-  getState: () => ({ id: sceneId, scene, canvas, config: cfg, defaults: activeScene.defaults }),
+  getState: () => ({ id: sceneId, time: runtime.time, scene, canvas, config: cfg, defaults: activeScene.defaults }),
   onEnable: () => {
     if (recording || transition) { toast("Во время записи или перехода редактирование недоступно", true); return false; }
     cfg.playback.paused = true;
@@ -174,6 +175,13 @@ editor = createFrameEditor({
     return true;
   },
   onChange: () => { applyTypography(); saveScene(); settings.refresh(); },
+  onSeek: (time) => {
+    if (recording || transition) return;
+    const wasPaused = cfg.playback.paused;
+    cfg.playback.paused = true; runtime.renderAt(time, 1 / OUTPUT.fps);
+    if (!wasPaused) saveScene();
+    settings.refresh(); operator.refresh();
+  },
   onLayoutChange: () => { scene.resize(); applyTypography(true); },
   onSettings: (section) => settings.openSection(section),
   onHistoryConflict: () => toast("Настройка изменилась вне редактора; история сцены очищена", true),

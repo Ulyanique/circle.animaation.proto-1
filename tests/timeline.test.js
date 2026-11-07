@@ -98,10 +98,11 @@ test("построительная точка начинает раньше ло
 test("блик проходит один раз во время сборки названия и не тревожит удержание", () => {
   const settle = tl.drawDuration + tl.emergeDuration;
   assert.equal(heroGlint(at(settle - 0.2), tl).intensity, 0);
-  const passage = heroGlint(at(settle + 0.55), tl);
+  const passage = heroGlint(at(settle + 1.0), tl);
   assert.ok(passage.intensity > 0.8);
   assert.ok(passage.position > -1 && passage.position < 1);
-  assert.equal(heroGlint(at(settle + 1.25), tl).intensity, 0);
+  assert.ok(heroGlint(at(settle + 0.2), tl).intensity < passage.intensity * .2);
+  assert.equal(heroGlint(at(settle + 2.2), tl).intensity, 0);
   assert.equal(heroGlint(at(settle + tl.holdDuration / 2), tl).intensity, 0);
   assert.equal(heroGlint(at(cycle - 1 / 60), tl).intensity, 0);
 });

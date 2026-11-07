@@ -1,3 +1,6 @@
+import { ConstructionGuides } from "./construction-guides.js";
+import { logoRotation } from "./scenes/logo-motion.js";
+import { updateTopIllumination, updateUpperRays } from "./top-illumination.js";
 import { ringSideVisible } from "./scenes/ring-sides.js";
 import { customTextAnimation } from "./custom-text.js";
 import { editorViewport } from "./editor-layers.js";
@@ -17,18 +20,21 @@ import {
   ToneMappingMode,
 } from "postprocessing";
 import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
+import { BACKGROUND_GLOW_IDS } from "./background-glow-config.js";
 import { BackgroundGlow } from "./background-glow.js";
+import { PARTICLE_CLOUD_IDS } from "./particle-cloud-config.js";
 import { ParticleCloud } from "./particle-cloud.js";
+import { DECOR_SLOTS } from "./brand-decor-config.js";
 import { BrandDecor } from "./brand-decor.js";
 import { Logo, revealUniforms } from "./logo.js";
 import { ContourWaves } from "./contour-waves.js";
 import { Background, Corners, Particles } from "./fx.js";
-import { Sparks, AnamorphicFlare } from "./sparks.js";
+import { Sparks, AnamorphicFlare, flarePosition } from "./sparks.js";
 import { Plotter } from "./plotter.js";
 import { SolarBokeh } from "./bokeh.js";
-import { captionState, captionAccent, glyphReveal } from "./caption.js";
-import { computePhase, compositionFocus, heroGlint, seamCurtainOpacity } from "./timeline.js";
-import { introCues, introSequence, finaleCues } from "./scenes/cues.js";
+import { captionState, finaleCaptionState, captionAccent, glyphReveal } from "./caption.js";
+import { computePhase, compositionFocus, heroGlint, seamCurtainOpacity, logoDrawFinish } from "./timeline.js";
+import { introCues, introSequence, introOutro, finaleCues } from "./scenes/cues.js";
 
 const FOV = 30;
 const CAM_Z = 9;
@@ -43,9 +49,11 @@ const setStyleIfChanged = (el, name, value) => {
 export { computePhase } from "./timeline.js";
 
 export class LogoScene {
-  constructor(canvas, cfg, { intro = true, contourWaves = false } = {}) {
+  constructor(canvas, cfg, { intro = true, contourWaves = false, photoSpin = false, introStyle = false } = {}) {
     this.cfg = cfg;
     this.isIntro = intro;
+    this.introStyle = intro || introStyle;
+    this.photoSpin = photoSpin;
     this._introCenter = new THREE.Vector3();
     this.renderer = new THREE.WebGLRenderer({
       canvas,
@@ -96,7 +104,7 @@ export class LogoScene {
     // блик: точечный свет, который один раз скользит по золоту при сборке названия
     this.glintLight = new THREE.PointLight(0xffca78, 0, 0, 2);
     this.glintLight.position.set(0, 1, 2.2);
-    this.scene.add(this.glintLight);
+
 
     this.fillLight = new THREE.DirectionalLight(0xffe2b0, 0.4);
     this.fillLight.position.set(4, 2, 6);
@@ -106,11 +114,14 @@ export class LogoScene {
     this.logo = new Logo();
     this.logo.root.position.set(0, 0, 0);
     this.scene.add(this.logo.root);
+    this.logo.root.add(this.glintLight);
     // Построительная окружность — опциональный элемент любой сцены.
-    this.brandDecor = new BrandDecor();
-    this.scene.add(this.brandDecor.group);
-    this.particleCloud = new ParticleCloud();
-    this.scene.add(this.particleCloud.group);
+    this.brandDecors = Object.fromEntries(DECOR_SLOTS.map(({id, section}) => [id, new BrandDecor(section)]));
+    for (const decor of Object.values(this.brandDecors)) this.scene.add(decor.group);
+    this.brandDecor = this.brandDecors.brandDecor;
+    this.particleClouds = Object.fromEntries(PARTICLE_CLOUD_IDS.map(id => [id, new ParticleCloud(id)]));
+    for (const cloud of Object.values(this.particleClouds)) this.scene.add(cloud.group);
+    this.particleCloud = this.particleClouds.particleCloud;
     // Волны включаются только сценой фотопаузы.
     this.contourWaves = contourWaves ? new ContourWaves(this.logo) : null;
     if (this.contourWaves) this.scene.add(this.contourWaves.group);
@@ -118,16 +129,18 @@ export class LogoScene {
     // Кольца и частицы: только левый верх и правый низ, как в исходной сцене.
     this.corners = new Corners();
     this.scene.add(this.corners.group);
-    this.backgroundGlow = new BackgroundGlow(this.corners.glowTex);
-    this.scene.add(this.backgroundGlow.group);
-    this.plotter = new Plotter(this.corners.glowTex, this.logo);
+    this.backgroundGlows = Object.fromEntries(BACKGROUND_GLOW_IDS.map(id => [id, new BackgroundGlow(this.corners.glowTex, id)]));
+    for (const glow of Object.values(this.backgroundGlows)) this.scene.add(glow.group);
+    this.plotter = new Plotter(this.corners.glowTex, this.logo, { twoHeads: this.introStyle, finale: introStyle });
     this.scene.add(this.plotter.group);
+    this.constructionGuides = new ConstructionGuides();
+    this.scene.add(this.constructionGuides.group);
     this.solarBokeh = new SolarBokeh();
     this.scene.add(this.solarBokeh.group);
     this.particles = new Particles();
     this.sparks = new Sparks(this.logo);
     this.flare = new AnamorphicFlare();
-    this.scene.add(this.flare.mesh);
+    this.logo.root.add(this.flare.mesh);
     // свечение сверху за логотипом (как в референсе)
     this.topLight = new THREE.PointLight(0xffe2a6, 0, 0, 2);
     this.topLight.position.set(0, 2.4, -0.8);
@@ -248,12 +261,17 @@ export class LogoScene {
   update(t, dt) {
     const cfg = this.cfg;
     let ph = computePhase(t, cfg.timeline);
-    const finale = cfg.finale ? finaleCues(ph, cfg.timeline) : null;
+    const introExit = this.isIntro ? introOutro(ph, cfg.timeline) : null;
+    if (introExit) ph = { ...ph, ...introExit };
+    const finale = cfg.finale ? finaleCues(ph, cfg.timeline, cfg.finale) : null;
     if (finale?.active && ph.name === "fade") {
       ph = { ...ph, reveal: finale.reveal, fill: finale.reveal, outline: finale.outline, draw: finale.draw };
     }
-    const opening = this.isIntro ? introCues(ph, cfg.timeline) : { beams: 0, strike: 0, approach: 0 };
-    const sequence = this.isIntro ? introSequence(ph, cfg.timeline, cfg.intro) : null;
+    const opening = this.introStyle && !finale?.active ? introCues(ph, cfg.timeline) : { beams: 0, strike: 0, approach: 0 };
+    const sequencePhase = finale?.active
+      ? computePhase(cfg.timeline.startDelay + cfg.timeline.drawDuration + cfg.timeline.emergeDuration + cfg.timeline.holdDuration - 1e-6, cfg.timeline) : ph;
+    const sequence = this.introStyle ? introSequence(sequencePhase, cfg.timeline, cfg.intro) : null;
+    if (sequence && finale?.active) sequence.corners *= finale.corners;
     const TAUt = TAU;
     const exposure = cfg.lights.exposure;
 
@@ -305,12 +323,10 @@ export class LogoScene {
     root.position.set((cfg.logo.offsetX ?? 0) * lift * (1 - (finale?.center ?? 0)), y * (1 - (finale?.center ?? 0)), z);
     const retreatScale = 1 - retreat * (1 - (cfg.finale?.retreatScale ?? 1));
     root.scale.setScalar(cfg.logo.scale * scaleGrow * pulse * (0.55 + 0.45 * easeOutCubic(ph.reveal)) * retreatScale);  // сначала контур в малом размере, затем логотип растёт
-    // У интро знак входит с небольшого ракурса и разворачивается к зрителю.
-    root.rotation.set(
-      Math.cos(TAUt * quant(cfg.logo.swaySpeed * 0.7) * t + 1.0) * cfg.logo.swayAmount * 0.6 + 0.14 * opening.approach,
-      Math.sin(TAUt * quant(cfg.logo.swaySpeed) * t) * cfg.logo.swayAmount - 0.50 * opening.approach,
-      0
-    );
+    // Интро смотрит прямо, фотопауза поворачивает только знак, остальные сцены сохраняют покачивание.
+    const rotation = logoRotation({intro: this.introStyle, photo: this.photoSpin, time: t, local: ph.local,
+      cycle: ph.cycle, start: logoDrawFinish(cfg.timeline), turns: cfg.photo?.logoTurns, swayAmount: cfg.logo.swayAmount, swaySpeed: cfg.logo.swaySpeed});
+    root.rotation.set(rotation.x, rotation.y, rotation.z);
     this.logo.updateOutline(ph.draw, ph.outline, cfg, ph.fill, ph.name === "fade");
     this.contourWaves?.update(t, ph, cfg);
     if (!root.visible && this.contourWaves) this.contourWaves.group.visible = false;
@@ -321,11 +337,12 @@ export class LogoScene {
     const focus = compositionFocus(ph, cfg.timeline);
     const cornerEnv = env * (1 - 0.44 * focus);
     const cpos = this.corners.update(t, cfg, this.halfW, this.halfH, env, focus);
-    if (this.isIntro || this.hideCenterRing) this.corners.centerRing.visible = false;
+    if (this.introStyle || this.hideCenterRing) this.corners.centerRing.visible = false;
     const effectPhase = computePhase(t, cfg.timeline);
-    this.brandDecor.update(t, effectPhase, cfg, root);
-    this.particleCloud.update(t, effectPhase, cfg);
-    this.backgroundGlow.update(t, effectPhase, cfg);
+    this.constructionGuides.update(t, effectPhase, cfg, root, cpos, this.introStyle);
+    for (const decor of Object.values(this.brandDecors)) decor.update(t, effectPhase, cfg, root);
+    for (const cloud of Object.values(this.particleClouds)) cloud.update(t, effectPhase, cfg);
+    for (const glow of Object.values(this.backgroundGlows)) glow.update(t, effectPhase, cfg);
     this.solarBokeh.update(t, sequence ? { ...ph, rings: env } : ph, cfg, cpos);
     this.plotter.update(ph, cfg, (sequence || finale?.active) ? root.position.y : cfg.logo.offsetY, root.position.x);
     const tilt = THREE.MathUtils.degToRad(cfg.rings.tilt);
@@ -333,7 +350,7 @@ export class LogoScene {
     this.background.update(t, cfg);
     this.background.uniforms.uEnvL.value = cornerEnv * (ringSideVisible(cfg.rings, "left") ? 1 : 0);
     this.background.uniforms.uEnvR.value = cornerEnv * (ringSideVisible(cfg.rings, "right") ? 1 : 0);
-    this.background.uniforms.uIntroLight.value = opening.beams;
+    updateUpperRays(this.background, ph, cfg, this.introStyle, opening.beams, t);
     // На удержании фон остаётся живым, но перестаёт спорить с названием.
     this.background.uniforms.uShimmer.value *= 1 - 0.32 * focus;
     this.background.uniforms.uRays.value *= 1 - 0.22 * focus;
@@ -361,15 +378,16 @@ export class LogoScene {
     // Один короткий тёплый проход по граням, пока собирается название.
     // На удержании ключевой акцент — текст, а не бегущий по нему блик.
     const cue = heroGlint(ph, cfg.timeline);
-    revealUniforms.uSpecPass.value = cfg.logo.glint * cue.intensity;
-    revealUniforms.uSpecX.value = cue.position * 1.7;
-    const gx = cue.position * 1.25;
-    this.glintLight.position.set(gx, 1.1, 2.2);
-    this.glintLight.intensity = cfg.logo.glint * 7 * cue.intensity * exposure;
+    revealUniforms.uSpecPass.value = cfg.logo.glint * 1.8 * cue.intensity;
+    const gx = cue.position * 1.6;
+    revealUniforms.uSpecX.value = gx;
+    this.glintLight.position.set(gx, -.665, 2.2);
+    this.glintLight.intensity = cfg.logo.glint * 1.4 * cue.intensity * exposure;
     const edgeFlare = 4 * ph.reveal * (1 - ph.reveal);
-    this.flare.set(cue.intensity > 0 ? gx : 0, cfg.post.anamorphic * cfg.logo.glint * 0.16 * cue.intensity +
-      cfg.post.anamorphic * (0.055 * edgeFlare + 0.30 * opening.strike), cfg.colors.goldHighlight, 1.1,
-      1.2 + 2.0 * opening.strike);
+    const flare = flarePosition(gx, cue.intensity);
+    this.flare.set(flare.x, cfg.post.anamorphic * cfg.logo.glint * 0.20 * cue.intensity +
+      cfg.post.anamorphic * (0.035 * edgeFlare + 0.10 * opening.strike), cfg.colors.goldHighlight, flare.y,
+      1.2 + 2.0 * opening.strike, cfg.logo.depth / 2 + cfg.logo.bevel + .02);
 
     // Один и тот же t всегда даёт один и тот же кадр подписи, даже после seek.
     const capEl = document.getElementById("caption");
@@ -378,10 +396,13 @@ export class LogoScene {
         setStyleIfChanged(capEl, `--${name}-offset-x`, `${(cfg.caption?.[`${name}X`] ?? 0) * 100}%`);
         setStyleIfChanged(capEl, `--${name}-offset-y`, `${(cfg.caption?.[`${name}Y`] ?? 0) * 100}%`);
       }
-      const { progress, lines } = captionState(t, cfg.timeline, sequence?.captionStart, finale ? 0.5 : 1);
+      const { progress, lines } = finale
+        ? finaleCaptionState(t, cfg.timeline, sequence?.captionStart, cfg.finale)
+        : captionState(t, cfg.timeline, sequence?.captionStart, this.isIntro ? 0.42 : 1);
+      setStyleIfChanged(capEl, "--finale-subtitle-y", `${79 - 29 * (finale?.subtitleCenter ?? 0)}%`);
       const k = THREE.MathUtils.smoothstep(progress, 0.0, 0.8);
       capEl.style.opacity = "1";
-      capEl.style.setProperty("--drift", `${((1 - k) * window.innerHeight * 0.008).toFixed(3)}px`);
+      capEl.style.setProperty("--drift", `${((1 - k) * (1 - (finale?.subtitleCenter ?? 0)) * window.innerHeight * 0.008).toFixed(3)}px`);
       capEl.style.transform = "translate(-50%, calc(-50% + var(--drift)))";
       const u = parseFloat(capEl.style.getPropertyValue("--u")) || 19.2;
       for (const [sel, name, line] of [
@@ -396,7 +417,7 @@ export class LogoScene {
         const accent = captionAccent(name, line, ph.name === "fade" || ph.name === "rest");
         setStyleIfChanged(el, "--p", line.outline.toFixed(4));
         if (line.fill !== undefined) setStyleIfChanged(el, "--f", line.fill.toFixed(4));
-        setStyleIfChanged(el, "--lift", `${(accent.rise * u).toFixed(3)}px`);
+        setStyleIfChanged(el, "--lift", `${(accent.rise * u * (name === "subtitle" ? 1 - (finale?.subtitleCenter ?? 0) : 1)).toFixed(3)}px`);
         setStyleIfChanged(el, "--pen", accent.pen.toFixed(4));
         if (line.fill !== undefined) {
           const glyphs = el.children;
@@ -412,15 +433,14 @@ export class LogoScene {
 
     // Камера интро плавно подъезжает к знаку; остальные ролики сохраняют общую композицию.
     const camK = finale?.active ? 0 : (1 - ph.reveal) * 0.6;
-    this.camera.position.set(-0.6 * camK, 0.35 * camK, CAM_Z + 1.2 * opening.approach);
+    this.camera.position.set(this.introStyle ? 0 : -0.6 * camK, this.introStyle ? 0 : 0.35 * camK, CAM_Z + 1.2 * opening.approach);
     this.camera.lookAt(0, 0, 0);
     this.camera.updateMatrixWorld();
     this._introCenter.copy(root.position).project(this.camera);
     this.background.uniforms.uIntroCenter.value.set(this._introCenter.x * OUTPUT.width / OUTPUT.height, this._introCenter.y);
 
     // верхнее свечение: появляется вместе с логотипом
-    this.topLight.intensity = cfg.lights.topGlow * ph.reveal * exposure;
-    this.topGlow.material.opacity = Math.min(1, 0.6 * ph.reveal * cfg.lights.topGlow / 40);
+    updateTopIllumination(this.topLight, this.topGlow, cfg, ph.reveal, exposure);
 
     // искры при проявлении
     const pixel = (this.viewportH * this.pixelRatio) / (2 * Math.tan(this.fovRad / 2)) * 0.012;
@@ -428,7 +448,7 @@ export class LogoScene {
     this.sparks.uniforms.uIntensity.value *= 1 + 0.8 * opening.strike;
 
     // Темнота полностью закрывает шов, в том числе непрерывный шум фона.
-    this.seamCurtain.material.opacity = seamCurtainOpacity(ph, cfg.timeline);
+    this.seamCurtain.material.opacity = Math.max(seamCurtainOpacity(ph, cfg.timeline), finale?.blackout ?? 0);
     this.seamCurtain.visible = this.seamCurtain.material.opacity > 0.001;
 
     // постобработка
@@ -454,7 +474,7 @@ export class LogoScene {
 
   dispose() {
     this.contourWaves?.dispose();
-    this.particleCloud.dispose();
+    for (const cloud of Object.values(this.particleClouds)) cloud.dispose();
     this.logo.dispose();
     this.particles.dispose();
     this.plotter.dispose();

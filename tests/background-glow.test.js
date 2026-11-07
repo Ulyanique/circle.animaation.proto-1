@@ -48,3 +48,47 @@ test('новое свечение отсутствует в старых нас�
   const project = parseProjectJSON(projectToJSON(configs, ids), ids);
   for (const id of ids) assert.deepEqual(project.scenes[id].backgroundGlow, configs[id].backgroundGlow);
 });
+
+test('до четырёх ореолов в сцене независимы и используют отдельные настройки и объекты', async () => {
+  const { BACKGROUND_GLOW_IDS, backgroundGlowDefaults } = await import('../src/background-glow-config.js');
+  const { SCHEMA } = await import('../src/config.js');
+  assert.equal(BACKGROUND_GLOW_IDS.length, 4);
+  const defaults = backgroundGlowDefaults();
+  assert.notEqual(defaults.backgroundGlow, defaults.backgroundGlow2);
+  assert.deepEqual(BACKGROUND_GLOW_IDS.map(id => SCHEMA.some(s => s.id === id)), [true, true, true, true]);
+  for (const scene of SCENES.filter(s => s.defaults)) {
+    const cfg = mergeConfig(scene.defaults, {});
+    const texture = new THREE.Texture();
+    const effects = BACKGROUND_GLOW_IDS.map(id => new BackgroundGlow(texture, id));
+    for (const [i, id] of BACKGROUND_GLOW_IDS.entries()) {
+      Object.assign(cfg[id], {present: true, enabled: true, offsetX: i, radius: 1 + i / 2, intensity: (i + 1) / 5});
+    }
+    const time = cfg.timeline.startDelay + cfg.timeline.drawDuration + cfg.timeline.emergeDuration + 1;
+    const phase = computePhase(time, cfg.timeline);
+    effects.forEach(effect => effect.update(time, phase, cfg));
+    for (const [i, effect] of effects.entries()) {
+      assert.equal(effect.group.visible, true);
+      assert.equal(effect.group.position.x, i);
+      assert.equal(effect.sprite.scale.x, 2 + i);
+    }
+    cfg.backgroundGlow2.enabled = false;
+    effects.forEach(effect => effect.update(time, phase, cfg));
+    assert.equal(effects[1].group.visible, false);
+    assert.equal(effects[0].group.visible, true); assert.equal(effects[2].group.visible, true);
+    assert.equal(layersForScene(scene.id, cfg).filter(layer => BACKGROUND_GLOW_IDS.includes(layer.id)).length, 4);
+    const copy = parseConfigJSON(configToJSON(cfg), scene.defaults);
+    for (const id of BACKGROUND_GLOW_IDS) assert.deepEqual(copy[id], cfg[id]);
+    effects.forEach(effect => effect.material.dispose()); texture.dispose();
+  }
+});
+
+test('старый JSON с одним свечением сохраняет его и не создаёт новые', async () => {
+  const { BACKGROUND_GLOW_IDS } = await import('../src/background-glow-config.js');
+  for (const scene of SCENES.filter(s => s.defaults)) {
+    const old = parseConfigJSON('{"backgroundGlow":{"present":true,"offsetX":1.23,"color":"#abcdef"}}', scene.defaults);
+    assert.equal(old.backgroundGlow.present, true);
+    assert.equal(old.backgroundGlow.offsetX, 1.23); assert.equal(old.backgroundGlow.color, '#abcdef');
+    for (const id of BACKGROUND_GLOW_IDS.slice(1)) assert.equal(old[id].present, false);
+    assert.deepEqual(layersForScene(scene.id, old).filter(layer => BACKGROUND_GLOW_IDS.includes(layer.id)).map(layer => layer.id), ['backgroundGlow']);
+  }
+});

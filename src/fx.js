@@ -37,6 +37,8 @@ const bgFS = /* glsl */ `
   uniform float uBrushed;
   uniform float uIntroLight;
   uniform vec2 uIntroCenter;
+  uniform float uUpperTime;
+  uniform vec3 uUpperColor;
 
   // хеш без синусов и без разводов (Dave Hoskins) — чистое зерно без полос
   float hash(vec2 p){ vec3 p3 = fract(vec3(p.xyx) * 0.1031); p3 += dot(p3, p3.yzx + 33.33); return fract((p3.x + p3.y) * p3.z); }
@@ -119,7 +121,7 @@ const bgFS = /* glsl */ `
     float edge = smoothstep(0.2, 1.0, length(p * vec2(0.62, 0.95)));
     col = mix(col * 0.45, col, edge);
 
-    // Только для интро: объёмный золотой свет раскрывается из-за знака.
+    // Верхний объёмный свет за знаком работает во всех сценах.
     // Экранная маска мягко освобождает нижнюю зону для надписей.
     if (uIntroLight > 0.001) {
       vec2 screen = (gl_FragCoord.xy / uRes - 0.5) * 2.0 * asp;
@@ -127,14 +129,17 @@ const bgFS = /* glsl */ `
       float radius = length(h);
       float angle = atan(h.y, h.x);
       // Нерегулярные лучи больше похожи на объёмный свет, чем на геометрическую звезду.
-      float warpedAngle = angle + 0.14 * sin(angle * 3.0 + 0.8);
-      float ray1 = pow(0.5 + 0.5 * cos(warpedAngle * 7.0 + 0.2 * sin(radius * 2.0) - t * 0.10), 8.0);
-      float ray2 = pow(0.5 + 0.5 * cos(warpedAngle * 12.0 - 0.4 + t * 0.08), 11.0);
-      float mist = 0.65 + 0.35 * noise(h * 3.0 + vec2(t * 0.03, 0.0));
+      float ut = uUpperTime;
+      float warpedAngle = angle + 0.14 * sin(angle * 3.0 + 0.8) + 0.04 * sin(ut * 0.21);
+      float ray1 = pow(0.5 + 0.5 * cos(warpedAngle * 7.0 + 0.2 * sin(radius * 2.0) - 0.20 * sin(ut * 0.13)), 8.0);
+      float ray2 = pow(0.5 + 0.5 * cos(warpedAngle * 12.0 - 0.4 + 0.24 * sin(ut * 0.11 + 1.0)), 11.0);
+      float mist = 0.65 + 0.35 * noise(h * 3.0 + vec2(0.25 * sin(ut * 0.10), 0.0));
       float rays = (0.62 * ray1 + 0.28 * ray2) * smoothstep(0.10, 0.35, radius) * exp(-radius) * mist;
-      float halo = exp(-radius * radius * 1.55);
-      float clearCaption = smoothstep(-0.12, 0.28, screen.y);
-      col += uCL * uIntensity * uIntroLight * (0.30 * halo + 0.50 * rays) * clearCaption;
+      // Ореол гаснет радиально без обрезающей полосы; только лучи
+      // мягко ослабляются ниже центра, освобождая место для титров.
+      float halo = exp(-radius * radius * 2.4);
+      float clearCaption = smoothstep(-0.55, 0.40, h.y);
+      col += uUpperColor * uIntensity * uIntroLight * (0.14 * halo + 0.50 * rays * clearCaption);
     }
 
     // виньетка
@@ -179,6 +184,8 @@ export class Background {
       uBrushed: { value: 0.35 },
       uIntroLight: { value: 0 },
       uIntroCenter: { value: new THREE.Vector2(0, 0.4) },
+      uUpperTime: { value: 0 },
+      uUpperColor: { value: new THREE.Color(0xffd98a) },
     };
     this.material = new THREE.ShaderMaterial({
       uniforms: this.uniforms,

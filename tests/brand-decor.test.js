@@ -94,3 +94,62 @@ test('старые настройки сохраняют прежний сост
     assert.ok(layersForScene(id, restored).some(layer => layer.id === 'brandDecor'));
   }
 });
+
+test('четыре построительные окружности независимы по положению, привязке, времени и оформлению', async () => {
+  const { DECOR_SLOTS, brandDecorDefaults } = await import('../src/brand-decor-config.js');
+  const { SCENES } = await import('../src/scenes/catalog.js');
+  const { SCHEMA, projectToJSON, parseProjectJSON } = await import('../src/config.js');
+  const { layersForScene } = await import('../src/editor-layers.js');
+  assert.equal(DECOR_SLOTS.length, 4);
+  const defaults = brandDecorDefaults(); assert.notEqual(defaults.decor, defaults.decor2);
+  for (const {section} of DECOR_SLOTS) assert.ok(SCHEMA.some(s => s.id === section));
+  const configs = {};
+  for (const scene of SCENES.filter(s => s.defaults)) {
+    const cfg = mergeConfig(scene.defaults, {}); configs[scene.id] = cfg;
+    const effects = DECOR_SLOTS.map(({section}) => new BrandDecor(section));
+    for (const [i, {section}] of DECOR_SLOTS.entries()) Object.assign(cfg[section], {
+      present: true, enabled: true, followLogo: i % 2 === 1, offsetX: i, offsetY: i ? -i : 0,
+      radius: 0.8 + 0.3 * i, color: i ? '#123456' : '#d9b268',
+      timingMode: 'custom', timingStart: i * 10, timingEnd: 90,
+    });
+    const cycle = cfg.timeline.drawDuration + cfg.timeline.emergeDuration + cfg.timeline.holdDuration + cfg.timeline.fadeDuration + cfg.timeline.restDuration;
+    const phase = {beforeStart: false, reveal: 0, rings: 0}, time = cfg.timeline.startDelay + cycle * .5;
+    const root = {position: {x: 0.4, y: 1}};
+    effects.forEach(effect => effect.update(time, phase, cfg, root));
+    for (const [i, effect] of effects.entries()) {
+      assert.equal(effect.group.visible, true);
+      assert.equal(effect.group.position.x, i + (i % 2 ? 0.4 : 0));
+      assert.equal(effect.group.position.y, -i + (i % 2 ? 1 : 0));
+      assert.equal(effect.group.scale.x, 0.8 + 0.3 * i);
+      assert.equal(effect.ring.material.color.getHexString(), i ? '123456' : 'd9b268');
+    }
+    root.position.x = 1.4;
+    effects.forEach(effect => effect.update(time, phase, cfg, root));
+    assert.equal(effects[0].group.position.x, 0); assert.equal(effects[1].group.position.x, 2.4);
+    cfg.decor2.enabled = false; effects.forEach(effect => effect.update(time, phase, cfg, root));
+    assert.equal(effects[1].group.visible, false); assert.equal(effects[0].group.visible, true);
+    cfg.decor2.enabled = true;
+    effects.forEach(effect => effect.update(cfg.timeline.startDelay + cycle * .15, phase, cfg, root));
+    assert.equal(effects[0].group.visible, true); assert.equal(effects[2].group.visible, false);
+    assert.equal(layersForScene(scene.id, cfg).filter(layer => DECOR_SLOTS.some(slot => slot.id === layer.id)).length, 4);
+    const copy = parseConfigJSON(configToJSON(cfg), scene.defaults);
+    for (const {section} of DECOR_SLOTS) assert.deepEqual(copy[section], cfg[section]);
+    for (const effect of effects) effect.group.traverse(o => { o.geometry?.dispose(); o.material?.dispose(); });
+  }
+  const ids = Object.keys(configs), project = parseProjectJSON(projectToJSON(configs, ids), ids);
+  for (const scene of ids) for (const {section} of DECOR_SLOTS) assert.deepEqual(project.scenes[scene][section], configs[scene][section]);
+});
+
+test('прежняя окружность 02 сохраняет настройки, новые слоты не появляются в старых JSON', async () => {
+  const { DECOR_SLOTS } = await import('../src/brand-decor-config.js');
+  const { layersForScene } = await import('../src/editor-layers.js');
+  const oldBrand = parseConfigJSON('{"decor":{"enabled":true,"offsetX":0.7,"color":"#abcdef"}}', BRAND_DEFAULTS);
+  assert.equal(oldBrand.decor.present, true); assert.equal(oldBrand.decor.followLogo, true);
+  assert.equal(oldBrand.decor.offsetX, 0.7); assert.equal(oldBrand.decor.color, '#abcdef');
+  for (const {section} of DECOR_SLOTS.slice(1)) assert.equal(oldBrand[section].present, false);
+  assert.deepEqual(layersForScene('brand', oldBrand).filter(layer => DECOR_SLOTS.some(slot => slot.id === layer.id)).map(layer => layer.id), ['brandDecor']);
+  for (const defaults of [WAITING_DEFAULTS, PHOTO_PAUSE_DEFAULTS, FINALE_DEFAULTS]) {
+    const old = parseConfigJSON('{"logo":{"scale":0.6}}', defaults);
+    for (const {section} of DECOR_SLOTS) assert.equal(old[section].present, false);
+  }
+});

@@ -1,3 +1,6 @@
+import { DECOR_SLOTS } from "./brand-decor-config.js";
+import { PARTICLE_CLOUD_IDS } from "./particle-cloud-config.js";
+import { BACKGROUND_GLOW_IDS } from "./background-glow-config.js";
 import { FONTS } from "./fonts.js";
 import { WAITING_DEFAULTS } from "./scenes/waiting.js";
 
@@ -16,7 +19,7 @@ export const SCHEMA = [
     { key: "liftDuration", label: "Подъём логотипа", type: "range", min: 0.2, max: 3, step: 0.05 },
     { key: "titleDelay", label: "Пауза до надписей", type: "range", min: 0, max: 3, step: 0.05 },
   ] },
-  { id: "decor", title: "Построительная окружность", fields: [
+  ...DECOR_SLOTS.map(({section}, index) => ({ id: section, title: `Построительная окружность ${index + 1}`, fields: [
     { key: "present", label: "Добавить окружность в сцену", type: "bool" },
     { key: "enabled", label: "Показать декор", type: "bool" },
     { key: "radius", label: "Радиус", type: "range", min: 0.4, max: 2.5, step: 0.01 },
@@ -27,8 +30,8 @@ export const SCHEMA = [
     { key: "speed", label: "Скорость вращения", type: "range", min: -0.3, max: 0.3, step: 0.005 },
     { key: "dustOpacity", label: "Яркость пыли", type: "range", min: 0, max: 1, step: 0.01 },
     { key: "dustSize", label: "Размер пыли", type: "range", min: 0.005, max: 0.06, step: 0.001 },
-  ] },
-  { id: "particleCloud", title: "Облако частиц", fields: [
+  ] })),
+  ...PARTICLE_CLOUD_IDS.map((id, index) => ({ id, title: `Облако частиц ${index + 1}`, fields: [
     { key: "present", label: "Добавить облако в сцену", type: "bool" },
     { key: "enabled", label: "Показывать облако", type: "bool" },
     { key: "offsetX", label: "Положение по горизонтали", type: "range", min: -10, max: 10, step: 0.01 },
@@ -39,8 +42,8 @@ export const SCHEMA = [
     { key: "opacity", label: "Яркость", type: "range", min: 0, max: 1, step: 0.01 },
     { key: "speed", label: "Скорость вращения", type: "range", min: -0.5, max: 0.5, step: 0.01 },
     { key: "color", label: "Цвет", type: "color" },
-  ] },
-  { id: "backgroundGlow", title: "Фоновое свечение", fields: [
+  ] })),
+  ...BACKGROUND_GLOW_IDS.map((id, index) => ({ id, title: `Фоновое свечение ${index + 1}`, fields: [
     { key: "present", label: "Добавить свечение в сцену", type: "bool" },
     { key: "enabled", label: "Показывать свечение", type: "bool" },
     { key: "offsetX", label: "Положение по горизонтали", type: "range", min: -10, max: 10, step: 0.01 },
@@ -50,12 +53,16 @@ export const SCHEMA = [
     { key: "pulse", label: "Пульсация", type: "range", min: 0, max: 1, step: 0.01 },
     { key: "speed", label: "Скорость пульсации", type: "range", min: 0, max: 1, step: 0.01 },
     { key: "color", label: "Цвет", type: "color" },
-  ] },
+  ] })),
   { id: "finale", title: "Финальный уход", fields: [
     { key: "retreatDepth", label: "Глубина удаления", type: "range", min: 0, max: 5, step: 0.1 },
     { key: "retreatScale", label: "Конечный масштаб", type: "range", min: 0.2, max: 1, step: 0.01 },
+    { key: "subtitleDrawDuration", label: "Прорисовка финальной фразы (с)", type: "range", min: 0.2, max: 6, step: 0.05 },
+    { key: "subtitleMoveDuration", label: "Переход фразы в центр (с)", type: "range", min: 0.2, max: 6, step: 0.05 },
+    { key: "subtitleHoldDuration", label: "Удержание фразы на тёмном фоне (с)", type: "range", min: 0, max: 10, step: 0.05 },
+    { key: "subtitleEraseDuration", label: "Стирание финальной фразы (с)", type: "range", min: 0.2, max: 6, step: 0.05 },
   ] },
-  { id: "photo", title: "Фотопауза", fields: [
+  { id: "photo", title: "Круговая надпись и рамка", fields: [
     { key: "textEnabled", label: "Надпись по кругу", type: "bool" },
     { key: "text", label: "Текст", type: "text", maxLength: 40 },
     { key: "repeats", label: "Повторений", type: "range", min: 1, max: 8, step: 1 },
@@ -67,10 +74,20 @@ export const SCHEMA = [
     { key: "textOpacity", label: "Прозрачность надписи", type: "range", min: 0, max: 1, step: 0.01 },
     { key: "color", label: "Цвет уголков и исходный цвет надписи", type: "color" },
     { key: "textColor", label: "Свой цвет надписи", type: "color", fallback: "#e8c77e" },
+    { key: "apertureEnabled", label: "Апертура перед логотипом", type: "bool" },
+    { key: "apertureOffsetX", label: "Апертура: сдвиг X", type: "range", min: -2, max: 2, step: 0.01 },
+    { key: "apertureOffsetY", label: "Апертура: сдвиг Y", type: "range", min: -2, max: 2, step: 0.01 },
+    { key: "apertureRadius", label: "Апертура: радиус", type: "range", min: 0.5, max: 2.5, step: 0.01 },
+    { key: "apertureOpacity", label: "Апертура: прозрачность", type: "range", min: 0, max: 1, step: 0.01 },
+    { key: "apertureColor", label: "Апертура: цвет", type: "color" },
+    { key: "logoTurns", label: "Оборотов логотипа за 20 с (0 — стоп)", type: "range", min: -3, max: 3, step: 1 },
+    { key: "ringRadius", label: "Радиус пунктирного круга", type: "range", min: 0.5, max: 2.5, step: 0.01 },
     { key: "frameEnabled", label: "Уголки кадра", type: "bool" },
     { key: "frameMargin", label: "Отступ уголков", type: "range", min: 0, max: 0.18, step: 0.005 },
     { key: "frameLength", label: "Длина уголков", type: "range", min: 0.02, max: 0.18, step: 0.005 },
     { key: "frameOpacity", label: "Прозрачность уголков", type: "range", min: 0, max: 1, step: 0.01 },
+    { key: "framePulse", label: "Амплитуда движения уголков к центру", type: "range", min: 0, max: 0.1, step: 0.005 },
+    { key: "framePulseCycles", label: "Пульсаций за цикл", type: "range", min: 1, max: 10, step: 1 },
   ] },
   { id: "caption", title: "Надписи", fields: [
     { key: "titleVisible", label: "Название: показывать", type: "bool" },
@@ -208,10 +225,32 @@ export const SCHEMA = [
       { key: "gridOpacity", label: "Чертёжная сетка", type: "range", min: 0, max: 0.3, step: 0.005 },
     ]
   },
+  { id: "constructionGuides", title: "Чертёжные линии", fields: [
+    { key: "enabled", label: "Включены", type: "bool" },
+    { key: "offsetX", label: "Сдвиг X", type: "range", min: -10, max: 10, step: 0.01 },
+    { key: "offsetY", label: "Сдвиг Y", type: "range", min: -10, max: 10, step: 0.01 },
+    { key: "scale", label: "Размер линий знака", type: "range", min: 0.2, max: 3, step: 0.01 },
+    { key: "opacity", label: "Прозрачность", type: "range", min: 0, max: 1, step: 0.01 },
+    { key: "color", label: "Цвет", type: "color" },
+  ] },
+  {
+    id: "topIllumination", title: "Верхнее свечение и свет", fields: [
+      { key: "enabled", label: "Включены ореол и свет", type: "bool" },
+      { key: "offsetX", label: "Позиция X", type: "range", min: -10, max: 10, step: 0.01 },
+      { key: "offsetY", label: "Позиция Y", type: "range", min: -10, max: 10, step: 0.01 },
+      { key: "scale", label: "Размер ореола", type: "range", min: 0.2, max: 2.5, step: 0.01 },
+      { key: "color", label: "Цвет ореола", type: "color" },
+      { key: "lightColor", label: "Цвет освещения металла", type: "color" },
+      { key: "raysEnabled", label: "Верхние лучи", type: "bool" },
+      { key: "raysIntensity", label: "Яркость верхних лучей", type: "range", min: 0, max: 2, step: 0.01 },
+      { key: "raysSpeed", label: "Скорость верхних лучей", type: "range", min: 0, max: 3, step: 0.01 },
+      { key: "raysColor", label: "Цвет верхних лучей", type: "color" },
+    ]
+  },
   {
     id: "lights", title: "Свет и тени", fields: [
       { key: "keyIntensity", label: "Ключевой свет", type: "range", min: 0, max: 40, step: 0.1 },
-      { key: "topGlow", label: "Свечение сверху", type: "range", min: 0, max: 120, step: 0.5 },
+      { key: "topGlow", label: "Сила верхнего свечения и света", type: "range", min: 0, max: 120, step: 0.5 },
       { key: "keyAngle", label: "Угол ключевого света", type: "range", min: 0, max: 80, step: 1 },
       { key: "fillIntensity", label: "Заливка", type: "range", min: 0, max: 3, step: 0.01 },
       { key: "shadowSoftness", label: "Мягкость теней", type: "range", min: 1, max: 20, step: 0.5 },
@@ -242,6 +281,10 @@ const STORAGE_PREFIX = "circle-anim-settings-v2";
 // Старый единственный ключ читаем один раз, чтобы не потерять настройки интро.
 const LEGACY_KEY = "circle-anim-settings-v1";
 const PHOTO_CENTER_MIGRATION = "circle-anim-photo-center-v1";
+const GUIDES_PLACEMENT_MIGRATION = "circle-anim-guides-placement-v1";
+const FINALE_GUIDES_MIGRATION = "circle-anim-finale-guides-v1";
+const PHOTO_SIZE_MIGRATION = "circle-anim-photo-size-v1";
+const BRAND_CENTER_MIGRATION = "circle-anim-brand-center-v1";
 export const PROJECT_VERSION = 2;
 
 export function sceneStorageKey(sceneId) {
@@ -290,11 +333,17 @@ export function mergeConfig(defaults, patch) {
 export function loadSceneConfig(sceneId, defaults) {
   const cfg = cloneDefaults(defaults);
   let raw = null;
-  let migratePhotoCenter = false;
+  let migratePhotoCenter = false, migratePhotoSize = false, migrateBrandCenter = false, migrateGuides = false, migrateFinaleGuides = false;
   try {
     raw = localStorage.getItem(sceneStorageKey(sceneId));
     if (!raw && sceneId === "waiting") raw = localStorage.getItem(LEGACY_KEY);
-    if (sceneId === "photo-pause") migratePhotoCenter = !localStorage.getItem(PHOTO_CENTER_MIGRATION);
+    if (sceneId === "photo-pause") {
+      migratePhotoCenter = !localStorage.getItem(PHOTO_CENTER_MIGRATION);
+      migratePhotoSize = !localStorage.getItem(PHOTO_SIZE_MIGRATION);
+    }
+    if (sceneId === "finale") migrateFinaleGuides = !localStorage.getItem(FINALE_GUIDES_MIGRATION);
+    if (sceneId === "brand") migrateBrandCenter = !localStorage.getItem(BRAND_CENTER_MIGRATION);
+    if (sceneId === "waiting" || sceneId === "brand") migrateGuides = !localStorage.getItem(`${GUIDES_PLACEMENT_MIGRATION}:${sceneId}`);
   } catch (e) {
     console.warn("Не удалось прочитать настройки", e);
     return cfg;
@@ -302,6 +351,18 @@ export function loadSceneConfig(sceneId, defaults) {
   if (!raw) {
     if (migratePhotoCenter) {
       try { localStorage.setItem(PHOTO_CENTER_MIGRATION, "1"); } catch (e) { /* noop */ }
+    }
+    if (migrateFinaleGuides) {
+      try { localStorage.setItem(FINALE_GUIDES_MIGRATION, "1"); } catch (e) { /* noop */ }
+    }
+    if (migrateBrandCenter) {
+      try { localStorage.setItem(BRAND_CENTER_MIGRATION, "1"); } catch (e) { /* noop */ }
+    }
+    if (migratePhotoSize) {
+      try { localStorage.setItem(PHOTO_SIZE_MIGRATION, "1"); } catch (e) { /* noop */ }
+    }
+    if (migrateGuides) {
+      try { localStorage.setItem(`${GUIDES_PLACEMENT_MIGRATION}:${sceneId}`, "1"); } catch (e) { /* noop */ }
     }
     return cfg;
   }
@@ -316,6 +377,45 @@ export function loadSceneConfig(sceneId, defaults) {
     }
     if (migratePhotoCenter) {
       try { localStorage.setItem(PHOTO_CENTER_MIGRATION, "1"); } catch (e) { /* noop */ }
+    }
+    // Увеличиваем только прежний стандартный размер; пользовательские размеры не меняем.
+    if (migratePhotoSize) {
+      if (saved?.logo?.scale === 0.47) {
+        saved.logo.scale = defaults.logo.scale;
+        try { localStorage.setItem(sceneStorageKey(sceneId), JSON.stringify(saved)); } catch (e) { /* noop */ }
+      }
+      try { localStorage.setItem(PHOTO_SIZE_MIGRATION, "1"); } catch (e) { /* noop */ }
+    }
+    // Старый стандартный шаблон фона переводим в центр однократно; свои
+    // положения и отредактированный титр сохраняем. Импорт JSON не меняем.
+    if (migrateBrandCenter) {
+      if (saved && !saved.photo) {
+        if (saved.logo?.offsetY === 0.86) saved.logo.offsetY = defaults.logo.offsetY;
+        if (saved.caption?.titleVisible === true && saved.caption?.titleText === 'Янтарный циркуль' &&
+            (saved.caption.titleX ?? 0) === 0 && (saved.caption.titleY ?? 0) === 0 &&
+            (saved.caption.titleScale ?? 1) === 1 && (saved.caption.titleColor ?? null) === null) saved.caption.titleVisible = false;
+        else if (saved.caption && saved.caption.titleVisible === undefined && saved.caption.titleText && saved.caption.titleText !== 'Янтарный циркуль') saved.caption.titleVisible = true;
+        try { localStorage.setItem(sceneStorageKey(sceneId), JSON.stringify(saved)); } catch (e) { /* noop */ }
+      }
+      try { localStorage.setItem(BRAND_CENTER_MIGRATION, "1"); } catch (e) { /* noop */ }
+    }
+    // Предыдущее размещение линий переносится однократно; остальные их настройки остаются.
+    if (migrateGuides) {
+      if (saved?.constructionGuides && saved.constructionGuides.enabled === (sceneId === 'brand')) {
+        saved.constructionGuides.enabled = defaults.constructionGuides.enabled;
+        try { localStorage.setItem(sceneStorageKey(sceneId), JSON.stringify(saved)); } catch (e) { /* noop */ }
+      }
+      try { localStorage.setItem(`${GUIDES_PLACEMENT_MIGRATION}:${sceneId}`, "1"); } catch (e) { /* noop */ }
+    }
+    if (migrateFinaleGuides) {
+      const g = saved?.constructionGuides;
+      // Меняем только нетронутый прежний стандарт. Свою разметку не перезаписываем.
+      const prior = {...WAITING_DEFAULTS.constructionGuides, enabled: false};
+      if (g && Object.keys(prior).every(key => g[key] === prior[key]) && Object.keys(g).every(key => key in prior)) {
+        g.enabled = true;
+        try { localStorage.setItem(sceneStorageKey(sceneId), JSON.stringify(saved)); } catch (e) { /* noop */ }
+      }
+      try { localStorage.setItem(FINALE_GUIDES_MIGRATION, "1"); } catch (e) { /* noop */ }
     }
     deepMerge(cfg, saved);
   } catch (e) {

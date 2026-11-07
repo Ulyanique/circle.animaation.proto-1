@@ -1,3 +1,5 @@
+import { finaleTextTiming } from './scenes/finale-timing.js';
+
 // Подпись зависит только от абсолютного времени, а не от количества кадров RAF.
 const clamp = (x, min, max) => Math.min(max, Math.max(min, x));
 const smooth = (a, b, x) => {
@@ -84,4 +86,35 @@ export function captionState(t, tl, start, exitFraction = 1) {
     if (lines[name].fill !== undefined) lines[name].fill *= visibility;
   }
   return { progress, lines };
+}
+
+/** Финальный подзаголовок остаётся после названия, удерживается в центре и стирается последним. */
+export function finaleCaptionState(t, tl, start, cfg = {}) {
+  const base = captionState(t, tl, start);
+  const { local, on, fadeStart, fade } = clock(t, tl, start);
+  const requestedDraw = typeof cfg.subtitleDrawDuration === 'number' && Number.isFinite(cfg.subtitleDrawDuration)
+    ? clamp(cfg.subtitleDrawDuration, .2, 30) : 1.15;
+  const drawDuration = Math.min(requestedDraw, Math.max(.0001, fadeStart - on - 1.04));
+  const drawSubtitle = (lines, elapsed) => {
+    lines.subtitle.outline = smooth(1.04, 1.04 + drawDuration * .57, elapsed);
+    lines.subtitle.fill = smooth(1.04 + drawDuration * .586, 1.04 + drawDuration, elapsed);
+  };
+  if (local < fadeStart) {
+    drawSubtitle(base.lines, Math.max(0, local - on));
+    return base;
+  }
+  if (local >= fadeStart + fade) return { progress: 0, lines: captionLines(0) };
+  const p = (local - fadeStart) / Math.max(fade, 1e-4);
+  const lines = captionLines(clamp(fadeStart - on, 0, CAP_MAX));
+  drawSubtitle(lines, Math.max(0, fadeStart - on));
+  const titleVisibility = 1 - smooth(0, .15, p);
+  for (const name of ['title', 'rule1', 'rule2', 'date']) {
+    lines[name].outline *= titleVisibility;
+    if (lines[name].fill !== undefined) lines[name].fill *= titleVisibility;
+  }
+  const timing = finaleTextTiming(tl, cfg);
+  const lastVisibility = 1 - smooth(timing.eraseStart, timing.eraseEnd, local - fadeStart);
+  lines.subtitle.outline *= lastVisibility;
+  lines.subtitle.fill *= lastVisibility;
+  return { progress: Math.max(base.progress, lines.subtitle.outline), lines };
 }

@@ -47,7 +47,7 @@ body.scene-finale #caption .cap-title {
   left: calc(50% + var(--title-offset-x, 0%)); top: calc(65% + var(--title-offset-y, 0%)); font-size: calc(var(--u) * 6.6 * var(--title-scale, 1));
 }
 body.scene-finale #caption .cap-sub {
-  left: calc(50% + var(--subtitle-offset-x, 0%)); top: calc(79% + var(--subtitle-offset-y, 0%)); font-size: calc(var(--u) * 2.55 * var(--subtitle-scale, 1));
+  left: calc(50% + var(--subtitle-offset-x, 0%)); top: calc(var(--finale-subtitle-y, 79%) + var(--subtitle-offset-y, 0%)); font-size: calc(var(--u) * 2.55 * var(--subtitle-scale, 1));
   letter-spacing: .18em; padding-left: .18em;
 }
 /* Мышь видна всегда. Только элементы пульта исчезают после бездействия. */
@@ -581,11 +581,11 @@ body.operator-idle:not(.ui-on) .cfg-toggle { opacity: .55; }
 .editor-appearance-reset button { padding: 5px; font-size: 10px; }
 
 /* Пространство редактора: панели вынесены из кадра, а инспектор остаётся открытым. */
-.editor-sidebar { position: fixed; top: 78px; bottom: 140px; pointer-events: auto; z-index: 4;
+.editor-sidebar { position: fixed; top: 68px; bottom: 140px; pointer-events: auto; z-index: 4;
   background: #141310; border: 1px solid rgba(217,176,97,.23); border-radius: 6px;
   color: #ddd7c9; overflow-y: auto; font: 12px/1.4 system-ui, sans-serif; }
-.editor-layers { left: 12px; width: 196px; }
-.editor-inspector { right: 12px; width: 266px; }
+.editor-layers { left: 10px; width: 176px; }
+.editor-inspector { right: 10px; width: 226px; }
 .editor-sidebar-heading { padding: 17px 15px 13px; border-bottom: 1px solid #38342d; }
 .editor-sidebar-heading span { color: #97866a; font-size: 9px; letter-spacing: .14em; font-weight: 600; }
 .editor-sidebar-heading h2 { margin: 5px 0 0; font-size: 15px; color: #f0e8d8; font-weight: 600; }
@@ -607,7 +607,7 @@ body.operator-idle:not(.ui-on) .cfg-toggle { opacity: .55; }
 .editor-inspector .editor-appearance input[type="text"] { flex: 1; width: auto; }
 .editor-panel-toggle { display: none; }
 body.editor-on.operator-idle:not(.ui-on) .operator-panel { opacity: 1; pointer-events: auto; }
-@media (max-width: 999px) {
+@media (max-width: 780px) {
   .editor-hint { display: none; }
   .editor-history { top: 58px; left: 12px; right: 12px; flex-wrap: wrap; }
   .editor-history button { padding: 6px 8px; }
@@ -670,3 +670,102 @@ body.editor-on.operator-idle:not(.ui-on) .operator-panel { opacity: 1; pointer-e
 .editor-follow-logo { display: flex; align-items: center; gap: 8px; padding: 12px 7px; color: #d3c7b1; font-size: 11px; }
 .editor-follow-logo[hidden] { display: none; }
 .editor-follow-logo input { accent-color: #d9b061; }
+
+/* Таймлайн редактора расположен вне кадра и не попадает в экспорт. */
+.editor-track-panel { position: fixed; left: 196px; right: 246px; bottom: 140px; height: min(130px, 16vh);
+  pointer-events: auto; z-index: 4; display: flex; flex-direction: column; overflow: hidden;
+  background: #141310; border: 1px solid rgba(217,176,97,.23); border-radius: 6px;
+  color: #ddd7c9; font: 11px/1.35 system-ui, sans-serif; }
+.editor-track-head { flex: none; display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  padding: 7px 10px; border-bottom: 1px solid #38342d; }
+.editor-track-head strong { color: #e9ce98; font-size: 11px; }
+.editor-track-head small { color: #9b9488; font-size: 10px; }
+.editor-track-head output { color: #d9c89f; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.editor-track-scale, .editor-track-row { display: grid; grid-template-columns: minmax(100px, 165px) minmax(100px, 1fr); align-items: center; gap: 8px; padding: 2px 12px 2px 8px; }
+.editor-track-scale { flex: none; color: #9b9488; font-size: 10px; }
+.editor-track-ruler { position: relative; display: flex; justify-content: space-between; cursor: pointer; height: 17px; border-bottom: 1px solid #62543e; }
+.editor-track-ruler::after, .editor-track-lane::after { content: ''; position: absolute; top: 0; bottom: 0; left: var(--timeline-cursor, 0%); width: 1px; background: #f1deae; pointer-events: none; z-index: 2; }
+.editor-track-list { min-height: 0; overflow-y: auto; scrollbar-color: #76623f transparent; padding-bottom: 4px; }
+.editor-track-row[hidden], .editor-track-empty[hidden], .editor-track-auto[hidden], .editor-track-range[hidden] { display: none; }
+.editor-track-row.selected { background: #30281b; }
+.editor-track-label { border: 0; padding: 4px 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; background: transparent; color: #d5c7a9; text-align: left; cursor: pointer; font: inherit; }
+.editor-track-row.selected .editor-track-label { color: #ffe3a6; }
+.editor-track-lane { position: relative; height: 20px; background: #201d18; border: 1px solid #3d362a; border-radius: 3px; }
+.editor-track-row.is-hidden .editor-track-lane { opacity: .45; }
+.editor-track-auto { position: absolute; inset: 0; width: 100%; overflow: hidden; border: 0; background: repeating-linear-gradient(135deg, #4e4636 0 4px, #3b3428 4px 8px); color: #e4d3af; font: 10px system-ui, sans-serif; cursor: pointer; }
+.editor-track-range { position: absolute; top: 2px; bottom: 2px; background: #9e7c42; border-radius: 2px; cursor: pointer; }
+.editor-track-grip { position: absolute; top: -3px; bottom: -3px; width: 11px; padding: 0; border: 1px solid #f6d99c; border-radius: 3px; background: #d2ad6a; cursor: ew-resize; touch-action: none; z-index: 3; }
+.editor-track-grip[data-edge="start"] { left: -5px; }
+.editor-track-grip[data-edge="end"] { right: -5px; }
+.editor-track-label:focus-visible, .editor-track-auto:focus-visible, .editor-track-grip:focus-visible, .editor-track-ruler:focus-visible { outline: 2px solid #ffe2a2; outline-offset: 2px; }
+.editor-track-empty { margin: 8px 12px; color: #9b9488; }
+@media (max-width: 780px) {
+  .editor-track-panel { left: 8px; right: 8px; bottom: min(175px, 32vh); height: min(120px, 16vh); }
+  .editor-track-head small { display: none; }
+  .editor-track-scale, .editor-track-row { grid-template-columns: minmax(75px, 110px) minmax(80px, 1fr); }
+}
+
+.editor-text-order { padding: 8px 7px 12px; border-bottom: 1px solid #665333; color: #ead3a5; font: 12px system-ui, sans-serif; }
+.editor-text-order[hidden] { display: none; }
+.editor-text-order h3 { margin: 0 0 5px; font-size: 12px; }
+.editor-text-order p { color: #b6aa94; font-size: 10px; line-height: 1.4; }
+.editor-text-order div { display: flex; gap: 6px; }
+
+/* Сдержанная рабочая панель: акцент — на выбранном элементе, не на хроме. */
+.editor-toggle { top: 14px; left: 10px; padding: 7px 11px; border-radius: 3px; }
+.editor-history { top: 14px; left: 112px; gap: 4px; }
+.editor-history button { padding: 7px 9px; border-radius: 3px; }
+.editor-hint { top: 45px; left: 10px; padding: 2px 0; background: transparent; color: #8f8b81; font-size: 10px; }
+.editor-sidebar, .editor-track-panel { background: #151514; border-color: #383733; border-radius: 3px; }
+.editor-sidebar-heading { padding: 10px 10px 8px; border-color: #34332f; }
+.editor-sidebar-heading span { color: #8c8981; font-size: 9px; letter-spacing: .1em; }
+.editor-sidebar-heading h2 { margin: 2px 0 0; font-size: 13px; color: #e5e2dc; }
+.editor-sidebar-note, .editor-empty { padding: 0 10px; line-height: 1.4; }
+.editor-layers-list { padding: 5px; gap: 1px; }
+.editor-layer-row { gap: 7px; padding: 5px; border-radius: 3px; }
+.editor-layer-row[aria-pressed="true"] { background: #302c24; border-color: #75674e; color: #f0dfbe; }
+.editor-layer-icon { flex-basis: 24px; height: 24px; border-color: #504b41; border-radius: 3px; font-size: 13px; }
+.editor-layer-name { gap: 0; }
+.editor-layer-name strong { font-size: 11px; }
+.editor-layer-name small { font-size: 9px; }
+.editor-visibility { flex-basis: 28px; padding: 5px; }
+.editor-visibility svg { width: 15px; height: 15px; }
+.editor-add-text { width: calc(100% - 12px); margin: 3px 6px 0; padding: 6px 7px; border-style: solid; border-color: #4d493e; color: #cfc5b2; font-size: 11px; }
+.editor-inspector .editor-menu { padding: 6px; }
+.editor-selected-label { padding: 4px 5px 7px; color: #e9dfcc; font-size: 12px; }
+.editor-inspector .editor-appearance { padding: 6px 5px 8px; border-color: #3e3b35; }
+.editor-appearance label { margin-bottom: 5px; }
+.editor-appearance input[type="text"] { padding: 5px; border-color: #5e594e; }
+.editor-appearance input[type="color"] { height: 24px; width: 38px; }
+.editor-appearance-reset button { padding: 4px; color: #aaa397; }
+.editor-menu .editor-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 3px; padding: 8px 4px; }
+.editor-menu .editor-actions button { min-width: 0; padding: 6px; border: 1px solid #49463e; border-radius: 3px; color: #d7d1c5; text-align: center; font-size: 11px; }
+.editor-menu .editor-actions button:hover, .editor-menu .editor-actions button:focus-visible { background: #302c24; border-color: #9a8560; }
+.editor-menu .editor-actions [data-action="duplicate"], .editor-menu .editor-actions [data-action="settings"] { grid-column: 1 / -1; }
+.editor-timing { margin: 8px 5px; padding: 8px 0; border-color: #3e3b35; }
+.editor-timing h3 { margin-bottom: 6px; }
+.editor-timing-fields { gap: 8px; padding-top: 8px; }
+.editor-track-head { padding: 5px 8px; border-color: #34332f; }
+.editor-track-head strong { color: #e0d9ca; }
+.editor-track-scale, .editor-track-row { grid-template-columns: minmax(90px, 125px) minmax(70px, 1fr); gap: 6px; }
+.editor-track-lane { height: 18px; }
+.editor-track-empty { margin: 6px 8px; }
+.editor-text-order { padding: 6px 5px 8px; border-color: #3e3b35; }
+.editor-text-order p { margin: 4px 0 6px; }
+@media (max-width: 1200px) { .editor-track-head small { display: none; } }
+@media (max-width: 780px) {
+  .editor-history { top: 52px; left: 10px; right: 10px; }
+  .editor-sidebar { top: 100px; }
+  .editor-track-scale, .editor-track-row { grid-template-columns: minmax(75px, 110px) minmax(80px, 1fr); }
+}
+.editor-phase-row { flex: none; display: grid; grid-template-columns: minmax(90px, 125px) minmax(70px, 1fr); gap: 6px; padding: 2px 12px 3px 8px; align-items: center; color: #aca79e; font-size: 10px; }
+.editor-phase-lane { position: relative; display: flex; height: 19px; background: #272622; border: 1px solid #4c473d; border-radius: 2px; }
+.editor-phase-entry, .editor-phase-hold, .editor-phase-exit { overflow: hidden; white-space: nowrap; text-align: center; line-height: 17px; font-size: 9px; color: #ddd2bd; }
+.editor-phase-entry { width: var(--phase-entry); background: #4a4030; }
+.editor-phase-hold { width: calc(var(--phase-exit) - var(--phase-entry)); background: #33342d; }
+.editor-phase-exit { flex: 1; background: #453b30; }
+.editor-phase-marker { position: absolute; top: -3px; bottom: -3px; width: 9px; padding: 0; transform: translateX(-50%); border: 1px solid #e8cb91; border-radius: 2px; background: #b69661; cursor: ew-resize; touch-action: none; }
+.editor-phase-marker[data-phase=entry] { left: var(--phase-entry); }
+.editor-phase-marker[data-phase=exit] { left: var(--phase-exit); }
+.editor-phase-marker:focus-visible { outline: 2px solid #ffe2a2; outline-offset: 2px; }
+@media (max-width: 780px) { .editor-phase-row { grid-template-columns: minmax(75px, 110px) minmax(80px, 1fr); } }

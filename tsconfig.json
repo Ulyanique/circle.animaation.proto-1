@@ -12,6 +12,7 @@
   },
   "include": [
     "src/scenes/**/*.js",
+    "src/editor-timeline.js",
     "src/runtime.js",
     "src/playback.js"
   ]

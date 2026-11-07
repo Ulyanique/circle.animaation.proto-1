@@ -28,7 +28,7 @@ test('дополнительные надписи независимы по сц
 test('добавление, правка и удаление слоя обратимы без потери других полей', () => {
   const config = { textLayers: customTextDefaults() }, history = new EditorHistory();
   const id = 'text1', fields = customTextKeys(id);
-  assert.equal(fields.length, 11);
+  assert.equal(fields.length, 12);
   history.record('waiting', [{section:'textLayers', key:'text1Present', before:false, after:true}]);
   config.textLayers.text1Present = true;
   history.record('waiting', [{section:'textLayers', key:'text1Text', before:'Новый текст', after:'Мой текст'}]);
@@ -80,4 +80,43 @@ test('старые JSON сохраняют привязку дополнител
   imported.textLayers.text1Fade = 25;
   const saved = parseConfigJSON(configToJSON(imported), scene.defaults);
   assert.deepEqual(saved.textLayers, imported.textLayers);
+});
+
+test('порядок надписей совместим со старыми и повреждёнными настройками', async () => {
+  const { customTextOrder, customTextInsertion, customTextReorder } = await import('../src/custom-text.js');
+  const scene = SCENES.find(s => s.id === 'waiting');
+  const cfg = parseConfigJSON('{"textLayers":{"text1Present":true,"text2Present":true,"text3Present":true}}', scene.defaults);
+  const t = cfg.textLayers;
+  assert.deepEqual(customTextOrder(t, true), ['text1', 'text2', 'text3']);
+  assert.deepEqual(layersForScene(scene.id, cfg).filter(l => l.custom).map(l => l.id), ['text3', 'text2', 'text1']);
+  Object.assign(t, {text1Order: NaN, text2Order: 'wrong', text3Order: 0});
+  assert.deepEqual(customTextOrder(t, true), ['text1', 'text3', 'text2']);
+  const changes = customTextReorder(t, 'text1', 'front');
+  for (const {key, value} of changes) t[key] = value;
+  assert.deepEqual(customTextOrder(t, true), ['text3', 'text1', 'text2']);
+  assert.deepEqual(customTextReorder(t, 'text2', 'front'), []);
+  assert.deepEqual(customTextReorder(t, 'text3', 'back'), []);
+  t.text2Order = 1e308;
+  const insertion = customTextInsertion(t, 'text4');
+  for (const {key, value} of insertion) t[key] = value;
+  t.text4Present = true;
+  assert.deepEqual(customTextOrder(t, true), ['text3', 'text1', 'text2', 'text4']);
+  assert.deepEqual(parseConfigJSON(configToJSON(cfg), scene.defaults).textLayers, t);
+});
+
+test('перестановка — атомарная история, отдельно для каждой сцены', async () => {
+  const { customTextOrder, customTextReorder } = await import('../src/custom-text.js');
+  const scenes = SCENES.filter(s => s.defaults), history = new EditorHistory();
+  const configs = scenes.map(s => mergeConfig(s.defaults, {}));
+  for (const cfg of configs) Object.assign(cfg.textLayers, {text1Present: true, text2Present: true});
+  const cfg = configs[0], before = structuredClone(cfg.textLayers);
+  const changes = customTextReorder(cfg.textLayers, 'text1', 'front').map(c => ({...c, before: cfg.textLayers[c.key], after: c.value}));
+  for (const {key, after} of changes) cfg.textLayers[key] = after;
+  history.record(scenes[0].id, changes);
+  assert.deepEqual(customTextOrder(cfg.textLayers, true), ['text2', 'text1']);
+  for (const other of configs.slice(1)) assert.deepEqual(customTextOrder(other.textLayers, true), ['text1', 'text2']);
+  assert.equal(history.apply(scenes[0].id, cfg, 'undo'), 'applied');
+  assert.deepEqual(cfg.textLayers, before);
+  assert.equal(history.apply(scenes[0].id, cfg, 'redo'), 'applied');
+  assert.deepEqual(customTextOrder(cfg.textLayers, true), ['text2', 'text1']);
 });

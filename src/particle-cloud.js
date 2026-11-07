@@ -1,10 +1,12 @@
 import * as THREE from 'three';
+import { cloudSeedForId } from './particle-cloud-config.js';
+import { effectVisibility } from './effect-timing.js';
 
 /** Детерминированное облако: генерация не зависит от времени или предыдущих кадров. */
-export function cloudPositions(count) {
+export function cloudPositions(count, initialSeed = 0x42a19f21) {
   const n = Number.isFinite(count) ? Math.max(0, Math.min(2000, Math.round(count))) : 0;
   const points = new Float32Array(n * 3);
-  let seed = 0x42a19f21;
+  let seed = initialSeed >>> 0;
   const random = () => { seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0; return seed / 4294967296; };
   for (let i = 0; i < n; i++) {
     const angle = random() * Math.PI * 2, radius = Math.sqrt(random());
@@ -31,11 +33,14 @@ function particleTexture() {
   return texture;
 }
 
-/** Один переносимый эффект в каждой сцене; WebGL-кадр и экспорт используют один объект. */
+/** Переносимое облако; WebGL-кадр и экспорт используют один и тот же объект. */
 export class ParticleCloud {
-  constructor() {
+  constructor(section = 'particleCloud') {
+    this.section = section;
+    this.defaultSeed = cloudSeedForId(section);
+    this.generatedSeed = null;
     this.group = new THREE.Group();
-    this.group.name = 'particle-cloud';
+    this.group.name = section;
     this.geometry = new THREE.BufferGeometry();
     this.texture = particleTexture();
     this.material = new THREE.PointsMaterial({ color: 0xe8c77e, map: this.texture, size: 0.035, transparent: true,
@@ -45,16 +50,17 @@ export class ParticleCloud {
     this.count = -1;
   }
   update(time, phase, cfg) {
-    const p = cfg.particleCloud;
-    const visibility = phase.beforeStart ? 0 : phase.reveal * phase.rings;
+    const p = cfg[this.section];
+    const visibility = effectVisibility(time, phase, cfg.timeline, p);
     this.group.visible = p?.present === true && p.enabled !== false && visibility > 0.001;
     if (!this.group.visible) return;
     const count = Number.isFinite(p.count) ? Math.max(0, Math.min(2000, Math.round(p.count))) : 0;
-    if (count !== this.count) {
-      this.count = count;
+    const seed = Number.isFinite(p.seed) ? p.seed >>> 0 : this.defaultSeed;
+    if (count !== this.count || seed !== this.generatedSeed) {
+      this.count = count; this.generatedSeed = seed;
       const oldGeometry = this.geometry;
       this.geometry = new THREE.BufferGeometry();
-      this.geometry.setAttribute('position', new THREE.BufferAttribute(cloudPositions(count), 3));
+      this.geometry.setAttribute('position', new THREE.BufferAttribute(cloudPositions(count, seed), 3));
       this.geometry.computeBoundingSphere();
       this.points.geometry = this.geometry; oldGeometry.dispose();
     }

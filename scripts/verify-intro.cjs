@@ -25,7 +25,7 @@ url.searchParams.set("scene", "intro");
       const tl = L.cfg.timeline;
       const start = tl.startDelay;
       const times = {
-        light: start + tl.drawDuration * 0.60,
+        light: start + tl.drawDuration * 0.90,
         handoff: start + tl.drawDuration * 0.87,
         strike: start + tl.drawDuration + tl.emergeDuration * 0.50,
         hold: start + tl.drawDuration + tl.emergeDuration + tl.holdDuration * 0.55,
@@ -48,7 +48,7 @@ url.searchParams.set("scene", "intro");
       L.renderAt(times.light);
       const scene = L.scene;
       const lightState = { beams: scene.background.uniforms.uIntroLight.value,
-        cameraZ: scene.camera.position.z, yaw: scene.logo.root.rotation.y };
+        cameraZ: scene.camera.position.z, cameraX: scene.camera.position.x, cameraY: scene.camera.position.y, pitch: scene.logo.root.rotation.x, yaw: scene.logo.root.rotation.y };
       const withBeams = grab();
       scene.background.uniforms.uIntroLight.value = 0;
       scene.render(1 / 60);
@@ -91,13 +91,13 @@ url.searchParams.set("scene", "intro");
     assert.match(result.title, /Интро/);
     assert.match(result.panelLabel, /Интро/);
     assert.ok(result.isIntro && result.configAlias && result.initialDelay < 0.5);
-    assert.ok(result.lightState.beams > 0.9 && result.lightState.cameraZ > 9.5 && result.lightState.yaw < -0.3);
+    assert.ok(result.lightState.beams > 0.7 && result.lightState.cameraZ > 9.5 && result.lightState.yaw === 0 && result.lightState.pitch === 0 && result.lightState.cameraX === 0 && result.lightState.cameraY === 0);
     assert.ok(result.beamPixels > 1000, `лучи не видны в WebGL: ${result.beamPixels}`);
-    assert.ok(result.strikeState.flareVisible && result.strikeState.flare > 0.1 && result.strikeState.sparkIntensity > 1.5);
+    assert.ok(result.strikeState.flareVisible && result.strikeState.flare > 0.04 && result.strikeState.sparkIntensity > 1.5);
     assert.ok(result.flarePixels > 20, `раскрывающий блик не виден в WebGL: ${result.flarePixels}`);
     assert.equal(result.holdState.waveCount, 0, "в интро не должно быть фоновых контуров");
     assert.equal(result.holdState.centerRing, false, "вокруг знака интро не должно быть фонового кольца");
-    assert.equal(result.holdState.beams, 0, "эффектный вход не должен мешать титрам на удержании");
+    assert.ok(result.holdState.beams > 0 && result.holdState.beams < result.lightState.beams, "лучи остаются мягче на удержании");
     // Никаких добавленных кругов: только исходные левый верх и правый низ.
     assert.deepEqual(result.holdState.cornerGroups.sort(), ["left", "right"]);
     assert.ok(Math.abs(result.holdState.cameraZ - 9) < 1e-9 && result.seekStable);

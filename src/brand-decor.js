@@ -1,11 +1,13 @@
 import * as THREE from 'three';
+import { effectVisibility } from './effect-timing.js';
 import { brandDecorLayout } from './scenes/brand-decor-layout.js';
 
 /** Тонкая построительная окружность и орбитальные отметки для любой сцены. */
 export class BrandDecor {
-  constructor() {
+  constructor(section = 'decor') {
+    this.section = section;
     this.group = new THREE.Group();
-    this.group.name = 'brand-decor';
+    this.group.name = section;
     const ringPoints = [];
     for (let i = 0; i < 256; i++) {
       const a = i / 256 * Math.PI * 2;
@@ -28,8 +30,8 @@ export class BrandDecor {
   }
 
   update(time, phase, config, root) {
-    const d = config.decor;
-    const visibility = phase.beforeStart ? 0 : phase.reveal * phase.rings;
+    const d = config[this.section];
+    const visibility = effectVisibility(time, phase, config.timeline, d);
     this.group.visible = d?.present !== false && d?.enabled && visibility > 0.001;
     if (!this.group.visible) return;
     const anchor = d.followLogo !== false ? root.position : { x: 0, y: 0 };

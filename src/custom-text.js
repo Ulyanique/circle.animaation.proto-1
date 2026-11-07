@@ -2,15 +2,49 @@
 export const CUSTOM_TEXT_IDS = Array.from({ length: 8 }, (_, i) => `text${i + 1}`);
 export function customTextDefaults() {
   const values = {};
-  for (const id of CUSTOM_TEXT_IDS) Object.assign(values, {
-    [`${id}Present`]: false, [`${id}Visible`]: true, [`${id}Text`]: 'Новый текст',
+  for (const [index, id] of CUSTOM_TEXT_IDS.entries()) Object.assign(values, {
+    [`${id}Present`]: false, [`${id}Visible`]: true, [`${id}Order`]: index, [`${id}Text`]: 'Новый текст',
     [`${id}Color`]: '#ecd08c', [`${id}X`]: 0, [`${id}Y`]: 0.25, [`${id}Scale`]: 1,
     [`${id}TimingMode`]: 'scene', [`${id}Start`]: 25, [`${id}End`]: 90, [`${id}Fade`]: 15,
   });
   return values;
 }
 /** @param {string} id */
-export const customTextKeys = id => ['Present', 'Visible', 'Text', 'Color', 'X', 'Y', 'Scale', 'TimingMode', 'Start', 'End', 'Fade'].map(suffix => `${id}${suffix}`);
+export const customTextKeys = id => ['Present', 'Visible', 'Order', 'Text', 'Color', 'X', 'Y', 'Scale', 'TimingMode', 'Start', 'End', 'Fade'].map(suffix => `${id}${suffix}`);
+
+/** Порядок от заднего плана к переднему. Неизвестные значения берут исходный номер слота.
+ * @param {Record<string, any> | undefined} config @param {boolean} [presentOnly] */
+export function customTextOrder(config, presentOnly = false) {
+  return CUSTOM_TEXT_IDS.filter(id => !presentOnly || config?.[`${id}Present`] === true).sort((a, b) => {
+    const ai = CUSTOM_TEXT_IDS.indexOf(a), bi = CUSTOM_TEXT_IDS.indexOf(b);
+    const aValue = config?.[`${a}Order`], bValue = config?.[`${b}Order`];
+    const av = Number.isFinite(aValue) ? aValue : ai;
+    const bv = Number.isFinite(bValue) ? bValue : bi;
+    return av - bv || ai - bi;
+  });
+}
+/** Правки для помещения нового текста впереди, включая нормализацию экстремальных импортированных чисел.
+ * @param {Record<string, any>} config @param {string} id */
+export function customTextInsertion(config, id) {
+  const present = customTextOrder(config, true);
+  const max = present.length ? Math.max(...present.map(key => {
+    const value = config[`${key}Order`];
+    return Number.isFinite(value) ? value : CUSTOM_TEXT_IDS.indexOf(key);
+  })) : -1;
+  const normalize = max >= Number.MAX_SAFE_INTEGER - 8 || max + 1 === max;
+  const changes = normalize ? present.map((key, value) => ({section: 'textLayers', key: `${key}Order`, value})) : [];
+  changes.push({section: 'textLayers', key: `${id}Order`, value: normalize ? present.length : max + 1});
+  return changes;
+}
+/** Поменять выбранную надпись с соседней; результат — нормализованные точечные правки.
+ * @param {Record<string, any>} config @param {string} id @param {"front" | "back"} direction */
+export function customTextReorder(config, id, direction) {
+  const order = customTextOrder(config, true), index = order.indexOf(id);
+  const target = index + (direction === 'front' ? 1 : -1);
+  if (index < 0 || target < 0 || target >= order.length) return [];
+  [order[index], order[target]] = [order[target], order[index]];
+  return order.map((key, value) => ({section: 'textLayers', key: `${key}Order`, value}));
+}
 
 /** Интервал в процентах от цикла (после startDelay). Возвращает те же маски,
  * что и обычный титр, без зависимости от предыдущих кадров.

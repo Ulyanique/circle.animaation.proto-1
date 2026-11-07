@@ -1,12 +1,17 @@
 import * as THREE from 'three';
+import { timelineCycle, timelineCursor, timelineRange, moveTimelineEdge, movePhaseBoundary } from './editor-timeline.js';
+import { canDuplicate, duplicateTarget, duplicatePlan } from './editor-duplicate.js';
+import { DECOR_SLOTS, DECOR_IDS, decorSection } from './brand-decor-config.js';
+import { PARTICLE_CLOUD_IDS } from './particle-cloud-config.js';
+import { BACKGROUND_GLOW_IDS } from './background-glow-config.js';
 import { moveLogo, moveTitle, moveWorldOffset, snapRect, resizeFromDistance } from './editor-math.js';
 import { EditorHistory } from './editor-history.js';
 import { validCustomColor } from './caption-content.js';
 import { EDITOR_LAYERS, layersForScene, layerVisible } from './editor-layers.js';
-import { CUSTOM_TEXT_IDS, customTextKeys } from './custom-text.js';
+import { CUSTOM_TEXT_IDS, customTextKeys, customTextOrder, customTextInsertion, customTextReorder } from './custom-text.js';
 
 /** Рамки редактора находятся только в DOM и не попадают в экспорт. */
-export function createFrameEditor({ getState, onEnable, onChange, onLayoutChange, onSettings, onHistoryConflict }) {
+export function createFrameEditor({ getState, onEnable, onChange, onSeek, onLayoutChange, onSettings, onHistoryConflict }) {
   const toggle = document.createElement('button');
   toggle.type = 'button'; toggle.className = 'editor-toggle';
   toggle.textContent = 'Редактировать'; toggle.setAttribute('aria-pressed', 'false');
@@ -37,14 +42,14 @@ export function createFrameEditor({ getState, onEnable, onChange, onLayoutChange
     box.type = 'button'; box.className = 'editor-box'; box.dataset.element = id;
     box.setAttribute('aria-label', `${label}: перетащить, переместить стрелками или изменить размер клавишами плюс и минус`);
     box.innerHTML = `<span class="editor-label">${label}</span><span class="editor-resize" title="Изменить размер" aria-hidden="true"></span>`;
-    if (id === 'photoLabel' || id === 'brandDecor' || id === 'particleCloud' || id === 'backgroundGlow' || id === 'ringLeft' || id === 'ringRight') box.classList.add('editor-handle');
+    if (id === 'photoAperture' || id === 'constructionGuides' || id === 'topIllumination' || id === 'photoLabel' || DECOR_IDS.includes(id) || PARTICLE_CLOUD_IDS.includes(id) || BACKGROUND_GLOW_IDS.includes(id) || id === 'ringLeft' || id === 'ringRight') box.classList.add('editor-handle');
     if (id === 'ringLeft' || id === 'ringRight') box.classList.add('editor-center-handle');
     layer.appendChild(box); boxes[id] = box;
   }
   const layersPanel = document.createElement('aside');
   layersPanel.className = 'editor-sidebar editor-layers';
   layersPanel.setAttribute('aria-label', 'Элементы сцены');
-  layersPanel.innerHTML = '<div class="editor-sidebar-heading"><span>СЦЕНА</span><h2>Элементы</h2></div><div class="editor-layers-list"></div><button type="button" class="editor-add-text" data-add-text>＋ Добавить текст</button><button type="button" class="editor-add-text" data-add-decor>＋ Добавить окружность</button><button type="button" class="editor-add-text" data-add-cloud>＋ Добавить облако частиц</button><button type="button" class="editor-add-text" data-add-glow>＋ Добавить свечение</button><p class="editor-sidebar-note">До 8 надписей и по одному добавляемому эффекту каждого типа в каждой сцене</p>';
+  layersPanel.innerHTML = '<div class="editor-sidebar-heading"><span>СЦЕНА</span><h2>Элементы</h2></div><div class="editor-layers-list"></div><button type="button" class="editor-add-text" data-add-text>＋ Добавить текст</button><button type="button" class="editor-add-text" data-add-decor>＋ Добавить окружность</button><button type="button" class="editor-add-text" data-add-cloud>＋ Добавить облако частиц</button><button type="button" class="editor-add-text" data-add-glow>＋ Добавить свечение</button><p class="editor-sidebar-note">До 8 надписей и по 4 окружности, облака и свечения в каждой сцене</p>';
   const layerList = layersPanel.querySelector('.editor-layers-list');
   const rows = {}, visibilityButtons = {}, entries = {};
   for (const item of EDITOR_LAYERS) {
@@ -89,15 +94,15 @@ export function createFrameEditor({ getState, onEnable, onChange, onLayoutChange
     <label data-field="color"><span data-color-label>Цвет</span> <input type="color" data-appearance="color"></label>
     <div class="editor-appearance-reset"><button type="button" data-action="reset-text">Исходный текст</button><button type="button" data-action="reset-color">Исходный цвет</button></div>
   </div><label class="editor-follow-logo" hidden><input type="checkbox" data-follow-logo> Привязать окружность к логотипу</label><label class="editor-ring-scale" hidden><span>Размер круга <output data-ring-scale-output></output></span><input type="range" min="0.3" max="2.5" step="0.01" data-ring-scale></label><section class="editor-timing" hidden>
-    <h3>Время надписи</h3>
+    <h3 data-timing-title>Время надписи</h3>
     <label class="editor-timing-mode">Анимация <select data-timing-mode><option value="scene">Вместе с названием</option><option value="custom">Своё время</option></select></label>
     <div class="editor-timing-fields" hidden>
       <label><span>Появление <output data-timing-output="Start"></output></span><input type="range" data-timing="Start" min="0" max="99" step="1"></label>
       <label><span>Уход <output data-timing-output="End"></output></span><input type="range" data-timing="End" min="1" max="100" step="1"></label>
       <label><span>Плавность <output data-timing-output="Fade"></output></span><input type="range" data-timing="Fade" min="5" max="50" step="1"></label>
-      <p>Время — доля цикла после стартовой задержки; секунды указаны по таймлайну. Плавность — доля выбранного интервала.</p>
+      <p>Время — доля цикла после стартовой задержки; секунды указаны по таймлайну. Плавность — доля выбранного интервала. Чтобы увидеть элемент, перемотайте воспроизведение внутрь интервала.</p>
     </div>
-  </section><button type="button" data-action="align-x">По центру по горизонтали</button><button type="button" data-action="align-y">По центру по вертикали</button><button type="button" data-action="settings">Настройки элемента</button><button type="button" data-action="reset">Сбросить положение</button><button type="button" data-action="reset-size">Сбросить размер</button><button type="button" class="editor-delete-text" data-action="delete-text" hidden>Удалить текст</button><button type="button" class="editor-delete-text" data-action="delete-decor" hidden>Удалить окружность</button><button type="button" class="editor-delete-text" data-action="delete-cloud" hidden>Удалить облако</button><button type="button" class="editor-delete-text" data-action="delete-glow" hidden>Удалить свечение</button>`;
+  </section><section class="editor-text-order" hidden><h3>Порядок своих надписей</h3><p>Выше в списке — поверх других надписей. Фон и штатные элементы имеют фиксированный порядок.</p><div><button type="button" data-action="text-front" aria-label="Поднять надпись выше">↑ Выше</button><button type="button" data-action="text-back" aria-label="Опустить надпись ниже">↓ Ниже</button></div></section><div class="editor-actions"><button type="button" data-action="duplicate" hidden>Дублировать</button><button type="button" data-action="align-x" aria-label="По центру по горизонтали">По центру X</button><button type="button" data-action="align-y" aria-label="По центру по вертикали">По центру Y</button><button type="button" data-action="settings">Все настройки</button><button type="button" data-action="reset">Сброс положения</button><button type="button" data-action="reset-size">Сброс размера</button></div><button type="button" class="editor-delete-text" data-action="delete-text" hidden>Удалить текст</button><button type="button" class="editor-delete-text" data-action="delete-decor" hidden>Удалить окружность</button><button type="button" class="editor-delete-text" data-action="delete-cloud" hidden>Удалить облако</button><button type="button" class="editor-delete-text" data-action="delete-glow" hidden>Удалить свечение</button>`;
   const textInput = menu.querySelector('[data-appearance="text"]');
   const colorInput = menu.querySelector('[data-appearance="color"]');
   const textRow = menu.querySelector('[data-field="text"]');
@@ -124,26 +129,26 @@ export function createFrameEditor({ getState, onEnable, onChange, onLayoutChange
 
   const bbox = new THREE.Box3(), point = new THREE.Vector3(), ray = new THREE.Raycaster();
   const plane = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0);
-  let enabled = false, selected = null, drag = null, inputSession = null, snapRects = {};
+  let enabled = false, selected = null, drag = null, timelineDrag = null, phaseDrag = null, rulerPointer = null, inputSession = null, snapRects = {};
   const place = (el, r) => {
     el.style.left = `${r.left}px`; el.style.top = `${r.top}px`;
     el.style.width = `${Math.max(1, r.width)}px`; el.style.height = `${Math.max(1, r.height)}px`;
   };
-  const optionalEffects = [
-    { id: 'brandDecor', section: 'decor', button: 'decor', added: 'Окружность добавлена', add: '＋ Добавить окружность', title: 'Добавить построительную окружность' },
-    { id: 'particleCloud', section: 'particleCloud', button: 'cloud', added: 'Облако добавлено', add: '＋ Добавить облако частиц', title: 'Добавить облако частиц' },
-    { id: 'backgroundGlow', section: 'backgroundGlow', button: 'glow', added: 'Свечение добавлено', add: '＋ Добавить свечение', title: 'Добавить фоновое свечение' },
+  const multiEffects = [
+    { ids: DECOR_IDS, button: 'decor', title: 'Добавить построительную окружность', add: '＋ Добавить окружность', limit: 'Лимит: 4 окружности', max: 'Максимум 4 окружности' },
+    { ids: PARTICLE_CLOUD_IDS, button: 'cloud', title: 'Добавить облако частиц', add: '＋ Добавить облако частиц', limit: 'Лимит: 4 облака', max: 'Максимум 4 облака' },
+    { ids: BACKGROUND_GLOW_IDS, button: 'glow', title: 'Добавить фоновое свечение', add: '＋ Добавить свечение', limit: 'Лимит: 4 свечения', max: 'Максимум 4 свечения' },
   ];
-  const worldSection = { logo: 'logo', photoLabel: 'photo', brandDecor: 'decor', particleCloud: 'particleCloud', backgroundGlow: 'backgroundGlow', ringLeft: 'rings', ringRight: 'rings' };
+  const worldSection = { photoAperture: 'photo', constructionGuides: 'constructionGuides', topIllumination: 'topIllumination', logo: 'logo', photoLabel: 'photo', ringLeft: 'rings', ringRight: 'rings' };
   const ringSide = id => id === 'ringLeft' ? 'left' : id === 'ringRight' ? 'right' : null;
-  const worldKeys = id => ringSide(id) ? [`${ringSide(id)}OffsetX`, `${ringSide(id)}OffsetY`] : ['offsetX', 'offsetY'];
+  const worldKeys = id => id === 'photoAperture' ? ['apertureOffsetX', 'apertureOffsetY'] : ringSide(id) ? [`${ringSide(id)}OffsetX`, `${ringSide(id)}OffsetY`] : ['offsetX', 'offsetY'];
   const textSection = id => CUSTOM_TEXT_IDS.includes(id) ? 'textLayers' : 'caption';
   const sizeInfo = {
+    photoAperture: { section: 'photo', key: 'apertureRadius', min: 0.5, max: 2.5 },
+    constructionGuides: { section: 'constructionGuides', key: 'scale', min: 0.2, max: 3 },
+    topIllumination: { section: 'topIllumination', key: 'scale', min: 0.2, max: 2.5 },
     logo: { section: 'logo', key: 'scale', min: 0.3, max: 2.5 },
     photoLabel: { section: 'photo', key: 'radius', min: 1.1, max: 2.15 },
-    brandDecor: { section: 'decor', key: 'radius', min: 0.4, max: 2.5 },
-    particleCloud: { section: 'particleCloud', key: 'radius', min: 0.3, max: 3 },
-    backgroundGlow: { section: 'backgroundGlow', key: 'radius', min: 0.3, max: 5 },
     ringLeft: { section: 'rings', key: 'leftScale', min: 0.3, max: 2.5 },
     ringRight: { section: 'rings', key: 'rightScale', min: 0.3, max: 2.5 },
     title: { section: 'caption', key: 'titleScale', min: 0.5, max: 2 },
@@ -151,17 +156,32 @@ export function createFrameEditor({ getState, onEnable, onChange, onLayoutChange
     date: { section: 'caption', key: 'dateScale', min: 0.5, max: 2 },
   };
   const appearance = {
+    photoAperture: { color: {section: 'photo', key: 'apertureColor'}, fallback: '#e8c77e' },
+    constructionGuides: { color: {section: 'constructionGuides', key: 'color'}, fallback: '#d9b268' },
+    topIllumination: { color: {section: 'topIllumination', key: 'color'}, fallback: '#ffd98a' },
     logo: { color: {section: 'colors', key: 'gold'}, fallback: '#c8962e' },
     photoLabel: { text: {section: 'photo', key: 'text'}, color: {section: 'photo', key: 'textColor'}, fallback: '#e8c77e', maxLength: 40 },
-    brandDecor: { color: {section: 'decor', key: 'color'}, fallback: '#d9b268' },
-    particleCloud: { color: {section: 'particleCloud', key: 'color'}, fallback: '#e8c77e' },
-    backgroundGlow: { color: {section: 'backgroundGlow', key: 'color'}, fallback: '#ffbd68' },
     ringLeft: { color: {section: 'colors', key: 'lightLeft'}, fallback: '#ffb55c' },
     ringRight: { color: {section: 'colors', key: 'lightRight'}, fallback: '#ffcf7a' },
     title: { text: {section: 'caption', key: 'titleText'}, color: {section: 'caption', key: 'titleColor'}, fallback: '#e0b25a' },
     subtitle: { text: {section: 'caption', key: 'subtitleText'}, color: {section: 'caption', key: 'subtitleColor'}, fallback: '#ecd08c' },
     date: { text: {section: 'caption', key: 'dateText'}, color: {section: 'caption', key: 'dateColor'}, fallback: '#d9b061' },
   };
+  for (const {id, section} of DECOR_SLOTS) {
+    worldSection[id] = section;
+    sizeInfo[id] = { section, key: 'radius', min: 0.4, max: 2.5 };
+    appearance[id] = { color: {section, key: 'color'}, fallback: '#d9b268' };
+  }
+  for (const id of PARTICLE_CLOUD_IDS) {
+    worldSection[id] = id;
+    sizeInfo[id] = { section: id, key: 'radius', min: 0.3, max: 3 };
+    appearance[id] = { color: {section: id, key: 'color'}, fallback: '#e8c77e' };
+  }
+  for (const id of BACKGROUND_GLOW_IDS) {
+    worldSection[id] = id;
+    sizeInfo[id] = { section: id, key: 'radius', min: 0.3, max: 5 };
+    appearance[id] = { color: {section: id, key: 'color'}, fallback: '#ffbd68' };
+  }
   for (const id of CUSTOM_TEXT_IDS) {
     sizeInfo[id] = { section: 'textLayers', key: `${id}Scale`, min: 0.5, max: 2 };
     appearance[id] = { text: {section: 'textLayers', key: `${id}Text`},
@@ -178,16 +198,32 @@ export function createFrameEditor({ getState, onEnable, onChange, onLayoutChange
   }
   function populateAppearance(id) {
     const info = appearance[id], cfg = getState().config;
-    menu.querySelector('[data-color-label]').textContent = id === 'logo' ? 'Общий цвет золота' : ringSide(id) ? 'Цвет свечения' : 'Цвет';
+    menu.querySelector('[data-color-label]').textContent = id === 'logo' ? 'Общий цвет золота' : id === 'topIllumination' ? 'Цвет ореола' : ringSide(id) ? 'Цвет свечения' : 'Цвет';
     ringScaleRow.hidden = !ringSide(id);
     if (!ringScaleRow.hidden) { ringScale.value = cfg.rings[`${ringSide(id)}Scale`]; menu.querySelector('[data-ring-scale-output]').textContent = `${Number(ringScale.value).toFixed(2)}×`; }
+    const duplicate = menu.querySelector('[data-action=duplicate]');
+    duplicate.hidden = !canDuplicate(id);
+    duplicate.disabled = !duplicate.hidden && !duplicateTarget(cfg, id);
+    duplicate.title = duplicate.disabled ? 'Все слоты этого типа заняты' : 'Создать копию элемента';
     menu.querySelector('[data-action=delete-text]').hidden = !CUSTOM_TEXT_IDS.includes(id);
-    for (const effect of optionalEffects) menu.querySelector(`[data-action=delete-${effect.button}]`).hidden = id !== effect.id;
-    followRow.hidden = id !== 'brandDecor';
-    if (!followRow.hidden) followInput.checked = cfg.decor.followLogo !== false;
+    const orderSection = menu.querySelector('.editor-text-order');
+    orderSection.hidden = !CUSTOM_TEXT_IDS.includes(id);
+    if (!orderSection.hidden) {
+      const order = customTextOrder(cfg.textLayers, true), index = order.indexOf(id);
+      menu.querySelector('[data-action=text-front]').disabled = index < 0 || index === order.length - 1;
+      menu.querySelector('[data-action=text-back]').disabled = index <= 0;
+    }
+    for (const effect of multiEffects) menu.querySelector(`[data-action=delete-${effect.button}]`).hidden = !effect.ids.includes(id);
+    followRow.hidden = !DECOR_IDS.includes(id);
+    if (!followRow.hidden) followInput.checked = cfg[decorSection(id)].followLogo !== false;
     menu.querySelector('[data-action=settings]').hidden = CUSTOM_TEXT_IDS.includes(id);
-    timing.hidden = !CUSTOM_TEXT_IDS.includes(id);
-    if (!timing.hidden) populateTiming(id);
+    timing.hidden = !timingSpec(id);
+    if (!timing.hidden) {
+      const isText = CUSTOM_TEXT_IDS.includes(id);
+      timing.querySelector('[data-timing-title]').textContent = isText ? 'Время надписи' : 'Время эффекта';
+      timingMode.querySelector('[value=scene]').textContent = isText ? 'Вместе с названием' : 'По фазам сцены';
+      populateTiming(id);
+    }
     textRow.hidden = !info.text; resetTextButton.hidden = !info.text;
     if (info.text) {
       textInput.value = cfg[info.text.section][info.text.key] ?? '';
@@ -215,53 +251,264 @@ export function createFrameEditor({ getState, onEnable, onChange, onLayoutChange
     input.addEventListener('change', finishInput);
     input.addEventListener('blur', finishInput);
   }
+  function timingSpec(id) {
+    if (CUSTOM_TEXT_IDS.includes(id)) return {section: 'textLayers', keys: {
+      TimingMode: `${id}TimingMode`, Start: `${id}Start`, End: `${id}End`, Fade: `${id}Fade`,
+    }};
+    const section = decorSection(id) || (id === 'constructionGuides' ? id : null) || (PARTICLE_CLOUD_IDS.includes(id) || BACKGROUND_GLOW_IDS.includes(id) ? id : null);
+    return section ? {section, keys: {TimingMode: 'timingMode', Start: 'timingStart', End: 'timingEnd', Fade: 'timingFade'}} : null;
+  }
   function populateTiming(id) {
-    const config = getState().config;
-    const values = config.textLayers;
-    const mode = values[`${id}TimingMode`] === 'custom' ? 'custom' : 'scene';
+    const config = getState().config, spec = timingSpec(id);
+    if (!spec) return;
+    const values = config[spec.section], keys = spec.keys;
+    const mode = values[keys.TimingMode] === 'custom' ? 'custom' : 'scene';
     timingMode.value = mode; timingFields.hidden = mode !== 'custom';
     const tl = config.timeline;
     const cycle = tl ? tl.drawDuration + tl.emergeDuration + tl.holdDuration + tl.fadeDuration + tl.restDuration : 0;
-    for (const [key, fallback] of [['Start', 25], ['End', 90], ['Fade', 15]]) {
-      const input = timingFields.querySelector(`[data-timing="${key}"]`);
-      input.value = Number.isFinite(values[`${id}${key}`]) ? values[`${id}${key}`] : fallback;
+    for (const [kind, fallback] of [['Start', 25], ['End', 90], ['Fade', 15]]) {
+      const input = timingFields.querySelector(`[data-timing="${kind}"]`);
+      input.value = Number.isFinite(values[keys[kind]]) ? values[keys[kind]] : fallback;
       const value = Number(input.value);
-      timingFields.querySelector(`[data-timing-output="${key}"]`).textContent = key === 'Fade' ? `${value}%` : `${value}% · ${(cycle * value / 100).toFixed(1)} с`;
+      timingFields.querySelector(`[data-timing-output="${kind}"]`).textContent = kind === 'Fade' ? `${value}%` : `${value}% · ${(cycle * value / 100).toFixed(1)} с`;
     }
   }
   timingMode.addEventListener('change', () => {
-    if (!selected || !CUSTOM_TEXT_IDS.includes(selected)) return;
+    const spec = timingSpec(selected);
+    if (!spec) return;
     finishInput();
-    const state = getState(), key = `${selected}TimingMode`;
-    const before = snapshot(state.config, [{section: 'textLayers', key}]);
-    state.config.textLayers[key] = timingMode.value;
+    const state = getState(), key = spec.keys.TimingMode;
+    const before = snapshot(state.config, [{section: spec.section, key}]);
+    state.config[spec.section][key] = timingMode.value;
     record(state.id, state.config, before); onChange(); populateTiming(selected);
   });
   for (const input of timingFields.querySelectorAll('[data-timing]')) {
     const begin = () => {
-      if (inputSession || !selected || !CUSTOM_TEXT_IDS.includes(selected)) return;
+      const spec = timingSpec(selected);
+      if (inputSession || !spec) return;
       const state = getState(), kind = input.dataset.timing;
-      const keys = kind === 'Fade' ? [`${selected}Fade`] : [`${selected}Start`, `${selected}End`];
-      inputSession = {sceneId: state.id, config: state.config, before: snapshot(state.config, keys.map(key => ({section: 'textLayers', key}))), timingId: selected};
+      const keys = kind === 'Fade' ? [spec.keys.Fade] : [spec.keys.Start, spec.keys.End];
+      inputSession = {sceneId: state.id, config: state.config, before: snapshot(state.config, keys.map(key => ({section: spec.section, key}))), timingId: selected, timingSpec: spec};
     };
     input.addEventListener('focus', begin);
     input.addEventListener('input', () => {
       begin();
       if (!inputSession?.timingId) return;
-      const id = inputSession.timingId, values = inputSession.config.textLayers, kind = input.dataset.timing;
-      values[`${id}${kind}`] = Number(input.value);
-      if (kind === 'Start' && values[`${id}Start`] >= values[`${id}End`]) values[`${id}End`] = values[`${id}Start`] + 1;
-      if (kind === 'End' && values[`${id}End`] <= values[`${id}Start`]) values[`${id}Start`] = values[`${id}End`] - 1;
+      const id = inputSession.timingId, spec = inputSession.timingSpec;
+      const values = inputSession.config[spec.section], keys = spec.keys, kind = input.dataset.timing;
+      values[keys[kind]] = Number(input.value);
+      if (kind === 'Start' && values[keys.Start] >= values[keys.End]) values[keys.End] = values[keys.Start] + 1;
+      if (kind === 'End' && values[keys.End] <= values[keys.Start]) values[keys.Start] = values[keys.End] - 1;
       onChange(); populateTiming(id);
     });
     input.addEventListener('change', finishInput);
     input.addEventListener('blur', finishInput);
   }
+  // Строки создаются один раз: обновления кадров не сбрасывают фокус и захват указателя.
+  const trackPanel = document.createElement('section');
+  trackPanel.className = 'editor-track-panel'; trackPanel.setAttribute('aria-label', 'Таймлайн элементов');
+  trackPanel.innerHTML = `<div class="editor-track-head"><strong>Таймлайн</strong><small>Время от начала цикла после задержки · затенение — сценарий сцены</small><output data-track-time></output></div>
+    <div class="editor-track-scale"><span>Элементы</span><div class="editor-track-ruler" data-track-ruler role="slider" tabindex="0" aria-label="Перемотка цикла" aria-valuemin="0" aria-valuemax="100"><span>0</span><span data-tick="25"></span><span data-tick="50"></span><span data-tick="75"></span><span data-tick="100"></span></div></div>
+    <div class="editor-phase-row"><span title="Базовые фазы; в интро дополнительные такты продолжаются в удержании">Фазы сцены</span><div class="editor-phase-lane" data-phase-lane>
+      <div class="editor-phase-entry" title="Базовые прорисовка и проявление">Вступление</div><div class="editor-phase-hold">Удержание</div><div class="editor-phase-exit">Завершение</div>
+      <button type="button" class="editor-phase-marker" data-phase="entry" role="slider" aria-label="Конец базового вступления"></button>
+      <button type="button" class="editor-phase-marker" data-phase="exit" role="slider" aria-label="Начало завершения"></button>
+    </div></div>
+    <div class="editor-track-list"><p class="editor-track-empty">Добавьте текст или эффект, чтобы увидеть его на таймлайне.</p></div>`;
+  layer.appendChild(trackPanel);
+  const trackList = trackPanel.querySelector('.editor-track-list');
+  const ruler = trackPanel.querySelector('[data-track-ruler]');
+  const trackRows = {};
+  for (const item of EDITOR_LAYERS.filter(item => timingSpec(item.id))) {
+    const row = document.createElement('div'); row.className = 'editor-track-row'; row.dataset.track = item.id;
+    const label = document.createElement('button'); label.type = 'button'; label.className = 'editor-track-label';
+    label.textContent = item.label; label.title = item.label;
+    const lane = document.createElement('div'); lane.className = 'editor-track-lane';
+    const automatic = document.createElement('button'); automatic.type = 'button'; automatic.className = 'editor-track-auto';
+    automatic.textContent = 'По сценарию · задать своё время'; automatic.title = 'Включить собственный интервал';
+    const range = document.createElement('div'); range.className = 'editor-track-range';
+    for (const edge of ['start', 'end']) {
+      const grip = document.createElement('button'); grip.type = 'button'; grip.className = 'editor-track-grip';
+      grip.dataset.edge = edge; grip.setAttribute('role', 'slider'); grip.setAttribute('aria-label', `${item.label}: ${edge === 'start' ? 'начало' : 'конец'} интервала`);
+      range.appendChild(grip);
+    }
+    lane.append(automatic, range); row.append(label, lane); trackList.append(row);
+    trackRows[item.id] = {row, label, lane, automatic, range};
+    label.addEventListener('click', () => select(item.id, true));
+    range.addEventListener('click', event => { if (!event.target.closest('.editor-track-grip')) select(item.id, true); });
+    automatic.addEventListener('click', () => {
+      finishInput(); const state = getState(), spec = timingSpec(item.id), key = spec.keys.TimingMode;
+      const before = snapshot(state.config, [{section: spec.section, key}]);
+      state.config[spec.section][key] = 'custom';
+      record(state.id, state.config, before); onChange(); select(item.id, true);
+    });
+  }
+  function refreshTracks(state, available) {
+    const setText = (element, value) => { if (element.textContent !== value) element.textContent = value; };
+    const setAttribute = (element, name, value) => { if (element.getAttribute(name) !== value) element.setAttribute(name, value); };
+    const cfg = state.config, cycle = timelineCycle(cfg.timeline), cursor = timelineCursor(state.time, cfg.timeline);
+    const cursorStyle = `${cursor}%`;
+    if (trackPanel.style.getPropertyValue('--timeline-cursor') !== cursorStyle) trackPanel.style.setProperty('--timeline-cursor', cursorStyle);
+    setText(trackPanel.querySelector('[data-track-time]'), `${(cycle * cursor / 100).toFixed(1)} / ${cycle.toFixed(1)} с`);
+    setAttribute(ruler, 'aria-valuenow', String(Math.round(cursor)));
+    setAttribute(ruler, 'aria-valuetext', `${(cycle * cursor / 100).toFixed(1)} секунд`);
+    for (const tick of trackPanel.querySelectorAll('[data-tick]')) setText(tick, `${(cycle * Number(tick.dataset.tick) / 100).toFixed(1)} с`);
+    const entryTime = cfg.timeline.drawDuration + cfg.timeline.emergeDuration;
+    const exitTime = entryTime + cfg.timeline.holdDuration;
+    const lane = trackPanel.querySelector('[data-phase-lane]');
+    lane.style.setProperty('--phase-entry', `${cycle ? entryTime / cycle * 100 : 0}%`);
+    lane.style.setProperty('--phase-exit', `${cycle ? exitTime / cycle * 100 : 100}%`);
+    for (const marker of lane.querySelectorAll('[data-phase]')) {
+      const isEntry = marker.dataset.phase === 'entry', seconds = isEntry ? entryTime : exitTime;
+      setAttribute(marker, 'aria-valuemin', '0'); setAttribute(marker, 'aria-valuemax', String(cycle.toFixed(2)));
+      setAttribute(marker, 'aria-valuenow', seconds.toFixed(2));
+      setAttribute(marker, 'aria-valuetext', `${seconds.toFixed(1)} секунд`);
+      marker.title = `${isEntry ? 'Конец базового вступления' : 'Начало завершения'}: ${seconds.toFixed(1)} с`;
+    }
+    let count = 0;
+    for (const [id, entry] of Object.entries(trackRows)) {
+      const show = available.has(id) && (id !== 'constructionGuides' || cfg.constructionGuides.enabled !== false); if (entry.row.hidden === show) entry.row.hidden = !show;
+      if (!show) continue;
+      count++;
+      entry.row.classList.toggle('selected', id === selected);
+      entry.row.classList.toggle('is-hidden', !layerVisible(cfg, EDITOR_LAYERS.find(item => item.id === id)));
+      const spec = timingSpec(id), values = cfg[spec.section], keys = spec.keys;
+      const custom = values[keys.TimingMode] === 'custom';
+      if (entry.automatic.hidden !== custom) entry.automatic.hidden = custom;
+      if (entry.range.hidden === custom) entry.range.hidden = !custom;
+      if (!custom) continue;
+      const range = timelineRange(values[keys.Start], values[keys.End]);
+      const left = `${range.start}%`, width = `${range.end - range.start}%`;
+      if (entry.range.style.left !== left) entry.range.style.left = left;
+      if (entry.range.style.width !== width) entry.range.style.width = width;
+      for (const grip of entry.range.querySelectorAll('[data-edge]')) {
+        const value = grip.dataset.edge === 'start' ? range.start : range.end;
+        setAttribute(grip, 'aria-valuemin', String(grip.dataset.edge === 'start' ? 0 : range.start + 1));
+        setAttribute(grip, 'aria-valuemax', String(grip.dataset.edge === 'start' ? range.end - 1 : 100));
+        setAttribute(grip, 'aria-valuenow', String(value));
+        setAttribute(grip, 'aria-valuetext', `${value} процентов, ${(cycle * value / 100).toFixed(1)} секунд`);
+        const title = `${grip.dataset.edge === 'start' ? 'Начало' : 'Конец'}: ${value}% · ${(cycle * value / 100).toFixed(1)} с`;
+        if (grip.title !== title) grip.title = title;
+      }
+    }
+    const emptyTrack = trackPanel.querySelector('.editor-track-empty');
+    if (emptyTrack.hidden !== (count !== 0)) emptyTrack.hidden = count !== 0;
+  }
+  const phaseFields = ['drawDuration', 'emergeDuration', 'holdDuration', 'fadeDuration', 'restDuration'].map(key => ({section: 'timeline', key}));
+  const phaseLane = trackPanel.querySelector('[data-phase-lane]');
+  function setPhaseBoundary(state, initial, edge, seconds) {
+    const next = movePhaseBoundary(initial, edge, seconds, state.id === 'waiting' ? 1 : 4);
+    if (!next) return;
+    Object.assign(state.config.timeline, next); onChange(); refresh();
+  }
+  function finishPhaseDrag(cancel) {
+    if (!phaseDrag) return;
+    const current = phaseDrag; phaseDrag = null;
+    if (cancel) {
+      for (const field of current.before) current.state.config[field.section][field.key] = field.before;
+      onChange(); refresh();
+    } else record(current.state.id, current.state.config, current.before);
+  }
+  phaseLane.addEventListener('pointerdown', event => {
+    const marker = event.target.closest('[data-phase]');
+    if (!marker || event.button !== 0 || phaseDrag) return;
+    finishInput(); const state = getState();
+    phaseDrag = {state, before: snapshot(state.config, phaseFields), initial: {...state.config.timeline}, edge: marker.dataset.phase, pointerId: event.pointerId};
+    marker.setPointerCapture(event.pointerId); event.preventDefault(); event.stopPropagation();
+  });
+  phaseLane.addEventListener('pointermove', event => {
+    if (!phaseDrag || phaseDrag.pointerId !== event.pointerId) return;
+    const rect = phaseLane.getBoundingClientRect(); if (!(rect.width > 0)) return;
+    setPhaseBoundary(phaseDrag.state, phaseDrag.initial, phaseDrag.edge, (event.clientX - rect.left) / rect.width * timelineCycle(phaseDrag.initial));
+    event.preventDefault(); event.stopPropagation();
+  });
+  phaseLane.addEventListener('pointerup', event => { if (phaseDrag?.pointerId === event.pointerId) { finishPhaseDrag(false); event.stopPropagation(); } });
+  phaseLane.addEventListener('pointercancel', event => { if (phaseDrag?.pointerId === event.pointerId) finishPhaseDrag(true); });
+  phaseLane.addEventListener('lostpointercapture', event => { if (phaseDrag?.pointerId === event.pointerId) finishPhaseDrag(true); });
+  phaseLane.addEventListener('keydown', event => {
+    const marker = event.target.closest('[data-phase]');
+    if (!marker || !['ArrowLeft', 'ArrowRight'].includes(event.key)) return;
+    event.preventDefault(); event.stopPropagation(); finishInput();
+    const state = getState(), tl = {...state.config.timeline}, edge = marker.dataset.phase;
+    const before = snapshot(state.config, phaseFields);
+    const current = tl.drawDuration + tl.emergeDuration + (edge === 'exit' ? tl.holdDuration : 0);
+    setPhaseBoundary(state, tl, edge, current + (event.key === 'ArrowRight' ? 1 : -1) * (event.shiftKey ? 1 : .1));
+    record(state.id, state.config, before);
+  });
+  function setTrackEdge(config, spec, edge, percent) {
+    const values = config[spec.section], keys = spec.keys;
+    const next = moveTimelineEdge(values[keys.Start], values[keys.End], edge, percent);
+    values[keys.Start] = next.start; values[keys.End] = next.end;
+  }
+  trackPanel.addEventListener('pointerdown', event => {
+    const grip = event.target.closest('.editor-track-grip');
+    if (!grip || event.button !== 0 || timelineDrag) return;
+    const row = grip.closest('[data-track]'), id = row.dataset.track, state = getState(), spec = timingSpec(id);
+    if (state.config[spec.section][spec.keys.TimingMode] !== 'custom') return;
+    select(id, false); finishInput();
+    const fields = [spec.keys.Start, spec.keys.End].map(key => ({section: spec.section, key}));
+    timelineDrag = {id, sceneId: state.id, config: state.config, before: snapshot(state.config, fields), spec,
+      edge: grip.dataset.edge, lane: trackRows[id].lane, pointerId: event.pointerId};
+    grip.setPointerCapture(event.pointerId); event.preventDefault(); event.stopPropagation();
+  });
+  trackPanel.addEventListener('pointermove', event => {
+    if (!timelineDrag || timelineDrag.pointerId !== event.pointerId) return;
+    const rect = timelineDrag.lane.getBoundingClientRect();
+    if (!(rect.width > 0)) return;
+    setTrackEdge(timelineDrag.config, timelineDrag.spec, timelineDrag.edge, (event.clientX - rect.left) / rect.width * 100);
+    onChange(); refresh(); event.preventDefault();
+  });
+  function finishTimelineDrag(cancel) {
+    if (!timelineDrag) return;
+    const current = timelineDrag; timelineDrag = null;
+    if (cancel) {
+      for (const c of current.before) current.config[c.section][c.key] = c.before;
+      onChange(); refresh();
+    } else record(current.sceneId, current.config, current.before);
+  }
+  trackPanel.addEventListener('pointerup', event => {
+    if (timelineDrag?.pointerId === event.pointerId) { finishTimelineDrag(false); event.stopPropagation(); }
+  });
+  trackPanel.addEventListener('pointercancel', event => { if (timelineDrag?.pointerId === event.pointerId) finishTimelineDrag(true); });
+  trackPanel.addEventListener('lostpointercapture', event => { if (timelineDrag?.pointerId === event.pointerId) finishTimelineDrag(true); });
+  trackPanel.addEventListener('keydown', event => {
+    const grip = event.target.closest('.editor-track-grip');
+    if (!grip || !['ArrowLeft', 'ArrowRight'].includes(event.key)) return;
+    event.preventDefault(); event.stopPropagation();
+    const id = grip.closest('[data-track]').dataset.track, state = getState(), spec = timingSpec(id);
+    const keys = spec.keys, values = state.config[spec.section], edge = grip.dataset.edge;
+    const before = snapshot(state.config, [keys.Start, keys.End].map(key => ({section: spec.section, key})));
+    const range = timelineRange(values[keys.Start], values[keys.End]);
+    setTrackEdge(state.config, spec, edge, range[edge] + (event.key === 'ArrowRight' ? 1 : -1) * (event.shiftKey ? 5 : 1));
+    record(state.id, state.config, before); onChange(); select(id, false);
+  });
+  function seekPercent(percent) {
+    const state = getState(), cycle = timelineCycle(state.config.timeline);
+    if (!onSeek || !cycle) return;
+    const local = Math.min(Math.max(0, cycle - 1 / 60), Math.max(0, percent / 100 * cycle));
+    onSeek(state.config.timeline.startDelay + local); refresh();
+  }
+  function seekFromPointer(event) {
+    const rect = ruler.getBoundingClientRect();
+    if (rect.width > 0) seekPercent((event.clientX - rect.left) / rect.width * 100);
+  }
+  ruler.addEventListener('pointerdown', event => {
+    if (event.button !== 0 || !onSeek) return;
+    rulerPointer = event.pointerId; ruler.setPointerCapture(event.pointerId); seekFromPointer(event); event.preventDefault();
+  });
+  ruler.addEventListener('pointermove', event => { if (rulerPointer === event.pointerId) seekFromPointer(event); });
+  for (const eventName of ['pointerup', 'pointercancel', 'lostpointercapture']) ruler.addEventListener(eventName, event => { if (rulerPointer === event.pointerId) rulerPointer = null; });
+  ruler.addEventListener('keydown', event => {
+    if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+    event.preventDefault(); event.stopPropagation();
+    const state = getState(), current = timelineCursor(state.time, state.config.timeline);
+    seekPercent(event.key === 'Home' ? 0 : event.key === 'End' ? 100 : current + (event.key === 'ArrowRight' ? 1 : -1) * (event.shiftKey ? 5 : 1));
+  });
   followInput.addEventListener('change', () => {
-    if (selected !== 'brandDecor') return;
+    if (!DECOR_IDS.includes(selected)) return;
     finishInput();
-    const state = getState(), decor = state.config.decor, root = state.scene.logo.root.position;
-    const fields = ['followLogo', 'offsetX', 'offsetY'].map(key => ({section: 'decor', key}));
+    const state = getState(), section = decorSection(selected), decor = state.config[section], root = state.scene.logo.root.position;
+    const fields = ['followLogo', 'offsetX', 'offsetY'].map(key => ({section, key}));
     const before = snapshot(state.config, fields);
     const followed = decor.followLogo !== false, follow = followInput.checked;
     if (followed !== follow) {
@@ -306,7 +553,7 @@ export function createFrameEditor({ getState, onEnable, onChange, onLayoutChange
     redoButton.disabled = state.redo.length === 0;
   }
   function historyAction(direction) {
-    if (!enabled || drag) return;
+    if (!enabled || drag || timelineDrag || phaseDrag) return;
     finishInput();
     const state = getState();
     const result = history.apply(state.id, state.config, direction);
@@ -315,6 +562,8 @@ export function createFrameEditor({ getState, onEnable, onChange, onLayoutChange
     updateHistory();
   }
   function cancelDrag() {
+    if (timelineDrag) finishTimelineDrag(true);
+    if (phaseDrag) finishPhaseDrag(true);
     if (!drag) return;
     for (const c of drag.before) drag.config[c.section][c.key] = c.before;
     drag = null; guides.x.hidden = guides.y.hidden = true;
@@ -325,10 +574,13 @@ export function createFrameEditor({ getState, onEnable, onChange, onLayoutChange
     if (direction === 'undo' || direction === 'redo') historyAction(direction);
   });
   function depth(id, scene) {
+    if (id === 'photoAperture') return scene.aperture.group.position.z;
+    if (id === 'constructionGuides') return scene.constructionGuides.group.position.z;
+    if (id === 'topIllumination') return scene.topGlow.position.z;
     if (id === 'photoLabel') return scene.circularLabel.position.z;
-    if (id === 'brandDecor') return scene.brandDecor.group.position.z;
-    if (id === 'particleCloud') return scene.particleCloud.group.position.z;
-    if (id === 'backgroundGlow') return scene.backgroundGlow.group.position.z;
+    if (DECOR_IDS.includes(id)) return scene.brandDecors[id].group.position.z;
+    if (PARTICLE_CLOUD_IDS.includes(id)) return scene.particleClouds[id].group.position.z;
+    if (BACKGROUND_GLOW_IDS.includes(id)) return scene.backgroundGlows[id].group.position.z;
     return 0;
   }
   function worldPoint(event, state, z = 0) {
@@ -348,7 +600,7 @@ export function createFrameEditor({ getState, onEnable, onChange, onLayoutChange
     menu.hidden = false; empty.hidden = true;
     menu.querySelector('[data-selected-label]').textContent = EDITOR_LAYERS.find(item => item.id === id).label;
     populateAppearance(id);
-    if (showMenu && window.matchMedia('(max-width: 999px)').matches) setCompactPanel('inspector');
+    if (showMenu && window.matchMedia('(max-width: 780px)').matches) setCompactPanel('inspector');
     refresh();
   }
   function refresh() {
@@ -356,6 +608,18 @@ export function createFrameEditor({ getState, onEnable, onChange, onLayoutChange
     updateHistory();
     const { scene, canvas, id, config } = getState();
     const available = new Set(layersForScene(id, config).map(item => item.id));
+    // Только собственные надписи имеют управляемый порядок. Список и таймлайн
+    // показывают передние первыми, а рамки — как DOM-контент, сзади наперёд.
+    const front = customTextOrder(config.textLayers).reverse();
+    const reorderNodes = (parent, nodes) => {
+      const desired = nodes.map(node => node);
+      const current = [...parent.children].filter(node => desired.includes(node));
+      if (desired.some((node, index) => current[index] !== node)) for (const node of desired) parent.appendChild(node);
+    };
+    reorderNodes(layerList, front.map(key => entries[key]));
+    reorderNodes(trackList, front.map(key => trackRows[key].row));
+    reorderNodes(layer, [...front].reverse().map(key => boxes[key]));
+    refreshTracks(getState(), available);
     for (const item of EDITOR_LAYERS) {
       const row = rows[item.id];
       row.hidden = entries[item.id].hidden = !available.has(item.id);
@@ -378,11 +642,11 @@ export function createFrameEditor({ getState, onEnable, onChange, onLayoutChange
     addButton.disabled = CUSTOM_TEXT_IDS.every(key => config.textLayers?.[`${key}Present`] === true);
     addButton.title = addButton.disabled ? 'Максимум 8 дополнительных надписей' : 'Добавить надпись в сцену';
     addButton.textContent = addButton.disabled ? 'Лимит: 8 надписей' : '＋ Добавить текст';
-    for (const effect of optionalEffects) {
+    for (const effect of multiEffects) {
       const button = layersPanel.querySelector(`[data-add-${effect.button}]`);
-      button.disabled = config[effect.section]?.present === true;
-      button.title = button.disabled ? effect.added : effect.title;
-      button.textContent = button.disabled ? effect.added : effect.add;
+      button.disabled = effect.ids.every(key => config[decorSection(key) || key]?.present === true);
+      button.title = button.disabled ? effect.max : effect.title;
+      button.textContent = button.disabled ? effect.limit : effect.add;
     }
     snapRects = {};
     const rect = canvas.getBoundingClientRect();
@@ -447,21 +711,33 @@ export function createFrameEditor({ getState, onEnable, onChange, onLayoutChange
         place(boxes[name], snapRects[name]);
       }
     }
+    handle('photoAperture', id === 'photo-pause' && config.photo?.apertureEnabled !== false && !!scene.aperture?.group.visible, scene.aperture?.group.position, config.photo?.apertureRadius ?? 0);
+    handle('constructionGuides', config.constructionGuides?.enabled !== false && !!scene.constructionGuides?.group.visible, scene.constructionGuides?.group.position, .25);
+    handle('topIllumination', config.topIllumination?.enabled !== false && !!scene.topGlow?.visible, scene.topGlow?.position, 0.2);
     const photoLabel = scene.circularLabel;
-    handle('photoLabel', id === 'photo-pause' && config.photo?.textEnabled !== false && !!photoLabel?.visible,
+    handle('photoLabel', (id === 'photo-pause' || id === 'brand') && config.photo?.textEnabled !== false && !!photoLabel?.visible,
       photoLabel?.position, getState().config.photo?.radius ?? 0);
-    const glow = scene.backgroundGlow;
-    handle('backgroundGlow', available.has('backgroundGlow') && config.backgroundGlow?.enabled !== false && !!glow?.group.visible,
-      glow?.group.position, config.backgroundGlow?.radius ?? 0);
-    const cloud = scene.particleCloud;
-    handle('particleCloud', available.has('particleCloud') && config.particleCloud?.enabled !== false && !!cloud?.group.visible,
-      cloud?.group.position, config.particleCloud?.radius ?? 0);
-    const decor = scene.brandDecor;
-    handle('brandDecor', available.has('brandDecor') && config.decor?.enabled !== false && !!decor?.group.visible,
-      decor?.group.position, getState().config.decor?.radius ?? 0);
+    for (const glowId of BACKGROUND_GLOW_IDS) {
+      const glow = scene.backgroundGlows?.[glowId];
+      handle(glowId, available.has(glowId) && config[glowId]?.enabled !== false && !!glow?.group.visible,
+        glow?.group.position, config[glowId]?.radius ?? 0);
+    }
+    for (const cloudId of PARTICLE_CLOUD_IDS) {
+      const cloud = scene.particleClouds?.[cloudId];
+      handle(cloudId, available.has(cloudId) && config[cloudId]?.enabled !== false && !!cloud?.group.visible,
+        cloud?.group.position, config[cloudId]?.radius ?? 0);
+    }
+    for (const {id: decorId, section} of DECOR_SLOTS) {
+      const decor = scene.brandDecors?.[decorId];
+      handle(decorId, available.has(decorId) && config[section]?.enabled !== false && !!decor?.group.visible,
+        decor?.group.position, config[section]?.radius ?? 0);
+    }
 
   }
   function disable() {
+    if (timelineDrag) finishTimelineDrag(false);
+    if (phaseDrag) finishPhaseDrag(false);
+    rulerPointer = null;
     finishInput();
     if (drag) {
       record(drag.sceneId, drag.config, drag.before);
@@ -477,15 +753,17 @@ export function createFrameEditor({ getState, onEnable, onChange, onLayoutChange
     guides.x.hidden = guides.y.hidden = true;
     toggle.textContent = 'Редактировать'; toggle.setAttribute('aria-pressed', 'false');
   }
-  for (const effect of optionalEffects) layersPanel.querySelector(`[data-add-${effect.button}]`).addEventListener('click', () => {
+  for (const effect of multiEffects) layersPanel.querySelector(`[data-add-${effect.button}]`).addEventListener('click', () => {
     finishInput();
-    const state = getState(), cfg = state.config, section = effect.section;
-    if (cfg[section].present) return;
+    const state = getState(), cfg = state.config;
+    const id = effect.ids.find(key => cfg[decorSection(key) || key].present !== true);
+    if (!id) return;
+    const section = decorSection(id) || id;
     const fields = Object.keys(state.defaults[section]).map(key => ({section, key}));
     const before = snapshot(cfg, fields);
     for (const {key} of fields) cfg[section][key] = state.defaults[section][key];
     cfg[section].present = true; cfg[section].enabled = true;
-    record(state.id, cfg, before); onChange(); select(effect.id, true);
+    record(state.id, cfg, before); onChange(); select(id, true);
   });
   layersPanel.querySelector('[data-add-text]').addEventListener('click', () => {
     finishInput();
@@ -493,8 +771,10 @@ export function createFrameEditor({ getState, onEnable, onChange, onLayoutChange
     const id = CUSTOM_TEXT_IDS.find(key => cfg.textLayers[`${key}Present`] !== true);
     if (!id) return;
     const fields = customTextKeys(id).map(key => ({section: 'textLayers', key}));
-    const before = snapshot(cfg, fields);
+    const orderChanges = customTextInsertion(cfg.textLayers, id);
+    const before = snapshot(cfg, [...fields, ...orderChanges.filter(change => change.key !== `${id}Order`)]);
     for (const {key} of fields) cfg.textLayers[key] = state.defaults.textLayers[key];
+    for (const {key, value} of orderChanges) cfg.textLayers[key] = value;
     cfg.textLayers[`${id}Present`] = true;
     record(state.id, cfg, before); onChange(); select(id, true);
   });
@@ -522,7 +802,7 @@ export function createFrameEditor({ getState, onEnable, onChange, onLayoutChange
       const frame = state.canvas.getBoundingClientRect();
       const targets = [{ left: frame.left, top: frame.top, width: frame.width, height: frame.height },
         ...Object.entries(snapRects).filter(([name]) => name !== id &&
-          !(id === 'logo' && (name === 'photoLabel' || name === 'brandDecor'))).map(([, rect]) => ({ ...rect }))];
+          !(id === 'logo' && (name === 'photoLabel' || DECOR_IDS.includes(name)))).map(([, rect]) => ({ ...rect }))];
       drag = { id, resizing, sceneId: state.id, config: cfg,
         before: snapshot(cfg, resizing ? sizeFields(id) : positionFields(id)), centerX, centerY,
         startDistance: Math.hypot(event.clientX - centerX, event.clientY - centerY),
@@ -553,7 +833,7 @@ export function createFrameEditor({ getState, onEnable, onChange, onLayoutChange
         const section = worldSection[id];
         const now = worldPoint({ clientX: drag.x + dx, clientY: drag.y + dy }, state, depth(id, state.scene));
         if (!now) return;
-        const next = (ringSide(id) || id === 'brandDecor' || id === 'particleCloud' || id === 'backgroundGlow') ? moveWorldOffset(drag.start, now.x - drag.world.x, now.y - drag.world.y) : moveLogo(drag.start, now.x - drag.world.x, now.y - drag.world.y);
+        const next = (id === 'constructionGuides' || id === 'topIllumination' || ringSide(id) || DECOR_IDS.includes(id) || PARTICLE_CLOUD_IDS.includes(id) || BACKGROUND_GLOW_IDS.includes(id)) ? moveWorldOffset(drag.start, now.x - drag.world.x, now.y - drag.world.y) : moveLogo(drag.start, now.x - drag.world.x, now.y - drag.world.y);
         const [xKey, yKey] = worldKeys(id);
         cfg[section][xKey] = next.x; cfg[section][yKey] = next.y;
       } else {
@@ -592,7 +872,7 @@ export function createFrameEditor({ getState, onEnable, onChange, onLayoutChange
         const section = worldSection[id];
         const [xKey, yKey] = worldKeys(id);
         const start = { x: cfg[section][xKey], y: cfg[section][yKey] };
-        const p = (ringSide(id) || id === 'brandDecor' || id === 'particleCloud' || id === 'backgroundGlow') ? moveWorldOffset(start, direction[0] * step, -direction[1] * step) : moveLogo(start, direction[0] * step, -direction[1] * step);
+        const p = (id === 'constructionGuides' || id === 'topIllumination' || ringSide(id) || DECOR_IDS.includes(id) || PARTICLE_CLOUD_IDS.includes(id) || BACKGROUND_GLOW_IDS.includes(id)) ? moveWorldOffset(start, direction[0] * step, -direction[1] * step) : moveLogo(start, direction[0] * step, -direction[1] * step);
         cfg[section][xKey] = p.x; cfg[section][yKey] = p.y;
       } else {
         const target = cfg[textSection(id)];
@@ -609,9 +889,25 @@ export function createFrameEditor({ getState, onEnable, onChange, onLayoutChange
     if (!selected || !action) return;
     finishInput();
     const state = getState();
-    const deletedEffect = optionalEffects.find(effect => action === `delete-${effect.button}` && selected === effect.id);
-    if (deletedEffect) {
-      const section = deletedEffect.section;
+    if ((action === 'text-front' || action === 'text-back') && CUSTOM_TEXT_IDS.includes(selected)) {
+      const changes = customTextReorder(state.config.textLayers, selected, action === 'text-front' ? 'front' : 'back');
+      if (!changes.length) return;
+      const before = snapshot(state.config, changes);
+      for (const {key, value} of changes) state.config.textLayers[key] = value;
+      record(state.id, state.config, before); onChange(); populateAppearance(selected); refresh();
+      return;
+    }
+    if (action === 'duplicate') {
+      const plan = duplicatePlan(state.config, state.defaults, selected);
+      if (!plan) return;
+      const before = snapshot(state.config, plan.changes);
+      for (const {section, key, value} of plan.changes) state.config[section][key] = value;
+      record(state.id, state.config, before); onChange(); select(plan.target, true);
+      return;
+    }
+    const multiToDelete = multiEffects.some(effect => action === `delete-${effect.button}` && effect.ids.includes(selected));
+    if (multiToDelete) {
+      const section = decorSection(selected) || selected;
       const before = snapshot(state.config, [{section, key: 'present'}]);
       state.config[section].present = false;
       record(state.id, state.config, before); onChange(); refresh();
@@ -637,8 +933,8 @@ export function createFrameEditor({ getState, onEnable, onChange, onLayoutChange
         const axisPosition = xAxis ? position.x : position.y;
         // Боковые круги хранят сдвиг от исходной позиции, свободные эффекты — абсолютную позицию.
         const value = side || selected === 'logo' ? state.config[section][key] - axisPosition
-          : (selected === 'particleCloud' || selected === 'backgroundGlow' || (selected === 'brandDecor' && state.config.decor.followLogo === false)) ? 0 : -axisPosition;
-        const limit = side || selected === 'brandDecor' || selected === 'particleCloud' || selected === 'backgroundGlow' ? 10 : 2;
+          : (selected === 'topIllumination' || PARTICLE_CLOUD_IDS.includes(selected) || BACKGROUND_GLOW_IDS.includes(selected) || (DECOR_IDS.includes(selected) && state.config[decorSection(selected)].followLogo === false)) ? 0 : -axisPosition;
+        const limit = selected === 'constructionGuides' || selected === 'topIllumination' || side || DECOR_IDS.includes(selected) || PARTICLE_CLOUD_IDS.includes(selected) || BACKGROUND_GLOW_IDS.includes(selected) ? 10 : 2;
         state.config[section][key] = Math.max(-limit, Math.min(limit, value));
       } else {
         const selector = CUSTOM_TEXT_IDS.includes(selected) ? `[data-custom="${selected}"]` : { title: '.cap-title', subtitle: '.cap-sub', date: '.cap-date' }[selected];
@@ -684,7 +980,7 @@ export function createFrameEditor({ getState, onEnable, onChange, onLayoutChange
     if (!enabled) return;
     if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement ||
         event.target instanceof HTMLSelectElement || event.target.isContentEditable) return;
-    if (event.key === 'Escape') { if (drag) cancelDrag(); else disable(); return; }
+    if (event.key === 'Escape') { if (drag || timelineDrag || phaseDrag) cancelDrag(); else disable(); return; }
     const modifier = event.ctrlKey || event.metaKey;
     if (modifier && !event.altKey && (event.key.toLowerCase() === 'z' || event.key.toLowerCase() === 'y')) {
       event.preventDefault(); event.stopPropagation();

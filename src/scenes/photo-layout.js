@@ -41,3 +41,12 @@ export function viewfinderSegments(halfW, halfH, margin, length) {
 export function photoLabelCenter(logo, photo) {
   return { x: logo.x + (photo.offsetX ?? 0), y: logo.y + (photo.offsetY ?? 0) };
 }
+
+/** Мягкое движение уголков к центру и обратно с замкнутой фазой на границе цикла.
+ * @param {number} local @param {number} cycle @param {number} amount @param {number} cycles */
+export function framePulseScale(local, cycle, amount, cycles) {
+  const amplitude = Number.isFinite(amount) ? Math.max(0, Math.min(.1, amount)) : 0;
+  const count = Number.isFinite(cycles) ? Math.max(1, Math.min(10, Math.round(cycles))) : 2;
+  const duration = Number.isFinite(cycle) && cycle > 0 ? cycle : 1;
+  return 1 - amplitude * (1 - Math.cos(2 * Math.PI * count * local / duration)) / 2;
+}

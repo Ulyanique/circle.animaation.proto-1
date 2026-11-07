@@ -1,3 +1,6 @@
+import { particleCloudDefaults } from "../particle-cloud-config.js";
+import { brandDecorDefaults } from "../brand-decor-config.js";
+import { backgroundGlowDefaults } from "../background-glow-config.js";
 import { customTextDefaults } from "../custom-text.js";
 
 // Стартовое интро: художественные значения по умолчанию.
@@ -13,15 +16,9 @@ export const WAITING_DEFAULTS = {
     titleX: 0, titleY: 0, titleScale: 1, subtitleX: 0, subtitleY: 0, subtitleScale: 1,
     dateX: 0, dateY: 0, dateScale: 1,
   },
-  decor: {
-    present: false, enabled: true, followLogo: false,
-    radius: 1.2, offsetX: 0, offsetY: 0, opacity: 0.22, color: "#d9b268",
-    speed: 0.055, dustOpacity: 0.38, dustSize: 0.018,
-  },
-  particleCloud: { present: false, enabled: true, offsetX: 0, offsetY: 0,
-    radius: 1.2, color: "#e8c77e", count: 180, size: 0.035, opacity: 0.65, speed: 0.08 },
-  backgroundGlow: { present: false, enabled: true, offsetX: 0, offsetY: 0,
-    radius: 1.6, color: "#ffbd68", intensity: 0.45, pulse: 0.15, speed: 0.15 },
+  ...brandDecorDefaults(),
+  ...particleCloudDefaults(),
+  ...backgroundGlowDefaults(),
   intro: { cornerDuration: 1.1, liftDuration: 1.4, titleDelay: 0.15 },
   timeline: {
     // длительности фаз в секундах; цикл повторяется бесконечно
@@ -118,6 +115,8 @@ export const WAITING_DEFAULTS = {
     lowerShade: 0.45,      // затемнение нижнего левого угла (как в референсе)
     gridOpacity: 0.02,     // чертёжная сетка на фоне (тонкая)
   },
+  constructionGuides: { enabled: true, offsetX: 0, offsetY: 0, scale: 1, opacity: 0.12, color: "#d9b268", timingMode: "scene", timingStart: 25, timingEnd: 90, timingFade: 15 },
+  topIllumination: { enabled: true, offsetX: 0, offsetY: 1.5, scale: 1, color: "#ffd98a", lightColor: "#ffe2a6", raysEnabled: true, raysIntensity: 0.8, raysSpeed: 1, raysColor: "#ffd98a" },
   lights: {
     keyIntensity: 8,       // ключевой свет: читаемые грани металла
     topGlow: 10,           // свечение сверху не пересвечивает центр

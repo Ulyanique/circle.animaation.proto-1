@@ -40,7 +40,7 @@ const URL_ = process.env.URL || "http://localhost:5173/";
       const forward = times.map(state);
       const reverse = [...times].reverse().map(state).reverse();
       const periodic = times.map((time) => state(time + cycle));
-      state(tl.startDelay + 0.5);
+      state(tl.startDelay + tl.drawDuration * 0.45);
       const plotLeads = L.scene.plotter.group.visible && L.scene.plotter.uniforms.uSweep.value > 0 &&
         L.scene.logo.outlineU.uDraw.value === 0;
       const ribbonReady = L.scene.plotter.line.isMesh &&
@@ -50,7 +50,7 @@ const URL_ = process.env.URL || "http://localhost:5173/";
       state(0);
       const startupHidden = L.scene.seamCurtain.material.opacity === 1 && !L.scene.plotter.group.visible;
       state(tl.startDelay + tl.drawDuration + tl.emergeDuration + 0.55);
-      const lightPassVisible = L.scene.glintLight.intensity > 0.5;
+      const lightPassVisible = L.scene.glintLight.intensity > 0.1;
       state(tl.startDelay + tl.drawDuration + tl.emergeDuration + tl.holdDuration / 2);
       const plotHandsOff = !L.scene.plotter.group.visible;
       const glintGoneOnHold = L.scene.glintLight.intensity === 0;
@@ -60,7 +60,7 @@ const URL_ = process.env.URL || "http://localhost:5173/";
         L.scene.logo.outlineAnchors[0], L.scene.logo.outlineAnchors[1], 0));
       const tip = L.scene.plotter.head.getWorldPosition(anchor.clone());
       const plotTouchesOutline = tip.distanceTo(anchor) < 0.001 && L.scene.plotter.head.material.opacity > 0;
-      state(tl.startDelay + tl.drawDuration + tl.emergeDuration + tl.holdDuration + tl.fadeDuration * 0.92);
+      state(tl.startDelay + tl.drawDuration + tl.emergeDuration + tl.holdDuration + tl.fadeDuration * (L.scene.isIntro ? 0.73 : 0.92));
       const lastArc = L.scene.logo.outline.visible && L.scene.logo.outlineU.uReverse.value === 1 &&
         L.scene.logo.outlineU.uRetire.value > 0.5;
       state(tl.startDelay + tl.drawDuration + tl.emergeDuration / 2 + 0.45);

@@ -56,3 +56,56 @@ test('старые конфиги не добавляют облако; нова
   const project = parseProjectJSON(projectToJSON(configs, ids), ids);
   for (const id of ids) assert.deepEqual(project.scenes[id].particleCloud, configs[id].particleCloud);
 });
+
+test('четыре облака имеют независимые объекты, настройки, огибающие и рисунок частиц', async () => {
+  const { PARTICLE_CLOUD_IDS, particleCloudDefaults } = await import('../src/particle-cloud-config.js');
+  const { SCHEMA } = await import('../src/config.js');
+  assert.equal(PARTICLE_CLOUD_IDS.length, 4);
+  const defaults = particleCloudDefaults();
+  assert.notEqual(defaults.particleCloud, defaults.particleCloud2);
+  for (const id of PARTICLE_CLOUD_IDS) assert.ok(SCHEMA.some(s => s.id === id));
+  const configs = {};
+  for (const scene of SCENES.filter(s => s.defaults)) {
+    const cfg = mergeConfig(scene.defaults, {}); configs[scene.id] = cfg;
+    const clouds = PARTICLE_CLOUD_IDS.map(id => new ParticleCloud(id));
+    for (const [i, id] of PARTICLE_CLOUD_IDS.entries()) {
+      Object.assign(cfg[id], {present: true, enabled: true, offsetX: i, radius: 1 + i / 2,
+        count: 100 + i * 10, color: i ? '#123456' : '#e8c77e', timingMode: 'custom', timingStart: i * 10, timingEnd: 90});
+    }
+    const cycle = cfg.timeline.drawDuration + cfg.timeline.emergeDuration + cfg.timeline.holdDuration + cfg.timeline.fadeDuration + cfg.timeline.restDuration;
+    const phase = {beforeStart: false, reveal: 0, rings: 0}, time = cfg.timeline.startDelay + cycle * .5;
+    clouds.forEach(cloud => cloud.update(time, phase, cfg));
+    for (const [i, cloud] of clouds.entries()) {
+      assert.equal(cloud.group.visible, true);
+      assert.equal(cloud.group.position.x, i);
+      assert.equal(cloud.group.scale.x, 1 + i / 2);
+      assert.equal(cloud.geometry.getAttribute('position').count, 100 + i * 10);
+    }
+    assert.deepEqual(clouds[0].geometry.getAttribute('position').array, cloudPositions(100));
+    assert.notDeepEqual(clouds[1].geometry.getAttribute('position').array.slice(0, 30), clouds[0].geometry.getAttribute('position').array.slice(0, 30));
+    cfg.particleCloud2.enabled = false;
+    clouds.forEach(cloud => cloud.update(time, phase, cfg));
+    assert.equal(clouds[1].group.visible, false);
+    assert.equal(clouds[0].group.visible, true); assert.equal(clouds[2].group.visible, true);
+    cfg.particleCloud2.enabled = true;
+    clouds.forEach(cloud => cloud.update(cfg.timeline.startDelay + cycle * .15, phase, cfg));
+    assert.equal(clouds[0].group.visible, true); assert.equal(clouds[2].group.visible, false);
+    assert.equal(layersForScene(scene.id, cfg).filter(layer => PARTICLE_CLOUD_IDS.includes(layer.id)).length, 4);
+    const copy = parseConfigJSON(configToJSON(cfg), scene.defaults);
+    for (const id of PARTICLE_CLOUD_IDS) assert.deepEqual(copy[id], cfg[id]);
+    for (const cloud of clouds) { cloud.dispose(); cloud.geometry.dispose(); cloud.material.dispose(); }
+  }
+  const ids = Object.keys(configs), project = parseProjectJSON(projectToJSON(configs, ids), ids);
+  for (const scene of ids) for (const id of PARTICLE_CLOUD_IDS) assert.deepEqual(project.scenes[scene][id], configs[scene][id]);
+});
+
+test('старый JSON с одним облаком не создаёт дополнительные облака', async () => {
+  const { PARTICLE_CLOUD_IDS } = await import('../src/particle-cloud-config.js');
+  for (const scene of SCENES.filter(s => s.defaults)) {
+    const old = parseConfigJSON('{"particleCloud":{"present":true,"offsetX":1.23,"color":"#abcdef"}}', scene.defaults);
+    assert.equal(old.particleCloud.present, true);
+    assert.equal(old.particleCloud.offsetX, 1.23); assert.equal(old.particleCloud.color, '#abcdef');
+    for (const id of PARTICLE_CLOUD_IDS.slice(1)) assert.equal(old[id].present, false);
+    assert.deepEqual(layersForScene(scene.id, old).filter(layer => PARTICLE_CLOUD_IDS.includes(layer.id)).map(layer => layer.id), ['particleCloud']);
+  }
+});

@@ -26,6 +26,10 @@ export function ringsEnvelope(phase, tl, { fast = false } = {}) {
   return introE * outroE;
 }
 
+/** Момент, когда входная обводка логотипа завершена (локальное время цикла).
+ * @param {{drawDuration:number, emergeDuration:number}} tl */
+export function logoDrawFinish(tl) { return tl.drawDuration + tl.emergeDuration * 0.12; }
+
 /**
  * Вычисляет фазу цикла по времени.
  * Цикл: прорисовка контура → появление из тени → удержание → уход в тень → пауза.
@@ -39,7 +43,7 @@ export function computePhase(t, tl) {
 
   let draw = 0, reveal = 0, outline = 0, fill = 0, emergeT = -1, name = "rest";
   const drawLead = D * 0.75;
-  const drawFinish = D + E * 0.12;
+  const drawFinish = logoDrawFinish(tl);
   const drawProgress = () => easeInOutCubic(clamp01((local - drawLead) / Math.max(drawFinish - drawLead, 1e-4)));
   if (local < D) {
     name = "draw";
@@ -79,12 +83,37 @@ export function computePhase(t, tl) {
 }
 
 /** Фирменный жест: орбита передаёт свет контуру, а в конце забирает его обратно. */
-export function plotSequence(phase, tl) {
+export function plotSequence(phase, tl, { intro = false, finale = false } = {}) {
   if (phase.beforeStart) return { sweep: 0, transfer: 0, opacity: 0, head: 0, trace: 0, reverse: false };
   const D = tl.drawDuration, E = tl.emergeDuration, H = tl.holdDuration;
   const F = tl.fadeDuration, R = tl.restDuration;
   const fadeStart = D + E + H;
   const fadeEnd = fadeStart + F;
+  // В интро весь обратный жест помещается в фазу ухода, независимо от паузы.
+  if (intro && phase.local >= fadeStart) {
+    if (phase.local >= fadeEnd) return { sweep: 0, transfer: 0, opacity: 0, head: 0, trace: 0, reverse: true };
+    const p = clamp01((phase.local - fadeStart) / Math.max(F, 1e-4));
+    if (finale) {
+      if (p < .36) return { sweep: 0, transfer: 0, opacity: 0, head: 0, trace: 0, reverse: true };
+      if (p < .50) {
+        const retire = 1 - clamp01(phase.draw);
+        return { sweep: 1, transfer: 1, opacity: 0, head: .7 * smooth(.36, .40, p),
+          trace: 1 - smooth(.27, 1, retire), reverse: true };
+      }
+      const tail = 1 - smooth(.64, .68, p);
+      return { sweep: 1 - smooth(.56, .68, p), transfer: 1 - smooth(.50, .56, p),
+        opacity: .65 * smooth(.50, .56, p) * tail, head: .7 * tail, trace: 0, reverse: true };
+    }
+    if (p < .65) return { sweep: 0, transfer: 0, opacity: 0, head: 0, trace: 0, reverse: true };
+    if (p < .78) {
+      const retire = 1 - clamp01(phase.draw);
+      return { sweep: 1, transfer: 1, opacity: 0, head: .7 * smooth(.65, .70, p),
+        trace: 1 - smooth(.27, 1, retire), reverse: true };
+    }
+    const tail = 1 - smooth(.96, 1, p);
+    return { sweep: 1 - smooth(.85, .99, p), transfer: 1 - smooth(.78, .85, p),
+      opacity: .65 * smooth(.78, .84, p) * tail, head: .7 * tail, trace: 0, reverse: true };
+  }
   // Если пауза достаточно длинная, световая точка подхватывает последнюю дугу
   // логотипа, возвращается к орбите и отматывает её к исходной точке.
   if (R >= 0.45 && phase.name === "fade") {
@@ -110,12 +139,15 @@ export function plotSequence(phase, tl) {
       trace: 0, reverse: true,
     };
   }
-  const start = Math.min(0.32, D * 0.12);
-  const end = Math.max(start + 0.1, D * 0.60);
+  // В интро точки начинают движение после открытия чёрного шва, чтобы
+  // начальные штрихи окружности тоже были видны.
+  const start = intro ? Math.min(0.5, D * 0.30) : Math.min(0.32, D * 0.12);
+  const end = Math.max(start + 0.1, D * (intro ? 0.68 : 0.60));
   const transferEnd = Math.max(end + 0.05, D * 0.83);
   const sweep = smooth(start, end, phase.local);
   const transfer = smooth(end, transferEnd, phase.local);
-  const opacity = smooth(start, start + Math.min(0.35, D * 0.14), phase.local) *
+  const opacity = (intro ? smooth(Math.max(0, start - D * 0.12), start, phase.local)
+    : smooth(start, start + Math.min(0.35, D * 0.14), phase.local)) *
     (1 - smooth(end, D + E * 0.15, phase.local));
   const head = opacity * (1 - smooth(transferEnd, D * 0.97, phase.local));
   return { sweep, transfer, opacity, head, trace: 0, reverse: false };
@@ -125,12 +157,11 @@ export function plotSequence(phase, tl) {
 export function heroGlint(phase, tl) {
   const settle = tl.drawDuration + tl.emergeDuration;
   const start = settle - tl.emergeDuration * 0.02;
-  const end = settle + Math.min(1.25, tl.holdDuration * 0.28);
+  const end = settle + Math.min(2.2, tl.holdDuration * 0.45);
   const span = Math.max(end - start, 1e-4);
-  const ramp = Math.min(0.3, span * 0.25);
-  const intensity = smooth(start, start + ramp, phase.local) *
-    (1 - smooth(end - ramp, end, phase.local));
-  const position = clamp01((phase.local - start) / span) * 2 - 1;
+  const progress = clamp01((phase.local - start) / span);
+  const intensity = progress <= 0 || progress >= 1 ? 0 : Math.sin(Math.PI * progress) ** 2;
+  const position = smooth(0, 1, progress) * 2 - 1;
   return { intensity, position };
 }
 

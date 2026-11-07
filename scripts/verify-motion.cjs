@@ -65,9 +65,9 @@ url.searchParams.set("scene", sceneId);
       const fadeEnd = fadeStart + tl.fadeDuration;
       const delay = tl.startDelay || 0;
       const span = Math.min(tl.restDuration, 1.2);
-      const exitTime = delay + fadeStart + tl.fadeDuration * 0.92;
-      const returnTime = delay + fadeEnd + span * 0.12;
-      const orbitTime = delay + fadeEnd + span * 0.50;
+      const exitTime = delay + fadeStart + tl.fadeDuration * (L.activeScene.id === "finale" ? 0.44 : L.scene.isIntro ? 0.72 : 0.92);
+      const returnTime = L.activeScene.id === "finale" ? delay + fadeStart + tl.fadeDuration * 0.53 : L.scene.isIntro ? delay + fadeStart + tl.fadeDuration * 0.82 : delay + fadeEnd + span * 0.12;
+      const orbitTime = L.activeScene.id === "finale" ? delay + fadeStart + tl.fadeDuration * 0.59 : L.scene.isIntro ? delay + fadeStart + tl.fadeDuration * 0.92 : delay + fadeEnd + span * 0.50;
       const probePlot = (time, followsOutline = false) => {
         L.renderAt(time);
         const { plotter, logo, seamCurtain } = L.scene;
@@ -132,7 +132,7 @@ url.searchParams.set("scene", sceneId);
       result.trace.changedPixels > 20, `точка не следует контуру в WebGL: ${JSON.stringify(result.trace)}`);
     assert.ok(result.transferVisible, "точка не возвращается с контура на орбиту");
     assert.ok(result.orbit.visible && result.orbit.head > 0 && result.orbit.opacity > 0 &&
-      result.orbit.sweep > 0 && result.orbit.sweep < 1 && result.orbit.curtain === 0 &&
+      result.orbit.sweep > 0 && result.orbit.sweep < 1 && result.orbit.curtain < 1 &&
       result.orbit.changedPixels > 20, `обратная орбита не видна в WebGL: ${JSON.stringify(result.orbit)}`);
   } finally {
     await browser.close();

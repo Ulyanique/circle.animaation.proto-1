@@ -110,14 +110,22 @@ export function createSettingsUI({
       const sum = document.createElement("summary");
       sum.textContent = section.title;
       det.appendChild(sum);
+      if (section.id === "finale") {
+        const note = document.createElement("p");
+        note.className = "cfg-io-hint";
+        note.textContent = "Если этапы фразы не помещаются, они сокращаются. Увеличьте удержание или фазу ухода на таймлайне.";
+        det.appendChild(note);
+      }
       for (const f of section.fields) {
+        if (!(f.key in current[section.id])) continue;
+        if (section.id === "logo" && (editing === "waiting" || editing === "photo-pause" || editing === "finale") && (f.key === "swayAmount" || f.key === "swaySpeed")) continue;
         if (section.id === "caption" && ((editing === "brand" && /^(subtitle|date)/.test(f.key)) ||
             (editing === "finale" && f.key.startsWith("date")))) continue;
         const row = document.createElement("label");
         row.className = "cfg-row cfg-" + f.type;
         const name = document.createElement("span");
         name.className = "cfg-name";
-        name.textContent = f.label;
+        name.textContent = section.id === 'photo' && editing === 'brand' && f.key === 'color' ? 'Исходный цвет надписи' : f.label;
         row.appendChild(name);
         const holder = current[section.id];
         if (f.type === "range") {

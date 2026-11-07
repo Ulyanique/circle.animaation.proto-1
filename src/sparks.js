@@ -155,13 +155,20 @@ const FLARE_FS = /* glsl */ `
   void main(){
     float x = abs(vUv.x - 0.5) * 2.0;
     float y = abs(vUv.y - 0.5) * 2.0;
-    float core = exp(-y * y * 90.0);
-    float streak = exp(-x * x * 2.6) * (1.0 - smoothstep(0.85, 1.0, x));
+    float core = exp(-y * y * 38.0);
+    float streak = exp(-x * x * 1.8);
     float halo = exp(-y * y * 9.0) * exp(-x * x * 1.2) * 0.25;
-    vec3 col = uColor * (core * streak + halo) * uI;
+    // Гасим обе составляющие до края плоскости, иначе ореол обрывается прямоугольником.
+    float edge = (1.0 - smoothstep(0.60, 1.0, x)) * (1.0 - smoothstep(0.75, 1.0, y));
+    vec3 col = uColor * (core * streak + halo) * edge * uI;
     gl_FragColor = vec4(col, 1.0);
   }
 `;
+
+/** Координаты блика на перекладине SVG в локальной системе логотипа. */
+export function flarePosition(glintX, glintIntensity) {
+  return { x: glintIntensity > 0 ? glintX : 0, y: -.665 };
+}
 
 export class AnamorphicFlare {
   constructor() {
@@ -175,6 +182,7 @@ export class AnamorphicFlare {
         transparent: true,
         depthWrite: false,
         blending: THREE.AdditiveBlending,
+        side: THREE.DoubleSide,
       })
     );
     this.mesh.scale.set(5.5, 0.6, 1);
@@ -182,11 +190,11 @@ export class AnamorphicFlare {
     this.mesh.renderOrder = 7;
   }
 
-  set(x, intensity, color, y = 1.1, width = 5.5) {
+  set(x, intensity, color, y = -.665, width = 5.5, z = .2) {
     this.mesh.visible = intensity > 0.001;
     if (!this.mesh.visible) return;
     this.mesh.scale.set(width, 0.6, 1);
-    this.mesh.position.set(x, y, 1.4);
+    this.mesh.position.set(x, y, z);
     this.uniforms.uI.value = intensity;
     this.uniforms.uColor.value.set(color);
   }

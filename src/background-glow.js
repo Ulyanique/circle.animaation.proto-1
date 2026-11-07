@@ -1,18 +1,20 @@
 import * as THREE from 'three';
+import { effectVisibility } from './effect-timing.js';
 
 /** Самостоятельный световой ореол на фоне, без влияния на освещение металла. */
 export class BackgroundGlow {
-  constructor(texture) {
+  constructor(texture, section = 'backgroundGlow') {
+    this.section = section;
     this.group = new THREE.Group();
-    this.group.name = 'background-glow';
+    this.group.name = section;
     this.material = new THREE.SpriteMaterial({ map: texture, color: 0xffc879, transparent: true,
       depthWrite: false, blending: THREE.AdditiveBlending, opacity: 0 });
     this.sprite = new THREE.Sprite(this.material);
     this.group.add(this.sprite);
   }
   update(time, phase, cfg) {
-    const light = cfg.backgroundGlow;
-    const envelope = phase.beforeStart ? 0 : phase.reveal * phase.rings;
+    const light = cfg[this.section];
+    const envelope = effectVisibility(time, phase, cfg.timeline, light);
     this.group.visible = light?.present === true && light.enabled !== false && envelope > 0.001;
     if (!this.group.visible) return;
     // Ореол располагается за приёмником тени, но перед фоновым шейдером.

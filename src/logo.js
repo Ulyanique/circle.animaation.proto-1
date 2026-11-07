@@ -86,8 +86,9 @@ function patchRevealMaterial(material, withEmission) {
          outgoingLight *= 1.0 - 0.032 * rvAA * (0.5 + 0.5 * sin(rvBrush));
          // Узкое отражение студийного источника: движется только по металлу,
          // остаётся янтарным и не превращается в белую вспышку по всему кадру.
-         float rvBandCoord = vLocalPos.x + vLocalPos.y * 0.26 - uSpecX;
-         float rvSpecBand = exp(-rvBandCoord * rvBandCoord * 22.0) * rvFront * uSpecPass;
+         float rvBandCoord = vLocalPos.x - uSpecX;
+         float rvCrossbar = 1.0 - smoothstep(0.10, 0.22, abs(vLocalPos.y + 0.665));
+         float rvSpecBand = exp(-rvBandCoord * rvBandCoord * 22.0) * rvFront * rvCrossbar * uSpecPass;
          outgoingLight += vec3(0.38, 0.15, 0.035) * rvSpecBand;
          #include <opaque_fragment>`
       );

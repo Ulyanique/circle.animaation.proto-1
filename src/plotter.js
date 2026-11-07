@@ -52,7 +52,7 @@ const FRAG = /* glsl */ `
 // Как у экранной MeshLine: две вершины с противоположным смещением на каждую
 // точку пути. Но геометрия статична; только uniform от абсолютного времени
 // определяет рисунок, так что PNG после seek совпадает с прямым воспроизведением.
-function makeOrbitRibbon() {
+function makeOrbitRibbon(startAngle = START_ANGLE, sweepAngle = TAU) {
   const positions = new Float32Array((SAMPLES + 1) * 2 * 3);
   const prev = new Float32Array(positions.length);
   const next = new Float32Array(positions.length);
@@ -60,7 +60,7 @@ function makeOrbitRibbon() {
   const sides = new Float32Array(steps.length);
   const indices = new Uint16Array(SAMPLES * 6);
   const pointAt = (i) => {
-    const a = START_ANGLE - i / SAMPLES * TAU;
+    const a = startAngle - i / SAMPLES * sweepAngle;
     return [Math.cos(a), Math.sin(a), 0];
   };
   for (let i = 0; i <= SAMPLES; i++) {
@@ -88,9 +88,11 @@ function makeOrbitRibbon() {
   return geometry;
 }
 
-/** Тонкий построительный штрих: точка рисует орбиту и уступает место логотипу. */
+/** Построительные точки рисуют орбиту и передают свет логотипу. */
 export class Plotter {
-  constructor(glowTexture, logo) {
+  constructor(glowTexture, logo, { twoHeads = false, finale = false } = {}) {
+    this.twoHeads = twoHeads;
+    this.finale = finale;
     this.logo = logo;
     this._target = new THREE.Vector3();
     this.group = new THREE.Group();
@@ -101,12 +103,17 @@ export class Plotter {
       uRes: { value: new THREE.Vector2(OUTPUT.width, OUTPUT.height) },
       uGold: { value: new THREE.Color(0xe0b25a) },
     };
-    this.line = new THREE.Mesh(makeOrbitRibbon(), new THREE.ShaderMaterial({
+    this.line = new THREE.Mesh(makeOrbitRibbon(START_ANGLE, twoHeads ? Math.PI : TAU), new THREE.ShaderMaterial({
       vertexShader: VERT, fragmentShader: FRAG, uniforms: this.uniforms,
       transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
     }));
     this.line.renderOrder = 3;
     this.group.add(this.line);
+    if (twoHeads) {
+      this.line2 = new THREE.Mesh(makeOrbitRibbon(START_ANGLE + Math.PI, Math.PI), this.line.material);
+      this.line2.renderOrder = 3;
+      this.group.add(this.line2);
+    }
 
     this.head = new THREE.Sprite(new THREE.SpriteMaterial({
       map: glowTexture, color: 0xffda82, transparent: true, opacity: 0,
@@ -116,10 +123,16 @@ export class Plotter {
     this.head.position.z = 0.025;
     this.head.renderOrder = 4;
     this.group.add(this.head);
+    if (twoHeads) {
+      this.head2 = new THREE.Sprite(this.head.material.clone());
+      this.head2.scale.copy(this.head.scale);
+      this.head2.renderOrder = 4;
+      this.group.add(this.head2);
+    }
   }
 
   update(phase, cfg, centerY = cfg.logo.offsetY, centerX = cfg.logo.offsetX ?? 0) {
-    const { sweep, transfer, opacity, head, trace, reverse } = plotSequence(phase, cfg.timeline);
+    const { sweep, transfer, opacity, head, trace, reverse } = plotSequence(phase, cfg.timeline, { intro: this.twoHeads, finale: this.finale });
     this.group.visible = cfg.rings.enabled && (opacity > 0.001 || head > 0.001);
     if (!this.group.visible) return;
     this.group.position.set(centerX, centerY, -0.08);
@@ -128,8 +141,14 @@ export class Plotter {
     this.uniforms.uTransfer.value = transfer;
     this.uniforms.uOpacity.value = opacity * 0.7;
     this.uniforms.uGold.value.set(cfg.colors.ringColor);
-    const a = START_ANGLE - sweep * TAU;
+    const a = START_ANGLE - sweep * (this.twoHeads ? Math.PI : TAU);
     this.head.position.set(Math.cos(a), Math.sin(a), 0.025);
+    if (this.head2) {
+      this.head2.position.set(-Math.cos(a), -Math.sin(a), 0.025);
+      this.head2.material.color.set(cfg.colors.goldHighlight);
+      // Вторая точка растворяется на окружности, пока первая переходит к контуру.
+      this.head2.material.opacity = head * 0.48 * (1 - transfer);
+    }
     if (transfer > 0 && head > 0 && this.logo.outlineAnchors?.length >= 2) {
       // В начале точка идёт к первой точке SVG. При обратном уходе она
       // следует за кончиком последней дуги и затем возвращается на орбиту.
@@ -150,7 +169,9 @@ export class Plotter {
 
   dispose() {
     this.line.geometry.dispose();
+    this.line2?.geometry.dispose();
     this.line.material.dispose();
     this.head.material.dispose(); // текстура общая с кольцами
+    this.head2?.material.dispose();
   }
 }

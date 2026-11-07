@@ -8,6 +8,7 @@ import { WAITING_DEFAULTS } from "./waiting.js";
  */
 export function createSharedSceneConfig(timeline) {
   const cfg = JSON.parse(JSON.stringify(WAITING_DEFAULTS));
+  cfg.constructionGuides.enabled = false;
   delete cfg.intro; // Эти движения относятся только к первому ролику.
   // Композиция фоновых сцен: знак крупнее и ниже, титр — в нижней трети,
   // чтобы не оставалось пустого поля под названием.
