@@ -24,9 +24,11 @@
     "render:storyboard": "node scripts/render-storyboard.cjs",
     "render:encode": "bash scripts/encode-loop.sh",
     "verify:settings": "node scripts/verify-settings.cjs",
-    "verify:fonts": "node scripts/verify-fonts.cjs"
+    "verify:fonts": "node scripts/verify-fonts.cjs",
+    "verify:offline-video": "node scripts/verify-offline-video.cjs"
   },
   "dependencies": {
+    "mediabunny": "^1.65.2",
     "opentype.js": "^2.0.0",
     "postprocessing": "^6.39.5",
     "three": "^0.186.0"

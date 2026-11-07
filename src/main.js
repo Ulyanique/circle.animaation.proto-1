@@ -14,7 +14,8 @@ import { BrandScene } from "./brand-scene.js";
 import { PhotoPauseScene } from "./photo-pause-scene.js";
 import { FinaleScene } from "./finale-scene.js";
 import { createSettingsUI } from "./ui.js";
-import { AnimationRuntime } from "./runtime.js";
+import { AnimationRuntime, cycleDuration } from "./runtime.js";
+import { encodeOfflineVideo, frameCount } from "./offline-video.js";
 import { OUTPUT, RECORDING_CHAIN, sceneById } from "./scenes/catalog.js";
 import { drawCaption } from "./caption-compositor.js";
 import { createOperatorControls, crossedBoundary } from "./operator.js";
@@ -61,7 +62,7 @@ function toast(msg, isError = false) {
   toastEl.classList.toggle("error", isError);
   toastEl.classList.add("show");
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => toastEl.classList.remove("show"), 2200);
+  toastTimer = setTimeout(() => toastEl.classList.remove("show"), isError ? 10000 : 2200);
 }
 
 function activateClasses(id) {
@@ -189,7 +190,7 @@ editor = createFrameEditor({
 
 const REC_W = OUTPUT.width, REC_H = OUTPUT.height;
 
-// Одна и та же сборка WebGL + типографики для MediaRecorder и контроля PNG.
+// Одна и та же сборка WebGL + типографики для экспорта и контроля PNG.
 function drawCompositeFrame(ctx, includeCaption = true) {
   ctx.drawImage(canvas, 0, 0, REC_W, REC_H);
   const cap = document.getElementById("caption");
@@ -197,7 +198,7 @@ function drawCompositeFrame(ctx, includeCaption = true) {
   if (op > 0.001) drawCaption(ctx, op, activeScene.id);
 }
 
-/** Тот же композит, что записывает MediaRecorder; includeCaption=false — эталон для теста. */
+/** Тот же композит, что записывается в видео; includeCaption=false — эталон для теста. */
 function compositeFrameAt(time, dt = 1 / OUTPUT.fps, includeCaption = true) {
   runtime.renderAt(time, dt);
   const frame = document.createElement("canvas");
@@ -232,7 +233,7 @@ function switchScene(id, source) {
   snapshot.style.width = canvas.style.width;
   snapshot.style.height = canvas.style.height;
   drawCompositeFrame(snapshot.getContext("2d"));
-  document.body.appendChild(snapshot);
+  if (source !== SEQUENCE_SWITCH) document.body.appendChild(snapshot);
   const oldCanvas = canvas;
   const oldScene = scene;
   nextCanvas.id = "stage";
@@ -252,181 +253,141 @@ function switchScene(id, source) {
   const url = new URL(location.href);
   url.searchParams.set("scene", id === "waiting" ? "intro" : id);
   history.replaceState(null, "", url);
-  transition = snapshot;
-  requestAnimationFrame(() => snapshot.classList.add("transition-out"));
-  setTimeout(() => {
-    snapshot.remove();
-    if (transition === snapshot) transition = null;
-  }, 1050);
-  operator.refresh();
-  return true;
-}
-
-function startRecording() {
-  if (recording || transition) return;
-  editor?.disable();
-  if (typeof MediaRecorder === "undefined" || !HTMLCanvasElement.prototype.captureStream) {
-    toast("Запись не поддерживается в этом браузере", true);
-    return;
-  }
-  const tl = cfg.timeline;
-  const cycle = runtime.cycle;
-  const mime = ["video/webm;codecs=vp9", "video/webm;codecs=vp8", "video/webm"]
-    .find((m) => MediaRecorder.isTypeSupported(m)) || "video/webm";
-  const rc = document.createElement("canvas");
-  rc.width = REC_W; rc.height = REC_H;
-  const rctx = rc.getContext("2d");
-  const chunks = [];
-  const rec = new MediaRecorder(rc.captureStream(OUTPUT.fps), { mimeType: mime, videoBitsPerSecond: 40000000 });
-  rec.ondataavailable = (e) => { if (e.data && e.data.size) chunks.push(e.data); };
-  window.__recStats = { chunks };
-  rec.onstop = () => {
-    const blob = new Blob(chunks, { type: "video/webm" });
-    window.__lastVideoBlob = blob;
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download = `${activeScene.id === "waiting" ? "intro" : activeScene.id}-1920x1080.webm`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    toast("Видео сохранено (WebM)");
-  };
-  recording = { kind: "single", rec, ctx: rctx, start: tl.startDelay, cycle, t0: performance.now(), prevT: runtime.time };
-  rec.start(250);
-  toast(`Запись цикла ${cycle.toFixed(1)} с — не переключайте вкладку`);
-}
-
-/** Одна непрерывная MediaRecorder-сессия на четыре вида и три перехода. */
-function startSequenceRecording({ download = true } = {}) {
-  if (recording) return false;
-  editor?.disable();
-  // Запись всегда начинается с первого кадра 01; с любого другого вида
-  // сначала выполняется обычный плавный переход к нему.
-  if (sceneId !== RECORDING_CHAIN[0]) {
-    if (transition || !switchScene(RECORDING_CHAIN[0])) return false;
-    const pending = transition;
-    toast("Подготавливаем запись всей цепочки…");
-    const waitForTransition = () => {
-      if (transition === pending) { setTimeout(waitForTransition, 100); return; }
-      if (sceneId === RECORDING_CHAIN[0] && !recording) startSequenceRecording({ download });
-    };
-    setTimeout(waitForTransition, 1100);
-    return true;
-  }
-  if (transition) return false;
-  if (typeof MediaRecorder === "undefined" || !HTMLCanvasElement.prototype.captureStream) {
-    toast("Запись не поддерживается в этом браузере", true);
-    return false;
-  }
-  const mime = ["video/webm;codecs=vp9", "video/webm;codecs=vp8", "video/webm"]
-    .find((m) => MediaRecorder.isTypeSupported(m)) || "video/webm";
-  const canvasForVideo = document.createElement("canvas");
-  canvasForVideo.width = REC_W;
-  canvasForVideo.height = REC_H;
-  const videoCtx = canvasForVideo.getContext("2d");
-  const rec = new MediaRecorder(canvasForVideo.captureStream(OUTPUT.fps), {
-    mimeType: mime, videoBitsPerSecond: 40000000,
-  });
-  const chunks = [];
-  const stats = { scenes: [sceneId], transitions: [], frames: 0, blendedFrames: 0,
-    resolution: [REC_W, REC_H], mime };
-  window.__sequenceStats = stats;
-  rec.ondataavailable = (e) => { if (e.data?.size) chunks.push(e.data); };
-  rec.onstop = () => {
-    const blob = new Blob(chunks, { type: mime });
-    window.__lastSequenceBlob = blob;
-    stats.bytes = blob.size;
-    if (!blob.size) { toast("Запись не удалась: пустой файл", true); return; }
-    if (download) {
-      const link = document.createElement("a");
-      link.href = URL.createObjectURL(blob);
-      link.download = "circle-01-02-08-09-1920x1080.webm";
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      setTimeout(() => URL.revokeObjectURL(link.href), 60000);
-    }
-    toast("Вся цепочка сохранена одним WebM");
-  };
-  rec.onerror = (event) => {
-    toast("Ошибка видеозаписи", true);
-    if (recording?.rec === rec) recording = null;
-  };
-  cfg.playback.paused = false;
-  runtime.renderAt(cfg.timeline.startDelay, 1 / OUTPUT.fps);
-  recording = { kind: "sequence", rec, ctx: videoCtx, segment: 0,
-    stageStarted: performance.now(), outgoing: null, transitionAt: 0, stats };
-  rec.start(250);
-  toast("Записываем 01 → 02 → 08 → 09; не переключайте вкладку");
-  return true;
-}
-
-function finishSequenceRecording(seq) {
-  if (recording !== seq) return;
-  recording = null;
-  cfg.playback.paused = true; // оставить финальный кадр для режиссёрской проверки
-  if (seq.rec.state === "recording") {
-    seq.rec.requestData();
-    seq.rec.stop();
-  }
-  operator.refresh();
-}
-
-function renderSequenceFrame(now) {
-  const seq = recording;
-  const speed = Math.max(0.01, cfg.timeline.speed);
-  const elapsed = Math.max(0, (now - seq.stageStarted) / 1000);
-  const duration = runtime.cycle / speed;
-  if (elapsed >= duration) {
-    // Последний кадр сцены фиксируем перед швом; тот же полный композит
-    // используется как исходная сторона кроссфейда и в экспортном WebM.
-    runtime.renderAt(cfg.timeline.startDelay + runtime.cycle - 1 / OUTPUT.fps);
-    if (seq.segment === RECORDING_CHAIN.length - 1) {
-      drawCompositeFrame(seq.ctx);
-      seq.stats.frames++;
-      finishSequenceRecording(seq);
-      return;
-    }
-    const from = sceneId;
-    const to = RECORDING_CHAIN[seq.segment + 1];
-    if (switchScene(to, SEQUENCE_SWITCH)) {
-      seq.segment++;
-      seq.stageStarted = performance.now();
-      seq.transitionAt = seq.stageStarted;
-      seq.outgoing = transition;
-      seq.stats.scenes.push(to);
-      seq.stats.transitions.push({ from, to, blendedFrames: 0 });
-    }
-    // Если браузер ещё показывает предыдущий переход, ждём его завершения;
-    // переходы никогда не накладываются друг на друга и не пропускают вид.
+  if (source === SEQUENCE_SWITCH) {
+    recording.outgoing = snapshot;
   } else {
-    const local = Math.min(runtime.cycle - 1 / OUTPUT.fps, elapsed * speed);
-    runtime.renderAt(cfg.timeline.startDelay + local, 1 / OUTPUT.fps);
+    transition = snapshot;
+    requestAnimationFrame(() => snapshot.classList.add("transition-out"));
+    setTimeout(() => {
+      snapshot.remove();
+      if (transition === snapshot) transition = null;
+    }, 1050);
   }
-  const fadeTime = seq.outgoing ? performance.now() : 0;
-  drawCompositeFrame(seq.ctx);
-  if (seq.outgoing) {
-    const p = Math.min(1, Math.max(0, (fadeTime - seq.transitionAt) / 900));
-    if (p >= 1) seq.outgoing = null;
-    else {
-      const eased = p * p * (3 - 2 * p);
-      seq.ctx.save();
-      seq.ctx.globalAlpha = 1 - eased;
-      seq.ctx.drawImage(seq.outgoing, 0, 0, REC_W, REC_H);
-      seq.ctx.restore();
-      seq.stats.blendedFrames++;
-      seq.stats.transitions.at(-1).blendedFrames++;
-    }
-  }
-  seq.stats.frames++;
+  operator.refresh();
+  return true;
 }
 
-function stopRecording() {
-  const r = recording;
-  recording = null;
-  if (r.rec.state === "recording") r.rec.requestData();
-  r.rec.stop();
-  runtime.time = r.prevT;
+// The export owns the renderer until it has completed or has been cancelled.
+function exportOverlay(job) {
+  const overlay = document.createElement("div");
+  overlay.className = "export-overlay";
+  overlay.innerHTML = '<div class="export-dialog" role="status" aria-live="polite"><strong>Покадровый экспорт</strong><p>Подготовка…</p><progress max="100" value="0"></progress><button type="button">Отменить</button></div>';
+  const inert = [...document.body.children].filter(el => el !== canvas && el.id !== "caption" && el.id !== "toast").map(el => [el, el.inert]);
+  for (const [el] of inert) el.inert = true;
+  document.body.appendChild(overlay);
+  const button = overlay.querySelector("button");
+  button.addEventListener("click", () => { job.cancelled = true; button.disabled = true; button.textContent = "Отмена…"; });
+  const blockKeys = event => { if (event.key !== "Tab") event.stopImmediatePropagation(); };
+  window.addEventListener("keydown", blockKeys, true);
+  button.focus();
+  return {
+    progress(done, total) {
+      const percent = Math.floor(done * 100 / total);
+      overlay.querySelector("p").textContent = `Кадр ${done} из ${total} · ${percent}%`;
+      overlay.querySelector("progress").value = percent;
+    },
+    remove() {
+      window.removeEventListener("keydown", blockKeys, true);
+      for (const [el, previous] of inert) el.inert = previous;
+      overlay.remove();
+    },
+  };
+}
+function saveVideo(blob, filename) {
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(blob); link.download = filename;
+  document.body.appendChild(link); link.click(); link.remove();
+  setTimeout(() => URL.revokeObjectURL(link.href), 60000);
+}
+function startRecording({ download = true } = {}) {
+  return startOfflineRecording("single", download);
+}
+function startSequenceRecording({ download = true } = {}) {
+  return startOfflineRecording("sequence", download);
+}
+function startOfflineRecording(kind, download) {
+  if (recording || transition) return false;
+  editor?.disable();
+  const job = { kind, cancelled:false, outgoing:null };
+  recording = job;
+  const overlay = exportOverlay(job);
+  operator.refresh();
+  runOfflineRecording(job, overlay, download).catch(error => console.error("Ошибка экспорта", error));
+  return true;
+}
+async function runOfflineRecording(job, overlay, download) {
+  const initialTime = runtime.time;
+  const initialScene = sceneId;
+  let completed = false;
+  const stats = { scenes: [], transitions: [], frames: 0, blendedFrames: 0,
+    resolution: [REC_W, REC_H], mime: "video/mp4" };
+  if (job.kind === "sequence") { window.__sequenceStats = stats; window.__lastSequenceBlob = null; }
+  else { window.__recStats = stats; window.__lastVideoBlob = null; }
+  try {
+    const ids = job.kind === "sequence" ? RECORDING_CHAIN : [sceneId];
+    const segments = ids.map(id => {
+      const timeline = configFor(id).timeline;
+      return { id, start:timeline.startDelay, speed:timeline.speed,
+        count:frameCount(cycleDuration(timeline), timeline.speed, OUTPUT.fps) };
+    });
+    const total = segments.reduce((sum, segment) => sum + segment.count, 0);
+    const videoCanvas = document.createElement("canvas");
+    videoCanvas.width = REC_W; videoCanvas.height = REC_H;
+    const ctx = videoCanvas.getContext("2d");
+    if (!ctx) throw new Error("Не удалось создать кадр для экспорта");
+    let segmentIndex = -1, segmentStart = 0;
+    const result = await encodeOfflineVideo({canvas:videoCanvas, fps:OUTPUT.fps, total,
+      cancelled:() => job.cancelled,
+      progress:(done, count) => overlay.progress(done, count),
+      draw(index) {
+        if (segmentIndex < 0 || index >= segmentStart + segments[segmentIndex].count) {
+          if (segmentIndex >= 0) segmentStart += segments[segmentIndex].count;
+          const from = sceneId;
+          segmentIndex++;
+          const next = segments[segmentIndex];
+          if (sceneId !== next.id && !switchScene(next.id, SEQUENCE_SWITCH))
+            throw new Error(`Не удалось открыть сцену ${next.id}`);
+          if (segmentIndex === 0) job.outgoing = null;
+          else stats.transitions.push({from, to:next.id, blendedFrames:0});
+          stats.scenes.push(next.id);
+        }
+        const segment = segments[segmentIndex];
+        const localIndex = index - segmentStart;
+        runtime.renderAt(segment.start + localIndex * segment.speed / OUTPUT.fps, 1 / OUTPUT.fps);
+        drawCompositeFrame(ctx);
+        if (job.outgoing) {
+          const p = Math.min(1, localIndex / (0.9 * OUTPUT.fps));
+          if (p >= 1) job.outgoing = null;
+          else {
+            const eased = p * p * (3 - 2 * p);
+            ctx.save(); ctx.globalAlpha = 1 - eased;
+            ctx.drawImage(job.outgoing, 0, 0, REC_W, REC_H); ctx.restore();
+            stats.blendedFrames++; stats.transitions.at(-1).blendedFrames++;
+          }
+        }
+        stats.frames++;
+      },
+    });
+    stats.bytes = result.blob.size; stats.codec = result.codec; stats.expectedFrames = total;
+    if (job.kind === "sequence") window.__lastSequenceBlob = result.blob;
+    else window.__lastVideoBlob = result.blob;
+    if (download) saveVideo(result.blob, job.kind === "sequence" ? "circle-01-02-08-09-1920x1080.mp4" : `${initialScene === "waiting" ? "intro" : initialScene}-1920x1080.mp4`);
+    completed = true;
+    toast(job.kind === "sequence" ? "Вся цепочка сохранена одним MP4" : "Видео сохранено (MP4)");
+  } catch (error) {
+    stats.error = error.message;
+    toast(error.name === "AbortError" ? "Экспорт отменён" : `Ошибка экспорта: ${error.message}`, error.name !== "AbortError");
+    if (error.name !== "AbortError") console.error("Ошибка экспорта", error);
+  } finally {
+    recording = null;
+    try {
+      if (job.kind === "single") runtime.renderAt(initialTime, 1 / OUTPUT.fps);
+      else if (completed) cfg.playback.paused = true;
+    } finally {
+      last = performance.now();
+      overlay.remove(); settings.refresh(); operator.refresh();
+    }
+  }
 }
 
 let firstFrameRendered = false;
@@ -436,11 +397,7 @@ function frame(now) {
   const renderDt = Math.min(0.05, elapsed);
   last = now;
   const before = runtime.time;
-  if (recording?.kind === "sequence") {
-    renderSequenceFrame(now);
-  } else if (recording?.kind === "single") {
-    runtime.renderAt(recording.start + ((now - recording.t0) / 1000) * cfg.timeline.speed, renderDt);
-  } else {
+  if (!recording) {
     runtime.advance(elapsed, renderDt);
     if (operator.auto && !cfg.playback.paused && !transition &&
         crossedBoundary(before, runtime.time, cfg.timeline.startDelay, runtime.cycle)) {
@@ -458,10 +415,6 @@ function frame(now) {
   if (now - lastOperatorRefresh >= 120) {
     operator.refresh();
     lastOperatorRefresh = now;
-  }
-  if (recording?.kind === "single") {
-    drawCompositeFrame(recording.ctx);
-    if (runtime.time >= recording.start + recording.cycle) stopRecording();
   }
   requestAnimationFrame(frame);
 }

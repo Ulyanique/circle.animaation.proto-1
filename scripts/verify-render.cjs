@@ -81,7 +81,7 @@ const URL_ = process.env.URL || "http://localhost:5173/";
       state(tl.startDelay + 1.8);
       const ringsSettled = L.scene.corners.sides.left.layers
         .every((layer) => layer.u.value > 0.99);
-      // Проверка именно экспортного canvas: буквы должны попадать в WebM-композит,
+      // Проверка именно экспортного canvas: буквы должны попадать в видео-композит,
       // а не существовать только как DOM-подпись поверх WebGL.
       const exportTime = tl.startDelay + tl.drawDuration + tl.emergeDuration + tl.holdDuration * 0.55;
       const withTitle = L.compositeFrameAt(exportTime);

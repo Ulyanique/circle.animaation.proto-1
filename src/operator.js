@@ -6,7 +6,7 @@ export function crossedBoundary(before, after, delay, cycle) {
     Math.floor((after - delay) / cycle) > Math.floor((Math.max(before, delay) - delay) / cycle);
 }
 
-/** Единый пульт для всех готовых видов. В кадр и WebM не входит. */
+/** Единый пульт для всех готовых видов. В кадр и MP4 не входит. */
 export function createOperatorControls({ getState, seek, setDuration, togglePause, switchScene, record, recordChain }) {
   const panel = document.createElement("section");
   panel.className = "operator-panel";
@@ -31,7 +31,7 @@ export function createOperatorControls({ getState, seek, setDuration, togglePaus
       <output data-role="time" aria-live="off"></output>
       <label class="operator-duration">Цикл <input type="number" data-action="duration" min="1" max="300" step="0.1" aria-label="Длительность цикла в секундах"> с</label>
       <button type="button" data-action="record" title="Записать один цикл текущей заставки">● Цикл</button>
-      <button type="button" data-action="record-chain" title="Записать 01 → 02 → 08 → 09 с переходами одним WebM">● Вся цепочка</button>
+      <button type="button" data-action="record-chain" title="Записать 01 → 02 → 08 → 09 с переходами одним MP4">● Вся цепочка</button>
     </div>`;
   document.body.appendChild(panel);
   const range = panel.querySelector('[data-action="seek"]');

@@ -5,7 +5,7 @@ import { FINALE_DEFAULTS } from "./finale.js";
 
 // Единственный технический формат цикла. Других разрешений и пресетов нет.
 export const OUTPUT = Object.freeze({ width: 1920, height: 1080, fps: 60 });
-// Порядок одной полной программы для предпросмотра и записи единым WebM.
+// Порядок одной полной программы для предпросмотра и записи единым MP4.
 export const RECORDING_CHAIN = Object.freeze(["waiting", "brand", "photo-pause", "finale"]);
 
 /**

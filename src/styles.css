@@ -769,3 +769,9 @@ body.editor-on.operator-idle:not(.ui-on) .operator-panel { opacity: 1; pointer-e
 .editor-phase-marker[data-phase=exit] { left: var(--phase-exit); }
 .editor-phase-marker:focus-visible { outline: 2px solid #ffe2a2; outline-offset: 2px; }
 @media (max-width: 780px) { .editor-phase-row { grid-template-columns: minmax(75px, 110px) minmax(80px, 1fr); } }
+
+.export-overlay { position: fixed; inset: 0; z-index: 100; display: grid; place-items: center; background: rgba(4, 3, 2, .68); }
+.export-dialog { min-width: 280px; padding: 24px; text-align: center; border: 1px solid #a98348; border-radius: 8px; color: #f2d49c; background: #17110b; box-shadow: 0 12px 48px #000a; }
+.export-dialog p { margin: 12px 0; }
+.export-dialog progress { display: block; width: 100%; margin-bottom: 16px; accent-color: #caa466; }
+.export-dialog button { padding: 8px 18px; color: #f2d49c; background: #312417; border: 1px solid #a98348; border-radius: 4px; cursor: pointer; }
