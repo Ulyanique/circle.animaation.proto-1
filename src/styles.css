@@ -41,14 +41,14 @@ body.scene-finale #caption .cap-date { display: none; }
 /* Фоновые сцены: титр опущен в нижнюю треть, знак крупнее. */
 body.scene-brand #caption .cap-title { left: calc(50% + var(--title-offset-x, 0%)); top: calc(65% + var(--title-offset-y, 0%)); }
 body.scene-photo #caption .cap-title {
-  left: calc(50% + var(--title-offset-x, 0%)); top: calc(65% + var(--title-offset-y, 0%)); font-size: calc(var(--u) * 6.7 * var(--title-scale, 1));
+  left: calc(50% + var(--title-offset-x, 0%)); top: calc(65% + var(--title-offset-y, 0%)); font-size: calc(var(--u) * 6.7 * var(--title-scale, 1) * var(--title-fit, 1));
 }
 body.scene-finale #caption .cap-title {
-  left: calc(50% + var(--title-offset-x, 0%)); top: calc(65% + var(--title-offset-y, 0%)); font-size: calc(var(--u) * 6.6 * var(--title-scale, 1));
+  left: calc(50% + var(--title-offset-x, 0%)); top: calc(65% + var(--title-offset-y, 0%)); font-size: calc(var(--u) * 6.6 * var(--title-scale, 1) * var(--title-fit, 1));
 }
 body.scene-finale #caption .cap-sub {
-  left: calc(50% + var(--subtitle-offset-x, 0%)); top: calc(var(--finale-subtitle-y, 79%) + var(--subtitle-offset-y, 0%)); font-size: calc(var(--u) * 2.55 * var(--subtitle-scale, 1));
-  letter-spacing: .18em; padding-left: .18em;
+  left: calc(50% + var(--subtitle-offset-x, 0%)); top: calc(var(--finale-subtitle-y, 79%) + var(--subtitle-offset-y, 0%)); font-size: calc(var(--u) * 2.55 * var(--subtitle-scale, 1) * var(--subtitle-fit, 1));
+  letter-spacing: var(--subtitle-tracking, .18em); padding-left: var(--subtitle-tracking, .18em);
 }
 /* Мышь видна всегда. Только элементы пульта исчезают после бездействия. */
 body, body.ui-on, body.review-on { cursor: auto; }
@@ -379,7 +379,8 @@ body.operator-idle:not(.ui-on) .cfg-toggle { opacity: .55; }
 }
 #caption .cap-title {
   left: calc(50% + var(--title-offset-x, 0%)); top: calc(55% + var(--title-offset-y, 0%)); font-weight: 600;
-  font-size: calc(var(--u) * 7.2 * var(--title-scale, 1));
+  font-size: calc(var(--u) * 7.2 * var(--title-scale, 1) * var(--title-fit, 1));
+  letter-spacing: var(--title-tracking, 0em); padding-left: var(--title-tracking, 0em);
   -webkit-text-stroke: calc(var(--u) * 0.08) var(--title-color, #e0b25a);
   filter: drop-shadow(0 calc(var(--u) * 0.2) calc(var(--u) * 0.5) rgba(0, 0, 0, 0.7));
 }
@@ -401,13 +402,13 @@ body.operator-idle:not(.ui-on) .cfg-toggle { opacity: .55; }
 .r2 { top: 79%; }
 #caption .cap-sub {
   left: calc(50% + var(--subtitle-offset-x, 0%)); top: calc(72% + var(--subtitle-offset-y, 0%)); font-weight: 400;
-  font-size: calc(var(--u) * 2.4 * var(--subtitle-scale, 1)); letter-spacing: 0.32em; padding-left: 0.32em;
+  font-size: calc(var(--u) * 2.4 * var(--subtitle-scale, 1) * var(--subtitle-fit, 1)); letter-spacing: var(--subtitle-tracking, 0.32em); padding-left: var(--subtitle-tracking, 0.32em);
   text-transform: uppercase; -webkit-text-stroke: calc(var(--u) * 0.04) var(--subtitle-color, #d9b061);
 }
 .cap-sub .cap-glyph::after { color: var(--subtitle-color, #ecd08c); }
 #caption .cap-date {
   left: calc(50% + var(--date-offset-x, 0%)); top: calc(84% + var(--date-offset-y, 0%)); font-weight: 400;
-  font-size: calc(var(--u) * 1.5 * var(--date-scale, 1)); letter-spacing: 0.28em; padding-left: 0.28em;
+  font-size: calc(var(--u) * 1.5 * var(--date-scale, 1) * var(--date-fit, 1)); letter-spacing: var(--date-tracking, 0.28em); padding-left: var(--date-tracking, 0.28em);
   text-transform: uppercase; -webkit-text-stroke: calc(var(--u) * 0.035) var(--date-color, #d9b061);
 }
 .cap-date .cap-glyph::after { color: var(--date-color, #d9b061); }
@@ -636,7 +637,7 @@ body.editor-on.operator-idle:not(.ui-on) .operator-panel { opacity: 1; pointer-e
 .editor-visibility[aria-pressed="false"] .eye-slash { display: block; }
 .editor-hidden-note { margin: 0 7px 8px; padding: 8px; border-radius: 4px; background: #30281b; color: #d7c39b; font-size: 11px; }
 .editor-hidden-note[hidden] { display: none; }
-#caption .cap-custom { font-weight: 600; font-size: calc(var(--u) * 3.5 * var(--custom-scale, 1));
+#caption .cap-custom { opacity: calc(var(--custom-opacity, 1) * var(--custom-reveal, 1)); letter-spacing: var(--custom-tracking, 0em); padding-left: var(--custom-tracking, 0em); font-weight: 600; font-size: calc(var(--u) * 3.5 * var(--custom-scale, 1) * var(--custom-fit, 1));
   -webkit-text-stroke: calc(var(--u) * .04) var(--custom-color, #ecd08c); }
 #caption .cap-custom .cap-glyph::after { color: var(--custom-color, #ecd08c); }
 #caption .cap-custom .glyph-contour path { stroke: var(--custom-color, #ecd08c); }
@@ -775,3 +776,343 @@ body.editor-on.operator-idle:not(.ui-on) .operator-panel { opacity: 1; pointer-e
 .export-dialog p { margin: 12px 0; }
 .export-dialog progress { display: block; width: 100%; margin-bottom: 16px; accent-color: #caa466; }
 .export-dialog button { padding: 8px 18px; color: #f2d49c; background: #312417; border: 1px solid #a98348; border-radius: 4px; cursor: pointer; }
+
+/* Рабочий ориентир: не входит в композит и не является стандартом конкретной площадки. */
+.editor-safe-frame { position: fixed; pointer-events: none; border: 1px dashed rgba(230, 216, 180, .46); z-index: 0; }
+.editor-safe-frame[hidden], .editor-safe-notice[hidden] { display: none; }
+.editor-safe-notice { position: fixed; pointer-events: none; z-index: 1; padding: 5px 8px;
+  border-radius: 3px; color: #ffe3ac; background: rgba(74, 37, 14, .9); font: 11px/1.35 system-ui, sans-serif; }
+.editor-history [data-safe-toggle][aria-pressed="true"] { color: #ffe1a4; border-color: #bfa36d; background: #3a3020; }
+@media (max-width: 400px) {
+  .editor-history { flex-wrap: nowrap; overflow-x: auto; }
+  .editor-history button { flex: none; font-size: 9px; padding: 6px 3px; }
+}
+
+/* Блокировка геометрии действует только в редакторе. */
+.editor-lock { flex: 0 0 25px; padding: 4px; border: 0; border-radius: 4px; background: transparent; color: #716b5f; cursor: pointer; }
+.editor-lock svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+.editor-lock[aria-pressed="true"] { color: #f3ca76; }
+.editor-lock:hover, .editor-lock:focus-visible { background: #30281b; outline: 1px solid #947744; }
+.editor-box.is-locked { cursor: pointer; }
+.editor-box.is-locked .editor-resize { display: none; }
+
+.editor-geometry { margin: 10px 7px; padding: 10px 0; border-bottom: 1px solid #665333; }
+.editor-geometry h3 { margin: 0 0 7px; color: #e9ce98; font-size: 12px; }
+.editor-geometry-fields { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 5px; }
+.editor-geometry-fields label { display: grid; min-width: 0; gap: 4px; color: #d3c7b1; font-size: 11px; }
+.editor-geometry-fields input { box-sizing: border-box; width: 100%; min-width: 0; padding: 5px 3px; color: #f0e8d8; background: #090806; border: 1px solid #7c6744; border-radius: 4px; font: inherit; }
+.editor-geometry-fields input:disabled { opacity: .45; }
+.editor-geometry p { margin: 7px 0 0; color: #9b9488; font-size: 10px; line-height: 1.4; }
+
+.editor-appearance .editor-custom-tracking:not([hidden]) { display: grid; gap: 5px; margin: 10px 0; }
+.editor-custom-tracking span { display: flex; justify-content: space-between; }
+.editor-custom-tracking output { color: #e7ca91; }
+.editor-custom-tracking input { width: 100%; margin: 0; accent-color: #d9b061; }
+
+.editor-appearance select[data-custom-font], .editor-appearance select[data-custom-case], .editor-appearance select[data-custom-reveal] { min-width: 0; max-width: 145px; padding: 5px; color: #f0e8d8; background: #090806; border: 1px solid #7c6744; border-radius: 4px; font: inherit; }
+
+.editor-effect-intensity { margin: 10px 7px; padding: 10px 0; border-bottom: 1px solid #665333; }
+.editor-effect-intensity[hidden], .editor-effect-intensity label[hidden] { display: none; }
+.editor-effect-intensity h3 { margin: 0 0 8px; color: #e9ce98; font-size: 12px; }
+.editor-effect-intensity label { display: grid; gap: 5px; margin: 8px 0; color: #d3c7b1; font-size: 11px; }
+.editor-effect-intensity label > span { display: flex; justify-content: space-between; gap: 4px; }
+.editor-effect-intensity output { color: #e7ca91; }
+.editor-effect-intensity input { width: 100%; margin: 0; accent-color: #d9b061; }
+.editor-effect-intensity p { margin: 6px 0 0; color: #9b9488; font-size: 10px; }
+
+/* Мягкое проявление: готовая заливка без пишущего контура. */
+#caption .cap-custom[data-reveal-style^="fade"] .cap-glyph { -webkit-text-stroke: 0; }
+#caption .cap-custom[data-reveal-style^="fade"] .glyph-contour,
+#caption .cap-custom[data-reveal-style^="fade"] .cap-glyph::before { display: none; }
+
+.editor-effect-order-mode { margin: 8px; padding: 8px; border: 1px solid #514832; color: #d3c7b1; font-size: 10px; }
+.editor-effect-order-mode label { display:flex; gap:5px; align-items:center; font-size:11px; }
+.editor-effect-order-mode p { margin:6px 0 0; color:#9b9488; line-height:1.4; }
+.editor-effect-order { margin:12px 7px; padding:10px 0; border-bottom:1px solid #665333; }
+.editor-effect-order[hidden] { display:none; }
+.editor-effect-order h3 { margin:0 0 6px; color:#e9ce98; font-size:12px; }
+.editor-effect-order p { color:#9b9488; font-size:10px; line-height:1.4; }
+.editor-effect-order div { display:flex; gap:4px; }
+
+/* Рабочее пространство: нейтральные панели, акцент на активном слое и времени. */
+.editor-sidebar, .editor-track-panel { background: #1c1d20; border: 1px solid #383b41; border-radius: 3px; color: #d8d9dc; }
+.editor-sidebar-heading { display: flex; align-items: center; justify-content: space-between; min-height: 48px; padding: 8px 12px; background: #24262a; border-bottom: 1px solid #383b41; box-sizing: border-box; }
+.editor-sidebar-heading span { color: #969ba5; font-size: 9px; letter-spacing: .1em; }
+.editor-sidebar-heading h2 { color: #f0f1f3; font-size: 13px; }
+.editor-sidebar-heading output { color: #a8adb7; font-size: 10px; font-variant-numeric: tabular-nums; }
+.editor-layer-tools { padding: 9px 9px 4px; }
+.editor-layer-search { display: flex; align-items: center; gap: 6px; padding: 0 7px; color: #a2a7b0; border: 1px solid #494d55; border-radius: 3px; background: #141519; }
+.editor-layer-search:focus-within { border-color: #d2ad6a; box-shadow: 0 0 0 1px #d2ad6a; }
+.editor-layer-search span { font-size: 17px; line-height: 1; }
+.editor-layer-search input { width: 100%; min-width: 0; height: 28px; border: 0; outline: 0; background: transparent; color: #f1f1f2; font: 11px system-ui, sans-serif; }
+.editor-layer-search input::placeholder { color: #92969e; }
+.editor-layer-filters { display: flex; gap: 3px; margin-top: 7px; }
+.editor-layer-filters button { flex: 1; min-width: 0; padding: 5px 2px; border: 1px solid transparent; border-radius: 3px; color: #b5b8bf; background: transparent; cursor: pointer; font: 10px system-ui, sans-serif; }
+.editor-layer-filters button:hover { background: #303238; color: #fff; }
+.editor-layer-filters button[aria-pressed="true"] { color: #f5dfb5; background: #514535; border-color: #756347; }
+.editor-layer-filters button:focus-visible, .editor-effect-order-mode summary:focus-visible { outline: 2px solid #d2ad6a; outline-offset: 1px; }
+.editor-effect-order-mode { margin: 2px 9px 4px; padding: 0; border: 0; border-bottom: 1px solid #393c42; color: #c7cad0; }
+.editor-effect-order-mode summary { cursor: pointer; padding: 7px 0; font-size: 10px; }
+.editor-effect-order-mode summary span { float: right; color: #a69a86; font-size: 8px; letter-spacing: .04em; }
+.editor-effect-order-mode label { padding: 3px 0; }
+.editor-effect-order-mode p { padding-bottom: 8px; }
+.editor-layers-list { padding: 4px 6px; }
+.editor-layer-entry:hover { background: #2b2d32; }
+.editor-layer-row { color: #e0e1e3; }
+.editor-layer-row[aria-pressed="true"] { background: #3f3a32; border-color: #8d7959; color: #fff0d2; }
+.editor-layer-icon { background: #292b30; border-color: #535760; color: #dcc190; }
+.editor-layer-name strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.editor-layer-name small { color: #a1a5ad; }
+.editor-no-layers { padding: 12px; color: #b2b4bb; line-height: 1.5; }
+.editor-no-layers[hidden] { display: none; }
+.editor-add-heading { margin: 10px 10px 4px; color: #a0a4ac; font-size: 9px; font-weight: 600; letter-spacing: .1em; }
+.editor-add-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; padding: 0 6px; }
+.editor-add-grid .editor-add-text { width: 100%; min-width: 0; margin: 0; padding: 7px 5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; background: #2b2d32; border-color: #484c54; color: #e3e1dc; font-size: 10px; }
+.editor-add-grid .editor-add-text:hover, .editor-add-grid .editor-add-text:focus-visible { background: #403a30; border-color: #c3a46f; }
+.editor-sidebar-note { color: #a2a5ac; font-size: 10px; }
+.editor-inspector .editor-appearance { color: #d5d5d6; border-color: #41444a; }
+.editor-inspector .editor-appearance input[type="text"], .editor-inspector select, .editor-inspector input[type="number"] { background: #141519; border-color: #50545c; color: #f0f0f1; }
+.editor-selected-label { color: #f3dfba; }
+.editor-track-head { min-height: 29px; box-sizing: border-box; background: #24262a; border-color: #393c42; }
+.editor-track-head strong { color: #f1f1f2; font-size: 12px; }
+.editor-track-head small { color: #a5a9b1; }
+.editor-track-head output { color: #f0d3a0; }
+.editor-track-scale, .editor-track-row, .editor-phase-row { grid-template-columns: minmax(90px, 165px) minmax(70px, 1fr); }
+.editor-track-row { border-top: 1px solid #303238; }
+.editor-track-row.selected { background: #38352f; }
+.editor-track-label { color: #dedfe2; }
+.editor-track-lane { background: #18191c; border-color: #353840; }
+.editor-track-auto { background: repeating-linear-gradient(135deg, #44454a 0 4px, #383a3f 4px 8px); color: #e0e0e1; }
+.editor-track-ruler::after, .editor-track-lane::after { background: #eacb8f; width: 2px; }
+@media (min-width: 1200px) {
+  .editor-layers { width: 220px; }
+  .editor-inspector { width: 270px; }
+  .editor-track-panel { left: 240px; right: 290px; height: min(205px, 23vh); }
+}
+@media (max-width: 780px) {
+  .editor-track-scale, .editor-track-row, .editor-phase-row { grid-template-columns: minmax(75px, 110px) minmax(80px, 1fr); }
+}
+.editor-inspector .editor-sidebar-heading { display: block; }
+@media (max-width: 780px) {
+  .editor-sidebar { bottom: calc(min(175px, 32vh) + min(120px, 16vh) + 6px); }
+}
+
+/* Настраиваемые разделители и таймлайн сразу под изображением композиции. */
+@media (min-width: 781px) {
+  .editor-layers { width: var(--workspace-layers, 176px); }
+  .editor-inspector { width: var(--workspace-inspector, 226px); }
+  .editor-track-panel { left: calc(var(--workspace-layers, 176px) + 20px); right: calc(var(--workspace-inspector, 226px) + 20px); top: var(--workspace-timeline-top, auto); bottom: 140px; height: auto; }
+  .editor-workspace-resize { position: fixed; top: 68px; bottom: 140px; width: 10px; z-index: 6; pointer-events: auto; cursor: col-resize; touch-action: none; outline: none; }
+  .editor-workspace-resize-layers { left: calc(var(--workspace-layers, 176px) + 10px); }
+  .editor-workspace-resize-inspector { right: calc(var(--workspace-inspector, 226px) + 10px); }
+  .editor-workspace-resize::after { content: ''; position: absolute; left: 4px; top: calc(50% - 24px); height: 48px; width: 2px; border-radius: 2px; background: #686a70; }
+  .editor-workspace-resize:hover::after, .editor-workspace-resize:focus-visible::after { background: #d2ad6a; }
+}
+@media (max-width: 780px) { .editor-workspace-resize { display: none; } }
+/* Штатные элементы перечислены без выдуманной полосы времени. */
+.editor-track-lane.is-scenario { background: transparent; border-color: transparent; }
+.editor-track-scenario { display: block; width: 100%; height: 100%; overflow: hidden; padding: 0 8px; border: 0; background: transparent; color: #a9adb5; text-align: left; text-overflow: ellipsis; white-space: nowrap; font: 10px system-ui, sans-serif; cursor: pointer; }
+.editor-track-scenario:hover { color: #ece7dc; background: #2b2d32; }
+.editor-track-scenario:focus-visible { outline: 2px solid #d2ad6a; outline-offset: -2px; }
+.editor-track-row.is-hidden .editor-track-label, .editor-track-row.is-hidden .editor-track-scenario { color: #83868e; }
+
+/* Сворачиваемые разделы инспектора, не связанные с данными проекта. */
+.editor-property-group { border-bottom: 1px solid #41444a; }
+.editor-property-group[hidden] { display: none; }
+.editor-property-group > summary { display: flex; align-items: center; gap: 7px; padding: 10px 6px; color: #ead6b2; cursor: pointer; font-size: 11px; font-weight: 600; list-style: none; }
+.editor-property-group > summary::-webkit-details-marker { display: none; }
+.editor-property-group > summary::before { content: '▸'; color: #a5a8ae; font-size: 10px; }
+.editor-property-group[open] > summary::before { content: '▾'; }
+.editor-property-group > summary:hover { background: #292b30; }
+.editor-property-group > summary:focus-visible { outline: 2px solid #d2ad6a; outline-offset: -2px; }
+.editor-inspector .editor-property-group .editor-appearance, .editor-property-group .editor-effect-intensity,
+.editor-property-group .editor-geometry, .editor-property-group .editor-timing,
+.editor-property-group .editor-effect-order, .editor-property-group .editor-text-order { margin: 0; padding: 4px 6px 10px; border: 0; }
+.editor-property-group .editor-follow-logo, .editor-property-group .editor-ring-scale { margin: 0; padding: 5px 6px 10px; }
+.editor-property-group .editor-timing h3, .editor-property-group .editor-effect-order h3, .editor-property-group .editor-text-order h3 { margin-top: 2px; }
+.editor-property-group .editor-geometry-actions { padding: 0 6px 10px; }
+.editor-geometry-fields label > span { color: #b5b8c0; font-size: 10px; white-space: nowrap; }
+.editor-inspector .editor-reveal-control { padding-bottom: 0; }
+.editor-primary-actions { border-top: 0; }
+.editor-property-group:not([open]) > :not(summary) { display: none; }
+.editor-custom-tracking > span { width: 100%; gap: 8px; }
+
+/* Масштаб и рука относятся только к предпросмотру композиции. */
+.editor-preview-clip { position: fixed; inset: 0; z-index: 0; pointer-events: none; }
+.editor-pan-surface { position: fixed; inset: 0; z-index: 5; pointer-events: auto; cursor: grab; touch-action: none; }
+.editor-pan-surface[hidden] { display: none; }
+.editor-pan-surface.dragging { cursor: grabbing; }
+.editor-pan-surface:focus-visible { outline: none; }
+.editor-preview-tools { position: fixed; top: 14px; left: 415px; z-index: 8; display: flex; align-items: center; gap: 3px; padding: 2px; border: 1px solid #44464c; border-radius: 4px; background: #1c1d20; pointer-events: auto; font: 11px system-ui, sans-serif; }
+.editor-preview-tools button { min-width: 28px; padding: 5px 8px; border: 0; border-radius: 2px; color: #d8d9dc; background: transparent; cursor: pointer; font: inherit; }
+.editor-preview-tools button:hover, .editor-preview-tools button[aria-pressed="true"] { background: #514535; color: #ffdfab; }
+.editor-preview-tools button:focus-visible { outline: 2px solid #d2ad6a; outline-offset: -1px; }
+.editor-preview-tools button:disabled { opacity: .4; cursor: default; }
+.editor-preview-tools output { min-width: 40px; text-align: center; color: #e9d8ba; font-variant-numeric: tabular-nums; }
+@media (max-width: 780px) {
+  .editor-preview-tools { top: 82px; left: 10px; }
+  .editor-sidebar { top: 116px; }
+}
+.editor-quick-help { position: fixed; z-index: 9; top: 50px; left: 415px; width: min(350px, calc(100vw - 20px)); max-height: calc(100vh - 65px); overflow-y: auto; padding: 12px; border: 1px solid #555962; border-radius: 4px; background: #222429; color: #e4e4e7; box-shadow: 0 10px 32px #000b; pointer-events: auto; font: 11px/1.45 system-ui, sans-serif; }
+.editor-quick-help[hidden] { display: none; }
+.editor-quick-help-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 12px; }
+.editor-quick-help-head button { border: 0; border-radius: 3px; color: #d8d9dc; background: #35383e; padding: 2px 7px; cursor: pointer; font-size: 16px; }
+.editor-quick-help-head button:focus-visible { outline: 2px solid #d2ad6a; }
+.editor-quick-help dl { margin: 10px 0 0; }
+.editor-quick-help dt { margin-top: 10px; color: #ecd8b6; font-weight: 600; }
+.editor-quick-help dd { margin: 3px 0 0; color: #c0c3c9; }
+@media (max-width: 780px) { .editor-quick-help { top: 116px; left: 10px; max-height: calc(100vh - 132px); } }
+.editor-track-readout { display: flex; align-items: center; gap: 10px; margin-left: auto; }
+.editor-track-readout [data-track-timecode] { color: #ead4a9; font-variant-numeric: tabular-nums; }
+@media (max-width: 400px) { .editor-track-readout { gap: 6px; font-size: 10px; } }
+.editor-track-readout [data-frame-step] { padding: 2px 5px; min-width: 26px; font-size: 10px; color: #e9dfca; background: #35383e; border: 1px solid #595b5f; border-radius: 3px; cursor: pointer; }
+.editor-track-readout [data-frame-step]:focus-visible { outline: 2px solid #e9bf70; outline-offset: 1px; }
+.editor-track-readout input[data-track-timecode] { width: 76px; min-width: 0; padding: 2px 3px; box-sizing: border-box; background: #1e2024; border: 1px solid #565b63; border-radius: 3px; font: inherit; text-align: center; }
+.editor-track-readout input[data-track-timecode]:focus-visible { outline: 2px solid #e9bf70; outline-offset: 1px; }
+.editor-track-readout input[data-track-timecode][aria-invalid="true"] { border-color: #ff7676; outline-color: #ff7676; }
+.editor-track-lane.has-caption-mask { background: #18191c; border-color: #353840; }
+.editor-track-caption-mask { position: absolute; top: 2px; bottom: 2px; background: #6d5b40; border-radius: 2px; pointer-events: none; }
+.editor-track-caption-mask[hidden] { display: none; }
+.editor-track-row.is-timing-active .editor-track-caption-mask { background: #c9a363; }
+.editor-track-row.is-timing-active .editor-track-label { color: #f1d5a2; }
+.editor-track-lane.has-caption-mask .editor-track-scenario { position: relative; z-index: 1; text-shadow: 0 1px 2px #101010; }
+/* Линейка и фазы используют ту же ширину, что дорожки рядом с прокруткой. */
+.editor-track-scale, .editor-phase-row { padding-right: calc(12px + var(--timeline-scrollbar, 0px)); }
+.editor-track-ruler { border-left: 1px solid transparent; border-right: 1px solid transparent; }
+/* В редакторе перемотка и шаги находятся на таймлайне; остальные функции пульта остаются. */
+body.editor-on .operator-transport [data-action="prev"],
+body.editor-on .operator-transport [data-action="seek"],
+body.editor-on .operator-transport [data-action="next"],
+body.editor-on .operator-transport [data-role="time"] { display: none; }
+/* В широком редакторе пульт занимает одну строку, освобождая место дорожкам. */
+@media (min-width: 1200px) {
+  body.editor-on .operator-panel { display: flex; align-items: center; gap: 12px; }
+  body.editor-on .operator-panel .operator-row { flex-wrap: nowrap; min-width: 0; }
+  body.editor-on .operator-panel .operator-row:first-child { flex: 1 1 auto; }
+  body.editor-on .operator-panel .operator-row + .operator-row { flex: 0 0 auto; margin: 0; padding: 0; border: 0; }
+  body.editor-on .editor-track-panel { bottom: 80px; }
+}
+.editor-track-scenario[hidden] { display: none; }
+.editor-track-range { cursor: grab; touch-action: none; }
+.editor-track-range:active { cursor: grabbing; }
+.editor-track-range:focus-visible { outline: 2px solid #ffe2a2; outline-offset: 2px; }
+.editor-timing-seconds { display: flex; gap: 8px; }
+.editor-timing-seconds label { flex: 1; min-width: 0; }
+.editor-timing-seconds input { box-sizing: border-box; width: 100%; min-width: 0; padding: 4px; color: #eee; background: #141519; border: 1px solid #50545c; border-radius: 3px; }
+.editor-timing-seconds input[aria-invalid="true"] { border-color: #ff7676; }
+.editor-timing [data-timing-error] { color: #ffaaaa; }
+.editor-timing-cursor { display: flex; gap: 6px; }
+.editor-timing-cursor button { flex: 1; min-width: 0; padding: 5px 3px; color: #dedbd3; background: #303238; border: 1px solid #50545c; border-radius: 3px; font-size: 10px; cursor: pointer; }
+.editor-timing-cursor button:focus-visible { outline: 2px solid #e9bf70; outline-offset: 1px; }
+
+/* Монохромный рабочий хром. Не применяется к сцене, титрам и выбору цвета. */
+.editor-sidebar, .editor-track-panel, .editor-preview-tools, .editor-quick-help {
+  background: #191919; border-color: #3b3b3b; color: #e0e0e0;
+}
+.editor-sidebar-heading { background: #222; border-color: #393939; }
+.editor-sidebar-heading span, .editor-sidebar-heading output, .editor-sidebar-note,
+.editor-layer-name small, .editor-effect-order-mode p, .editor-timing-fields p { color: #aaa; }
+.editor-sidebar-heading h2, .editor-selected-label, .editor-property-group > summary,
+.editor-timing h3, .editor-effect-intensity h3, .editor-effect-order h3,
+.editor-text-order h3 { color: #f0f0f0; }
+.editor-layer-row[aria-pressed="true"] { background: #383838; border-color: #888; color: #fff; }
+.editor-layer-icon { background: #292929; border-color: #555; color: #ddd; }
+.editor-layer-filters button[aria-pressed="true"], .editor-preview-tools button[aria-pressed="true"],
+.editor-history [data-safe-toggle][aria-pressed="true"] { color: #fff; background: #484848; border-color: #888; }
+.editor-layer-entry:hover, .editor-property-group > summary:hover,
+.editor-add-grid .editor-add-text:hover, .editor-preview-tools button:hover { background: #333; color: #fff; }
+.editor-add-grid .editor-add-text { background: #292929; border-color: #4b4b4b; color: #eee; }
+.editor-property-group, .editor-effect-order-mode, .editor-inspector .editor-appearance { border-color: #414141; }
+.editor-inspector :is(input:not([type="color"]), select) { accent-color: #dedede; }
+.editor-inspector :is(input[type="text"], input[type="number"], select) { color: #eee; background: #151515; border-color: #555; }
+.editor-inspector :is(label, output), .editor-geometry-fields label > span { color: #ccc; }
+.editor-inspector input[aria-invalid="true"] { border-color: #ff7676; }
+.editor-inspector [data-timing-error] { color: #ffaaaa; }
+.editor-menu .editor-actions button, .editor-timing-cursor button { background: #292929; color: #e3e3e3; border-color: #505050; }
+.editor-menu .editor-actions button:hover, .editor-menu .editor-actions button:focus-visible { background: #3a3a3a; border-color: #aaa; }
+.editor-track-head { border-color: #383838; }
+.editor-track-head strong, .editor-track-head output, .editor-track-readout [data-track-timecode] { color: #eee; }
+.editor-track-row.selected { background: #323232; }
+.editor-track-label, .editor-track-row.selected .editor-track-label, .editor-track-row.is-timing-active .editor-track-label { color: #ddd; }
+.editor-track-lane, .editor-track-lane.has-caption-mask, .editor-phase-lane { background: #242424; border-color: #484848; }
+.editor-track-range { background: #aaa; }
+.editor-track-grip, .editor-phase-marker { background: #ddd; border-color: #fff; }
+.editor-track-caption-mask { background: #666; }
+.editor-track-row.is-timing-active .editor-track-caption-mask { background: #aaa; }
+.editor-track-auto { background: repeating-linear-gradient(135deg, #4a4a4a 0 4px, #3a3a3a 4px 8px); color: #eee; }
+.editor-phase-entry { background: #575757; }
+.editor-phase-hold { background: #3b3b3b; }
+.editor-phase-exit { background: #4b4b4b; }
+.editor-track-ruler::after, .editor-track-lane::after { background: #fff; }
+.editor-preview-tools output, .editor-quick-help dt { color: #eee; }
+.editor-lock[aria-pressed="true"] { color: #fff; }
+.editor-layer-search:focus-within { border-color: #eee; box-shadow: 0 0 0 1px #eee; }
+:is(.editor-sidebar, .editor-track-panel, .editor-preview-tools, .editor-history, .editor-quick-help) :focus-visible { outline: 2px solid #fff; outline-offset: 1px; }
+.editor-workspace-resize:hover::after, .editor-workspace-resize:focus-visible::after { background: #eee; }
+.editor-timing-fields [data-effect-curve-row][hidden] { display: none; }
+/* Пульт и верхние команды остаются функциональными, но не конкурируют с кадром. */
+body.editor-on .operator-panel { background: rgba(20,20,20,.96); border-color: #444; color: #ddd; }
+body.editor-on .operator-panel :is(.operator-label, .operator-duration) { color: #aaa; }
+body.editor-on .operator-panel button, body.editor-on .operator-duration input { background: #292929; border-color: #505050; color: #eee; }
+body.editor-on .operator-panel button:is(:hover, :focus-visible, [aria-current="page"], [aria-pressed="true"]) { background: #454545; border-color: #aaa; color: #fff; }
+body.editor-on .operator-transport output { color: #eee; }
+body.editor-on .operator-transport input[type="range"] { accent-color: #ddd; }
+body.editor-on .editor-toggle, body.editor-on .editor-history button { background: #242424; border-color: #505050; color: #eee; }
+body.editor-on .editor-history button:is(:hover, :focus-visible, [aria-pressed="true"]), body.editor-on .editor-toggle:hover { background: #444; border-color: #aaa; color: #fff; }
+
+/* Композиции и экспорт — одна верхняя лента, перемотка остаётся на таймлайне. */
+body.editor-on .operator-panel {
+  left: 10px; right: 10px; top: 59px; bottom: auto; transform: none;
+  width: auto; height: 44px; max-height: none; padding: 4px 8px;
+  display: flex; align-items: center; gap: 10px; overflow-x: auto; overflow-y: hidden;
+  box-shadow: none; border-radius: 3px; white-space: nowrap; scrollbar-width: thin;
+}
+body.editor-on .operator-panel .operator-row { flex: 0 0 auto; flex-wrap: nowrap; min-width: max-content; }
+body.editor-on .operator-panel .operator-row:first-child { flex: 1 0 auto; }
+body.editor-on .operator-panel .operator-row + .operator-row { margin: 0; padding: 0; border: 0; }
+body.editor-on .operator-panel .operator-scenes { flex: 0 0 auto; }
+body.editor-on .operator-panel button { padding: 5px 8px; }
+body.editor-on .operator-panel :focus-visible { outline: 2px solid white; outline-offset: -2px; }
+@media (min-width: 781px) {
+  body.editor-on .editor-sidebar { top: 110px; bottom: 10px; }
+  body.editor-on .editor-track-panel { bottom: 10px; }
+  body.editor-on .editor-workspace-resize { top: 110px; bottom: 10px; }
+}
+@media (max-width: 780px) {
+  body.editor-on .operator-panel { top: 120px; left: 8px; right: 8px; height: 43px; }
+  body.editor-on .operator-scenes small { display: none; }
+  body.editor-on .editor-sidebar { top: 170px; bottom: calc(min(120px, 16vh) + 16px); }
+  body.editor-on .editor-track-panel { bottom: 10px; }
+}
+.editor-extra-properties { display: grid; gap: 12px; padding: 4px 6px 12px; }
+.editor-extra-row { display: grid; gap: 5px; color: #ccc; font-size: 11px; }
+.editor-extra-row > div { display: flex; align-items: center; gap: 8px; }
+.editor-extra-row input[type="range"] { flex: 1; min-width: 0; width: 100%; margin: 0; accent-color: #ddd; }
+.editor-extra-row output { min-width: 38px; text-align: right; font-variant-numeric: tabular-nums; color: #eee; }
+.editor-extra-row select, .editor-extra-row input[type="text"] { width: 100%; min-width: 0; padding: 5px; }
+.editor-extra-row input[type="checkbox"] { justify-self: start; }
+/* Режим холста — только раскладка UI, без изменения проекта или рендера. */
+body.editor-focus .editor-sidebar,
+body.editor-focus .editor-track-panel,
+body.editor-focus .editor-workspace-resize { display: none; }
+/* Краткий интерфейс: пояснения доступны по раскрытию, свойства собраны по смыслу. */
+.editor-track-head small { display: none; }
+.editor-tip { color: #a9a9a9; font-size: 10px; line-height: 1.4; }
+.editor-tip:has([hidden]) { display: none; }
+.editor-tip summary { display: inline-block; padding: 3px 0; cursor: pointer; text-decoration: underline dotted; text-underline-offset: 3px; }
+.editor-tip p { margin: 4px 0 7px; color: #bbb; }
+.editor-extra-properties { gap: 0; }
+.editor-extra-group { border-top: 1px solid #333; }
+.editor-extra-group summary { padding: 9px 0; cursor: pointer; color: #ddd; font-size: 11px; }
+.editor-extra-group[open] .editor-extra-row { margin: 4px 0 12px; }
+.editor-extra-group summary:focus-visible, .editor-tip summary:focus-visible { outline: 2px solid #fff; }
+@media (max-width: 780px) { .editor-preview-tools button { padding-left: 6px; padding-right: 6px; } }
+
+/* Штатные строки: готовые буквы проявляются целиком, без рисующего контура. */
+#caption :is(.cap-title, .cap-sub, .cap-date)[data-reveal-style^="fade"] { opacity: var(--caption-reveal, 0); -webkit-text-stroke: 0; }
+#caption :is(.cap-title, .cap-sub, .cap-date)[data-reveal-style^="fade"] .cap-glyph { -webkit-text-stroke: 0; clip-path: none; }
+#caption :is(.cap-title, .cap-sub, .cap-date)[data-reveal-style^="fade"] .glyph-contour,
+#caption :is(.cap-title, .cap-sub, .cap-date)[data-reveal-style^="fade"] .cap-glyph::before { display: none; }
+.operator-archive { display: inline-flex; align-items: center; padding: 5px 8px; color: #c9c9c9; text-decoration: none; border: 1px solid #555; border-radius: 3px; white-space: nowrap; font-size: 11px; }
+.operator-archive:hover, .operator-archive:focus-visible { color: #fff; background: #333; outline: 2px solid #eee; outline-offset: 1px; }
+.operator-busy .operator-archive { pointer-events: none; opacity: .4; }

@@ -1,24 +1,34 @@
 import { particleCloudDefaults } from "../particle-cloud-config.js";
 import { brandDecorDefaults } from "../brand-decor-config.js";
 import { backgroundGlowDefaults } from "../background-glow-config.js";
+import { logoTimingDefaults } from "../logo-timing.js";
+import { captionTimingDefaults } from "../caption-timing.js";
 import { customTextDefaults } from "../custom-text.js";
+import { editorLockDefaults } from "../editor-locks.js";
+import { effectOrderDefaults } from "../effect-order.js";
 
 // Стартовое интро: художественные значения по умолчанию.
 // Имя файла сохранено для совместимости; это первый ролик, не экран ожидания.
 // Здесь нет WebGL и DOM — описание сцены можно читать из тестов и экспортера.
 export const WAITING_DEFAULTS = {
   textLayers: customTextDefaults(),
-  typography: { font: "cormorant-garamond" },
+  captionTiming: captionTimingDefaults(),
+  logoTiming: logoTimingDefaults(),
+  editorLocks: editorLockDefaults(),
+  effectOrder: effectOrderDefaults(),
+  typography: { font: "cormorant-garamond", titleTracking: 0, subtitleTracking: 0.32, dateTracking: 0.28 },
   caption: {
     titleText: "Янтарный циркуль", subtitleText: "Вечер ретроспектива", dateText: "20 ноября 2026 года",
     titleColor: null, subtitleColor: null, dateColor: null,
     titleVisible: true, subtitleVisible: true, dateVisible: true,
+    titleAutoFit: false, subtitleAutoFit: false, dateAutoFit: false,
     titleX: 0, titleY: 0, titleScale: 1, subtitleX: 0, subtitleY: 0, subtitleScale: 1,
     dateX: 0, dateY: 0, dateScale: 1,
   },
   ...brandDecorDefaults(),
   ...particleCloudDefaults(),
   ...backgroundGlowDefaults(),
+  transition: { duration: 0.9 }, // вход в эту сцену при переключении
   intro: { cornerDuration: 1.1, liftDuration: 1.4, titleDelay: 0.15 },
   timeline: {
     // длительности фаз в секундах; цикл повторяется бесконечно
@@ -41,6 +51,7 @@ export const WAITING_DEFAULTS = {
     metalness: 1.0,
     roughness: 0.34,       // читаемые грани без белого зеркального пятна
     clearcoat: 0.35,
+    facetPolish: 0.65,     // мягкий объём лицевой плоскости и фасок
     envIntensity: 0.75,
     holdScaleFrom: 1.0,    // плавное увеличение во время удержания
     holdScaleTo: 1.04,
@@ -107,6 +118,8 @@ export const WAITING_DEFAULTS = {
     lightSpread: 0.7,     // насколько далеко расходится свет от кругов
     lightIntensity: 0.65,  // яркость отражённого света на фоне
     shimmer: 0.55,         // переливание (шум)
+    godRaysEnabled: true, fogEnabled: true, brushedEnabled: true, grainEnabled: true,
+    vignetteEnabled: true, lowerShadeEnabled: true, gridEnabled: true,
     godRays: 0.35,         // световые лучи от кругов
     fog: 0.7,              // объёмный туман, подсвеченный кругами
     brushed: 0.35,         // тонкая диагональная текстура

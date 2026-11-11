@@ -22,10 +22,15 @@ import { ParticleCloud } from '/src/particle-cloud.js';
 import { BackgroundGlow } from '/src/background-glow.js';
 import { BACKGROUND_GLOW_IDS, backgroundGlowDefaults } from '/src/background-glow-config.js';
 import { createFrameEditor } from '/src/editor.js';
+import { editorLockDefaults } from '/src/editor-locks.js';
+import { effectOrderDefaults, applyEffectOrder } from '/src/effect-order.js';
 import { drawCaption } from '/src/caption-compositor.js';
 import { syncCaptionContent } from '/src/caption-content.js';
+import { applyCaptionFit } from '/src/caption-fit.js';
 import { editorViewport } from '/src/editor-layers.js';
-import { customTextDefaults, customTextAnimation } from '/src/custom-text.js';
+import { applyEditorWorkspace } from '/src/editor-workspace.js';
+import { applyPreviewLayout } from '/src/editor-preview.js';
+import { customTextDefaults, customTextAnimation, customTextVisual } from '/src/custom-text.js';
 import { glyphReveal } from '/src/caption.js';
 import { ringSidePosition } from '/src/scenes/ring-sides.js';
 const root = new THREE.Group();
@@ -33,7 +38,7 @@ const mesh = new THREE.Mesh(new THREE.BoxGeometry(2, 2, 0.1), new THREE.MeshBasi
 root.add(mesh); root.position.y = 1.1;
 const camera = new THREE.PerspectiveCamera(30, 960 / 540, 0.1, 100);
 camera.position.set(0, 0, 9); camera.lookAt(0, 0, 0); camera.updateProjectionMatrix(); camera.updateMatrixWorld();
-const config = { rings: { enabled: true, cornerX: 0.44, cornerY: 0.42, leftVisible: true, rightVisible: true, leftOffsetX: 0, leftOffsetY: 0, rightOffsetX: 0, rightOffsetY: 0, leftScale: 1, rightScale: 1 }, timeline: {startDelay: 0, drawDuration: 5, emergeDuration: 5, holdDuration: 5, fadeDuration: 3, restDuration: 2}, textLayers: customTextDefaults(), logo: { visible: true, offsetX: 0, offsetY: 1.1, scale: 1 }, colors: {gold: '#c8962e', lightLeft: '#ffb55c', lightRight: '#ffcf7a'}, caption: { titleVisible: true, subtitleVisible: true, dateVisible: true, titleText: 'рЦиркуль', subtitleText: 'Подзаголовок', dateText: 'Дата', titleColor: null, subtitleColor: null, dateColor: null, titleX: 0, titleY: 0, titleScale: 1, subtitleX: 0, subtitleY: 0, subtitleScale: 1, dateX: 0, dateY: 0, dateScale: 1 } };
+const config = { effectOrder: effectOrderDefaults(), editorLocks: editorLockDefaults(), rings: { enabled: true, cornerX: 0.44, cornerY: 0.42, leftVisible: true, rightVisible: true, leftOffsetX: 0, leftOffsetY: 0, rightOffsetX: 0, rightOffsetY: 0, leftScale: 1, rightScale: 1 }, timeline: {startDelay: 0, drawDuration: 5, emergeDuration: 5, holdDuration: 5, fadeDuration: 3, restDuration: 2}, textLayers: customTextDefaults(), logo: { visible: true, offsetX: 0, offsetY: 1.1, scale: 1 }, colors: {gold: '#c8962e', lightLeft: '#ffb55c', lightRight: '#ffcf7a'}, caption: { titleVisible: true, subtitleVisible: true, dateVisible: true, titleText: 'рЦиркуль', subtitleText: 'Подзаголовок', dateText: 'Дата', titleColor: null, subtitleColor: null, dateColor: null, titleX: 0, titleY: 0, titleScale: 1, subtitleX: 0, subtitleY: 0, subtitleScale: 1, dateX: 0, dateY: 0, dateScale: 1 } };
 const circularLabel = new THREE.Object3D(); circularLabel.position.z = 0.1;
 const brandDecors = Object.fromEntries(DECOR_SLOTS.map(({id, section}) => [id, new BrandDecor(section)]));
 for (const decor of Object.values(brandDecors)) { decor.group.position.z = -0.25; decor.group.visible = false; }
@@ -52,6 +57,9 @@ config.lights = structuredClone(WAITING_DEFAULTS.lights);
 const topLight = new THREE.PointLight(), topGlow = new THREE.Sprite(new THREE.SpriteMaterial());
 config.photo = structuredClone(PHOTO_PAUSE_DEFAULTS.photo);
 const aperture = new PhotoAperture();
+config.intro = structuredClone(WAITING_DEFAULTS.intro);
+config.captionTiming = structuredClone(WAITING_DEFAULTS.captionTiming);
+config.logoTiming = structuredClone(WAITING_DEFAULTS.logoTiming);
 Object.assign(config, backgroundGlowDefaults());
 Object.assign(config, particleCloudDefaults());
 Object.assign(config, brandDecorDefaults());
@@ -65,6 +73,7 @@ const state = { scene: { aperture, constructionGuides, topLight, topGlow, logo: 
 const cap = document.querySelector('#caption');
 function updateEffects() {
   const phase = {beforeStart: false, reveal: 1, rings: 1};
+  applyEffectOrder(config, state.scene);
   updateTopIllumination(topLight, topGlow, config, phase.reveal, 1);
   aperture.update(computePhase(state.time, config.timeline), config, root);
   constructionGuides.update(state.time, phase, config, root, {left: ringLeft.position, right: ringRight.position});
@@ -74,13 +83,10 @@ function updateEffects() {
 }
 
 function layout() {
-  const view = editorViewport(innerWidth, innerHeight, document.body.classList.contains('editor-on'));
-  const width = Math.min(view.width, view.height * 16 / 9), height = width * 9 / 16;
-  for (const el of [state.canvas, cap]) {
-    el.style.left = `${view.left + view.width / 2}px`; el.style.top = `${view.top + view.height / 2}px`;
-    el.style.width = `${Math.round(width)}px`; el.style.height = `${Math.round(height)}px`;
-  }
-  cap.style.setProperty('--u', `${width / 100}px`);
+  const view = editorViewport(innerWidth, innerHeight, document.body.classList.contains('editor-on'), document.body.classList.contains('editor-focus'));
+  applyEditorWorkspace(innerWidth, innerHeight, document.body.classList.contains('editor-on'), view);
+  applyPreviewLayout(view, document.body.classList.contains('editor-on'), state.canvas, cap);
+  applyCaptionFit(cap, config.caption, config.textLayers);
 }
 window.addEventListener('resize', () => { layout(); editor.refresh(); });
 function renderCustom() {
@@ -88,9 +94,12 @@ function renderCustom() {
     const id = line.dataset.custom;
     const reveal = config.textLayers[`${id}TimingMode`] === 'custom'
       ? customTextAnimation(state.time, config.timeline, config.textLayers, id) : {outline: 1, fill: 1};
-    line.style.setProperty('--p', reveal.outline); line.style.setProperty('--f', reveal.fill);
+    const visual = customTextVisual(reveal, line.dataset.revealStyle);
+    line.style.setProperty('--custom-reveal', visual.opacity);
+    line.style.setProperty('--lift', `${(visual.rise ?? 0) * (parseFloat(cap.style.getPropertyValue('--u')) || 19.2)}px`);
+    line.style.setProperty('--p', visual.line.outline); line.style.setProperty('--f', visual.line.fill);
     [...line.children].forEach((glyph, i, all) => {
-      const progress = glyphReveal(reveal, i, all.length);
+      const progress = glyphReveal(visual.line, i, all.length);
       glyph.style.setProperty('--o', progress.outline); glyph.style.setProperty('--f', progress.fill);
     });
   }
@@ -103,6 +112,7 @@ const editor = createFrameEditor({ onLayoutChange: layout, getState: () => state
   circularLabel.position.set(root.position.x + config.photo.offsetX, root.position.y + config.photo.offsetY, 0.1);
   updateEffects();
   syncCaptionContent(cap, config.caption, config.textLayers);
+  applyCaptionFit(cap, config.caption, config.textLayers);
   renderCustom();
   for (const name of ['title', 'subtitle', 'date']) {
     cap.style.setProperty(`--${name}-offset-x`, `${config.caption[`${name}X`] * 100}%`);
@@ -138,7 +148,7 @@ window.editorFixture = { editor, state, createFinaleSettings() {
 }, setTime(time) { state.time = time; renderCustom(); updateEffects(); editor.refresh(); }, exportedTitle() {
   const ctx = document.createElement('canvas').getContext('2d');
   const result = []; const original = ctx.fillText.bind(ctx);
-  ctx.fillText = (text, x, y) => { result.push({text, color: ctx.fillStyle, transformY: ctx.getTransform().f}); original(text, x, y); };
+  ctx.fillText = (text, x, y) => { result.push({text, color: ctx.fillStyle, font:ctx.font, transformY: ctx.getTransform().f}); original(text, x, y); };
   drawCaption(ctx, 1, state.id); return result;
 }, measureTitleFont() {
   const ctx = document.createElement('canvas').getContext('2d');

@@ -28,7 +28,7 @@ test('дополнительные надписи независимы по сц
 test('добавление, правка и удаление слоя обратимы без потери других полей', () => {
   const config = { textLayers: customTextDefaults() }, history = new EditorHistory();
   const id = 'text1', fields = customTextKeys(id);
-  assert.equal(fields.length, 12);
+  assert.equal(fields.length, 19);
   history.record('waiting', [{section:'textLayers', key:'text1Present', before:false, after:true}]);
   config.textLayers.text1Present = true;
   history.record('waiting', [{section:'textLayers', key:'text1Text', before:'Новый текст', after:'Мой текст'}]);
@@ -73,6 +73,8 @@ test('старые JSON сохраняют привязку дополнител
   const scene = SCENES.find(s => s.id === 'waiting');
   const imported = parseConfigJSON('{"textLayers":{"text1Present":true,"text1Text":"До обновления"}}', scene.defaults);
   assert.equal(imported.textLayers.text1TimingMode, 'scene');
+  assert.equal(imported.textLayers.text1AutoFit, false);
+  imported.textLayers.text1AutoFit = true;
   assert.equal(imported.textLayers.text1Start, 25);
   imported.textLayers.text1TimingMode = 'custom';
   imported.textLayers.text1Start = 10;

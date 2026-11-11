@@ -1,3 +1,4 @@
+import { workspaceWidths } from './editor-workspace.js';
 import { DECOR_SLOTS } from './brand-decor-config.js';
 import { PARTICLE_CLOUD_IDS } from './particle-cloud-config.js';
 import { BACKGROUND_GLOW_IDS } from './background-glow-config.js';
@@ -21,6 +22,17 @@ export const EDITOR_LAYERS = [
   ...CUSTOM_TEXT_IDS.map((id, i) => ({ id, label: `Текст ${i + 1}`, kind: 'Текст', custom: true,
     visibility: { section: 'textLayers', key: `${id}Visible` }, scenes: ['waiting', 'brand', 'photo-pause', 'finale'] })),
 ];
+/** Поле названия относится только к добавляемым пользователем элементам. */
+export function layerNameField(layer) {
+  if (layer.custom) return {section: 'textLayers', key: `${layer.id}Name`};
+  if (layer.optional) return {section: layer.presenceSection, key: 'name'};
+  return null;
+}
+export function layerDisplayName(config, layer) {
+  const field = layerNameField(layer);
+  const value = field && config?.[field.section]?.[field.key];
+  return typeof value === 'string' && value.trim() ? value.trim().slice(0, 48) : layer.label;
+}
 export function layersForScene(id, config) {
   const available = EDITOR_LAYERS.filter(layer => layer.scenes.includes(id) && (!layer.custom || config?.textLayers?.[`${layer.id}Present`] === true) && (!layer.optional || (config ? config[layer.presenceSection || 'decor']?.present === true : layer.id === 'brandDecor' && id === 'brand')));
   const customs = customTextOrder(config?.textLayers, true).reverse().map(key => available.find(layer => layer.id === key)).filter(Boolean);
@@ -28,12 +40,17 @@ export function layersForScene(id, config) {
 }
 
 /** Место под панели редактора; пропорции самого кадра не меняются. */
-export function editorViewport(width, height, editing) {
+export function editorViewport(width, height, editing, focus = false) {
   if (!editing) return { left: 0, top: 0, width, height };
-  const wide = width > 780;
-  const left = wide ? 196 : 8, right = wide ? 246 : 8;
-  const top = wide ? 68 : 100;
-  const bottom = wide ? 140 + Math.min(130, height * 0.16) : Math.min(175, height * 0.32) + Math.min(120, height * 0.16);
+  if (focus) {
+    const top = width > 780 ? 110 : 170;
+    return {left: 8, top, width: Math.max(1, width - 16), height: Math.max(1, height - top - 8)};
+  }
+  const wide = width > 780, studio = width >= 1200;
+  const panels = workspaceWidths(width);
+  const left = wide ? panels.layers + 20 : 8, right = wide ? panels.inspector + 20 : 8;
+  const top = wide ? 110 : 170;
+  const bottom = 16 + (wide ? (studio ? Math.min(205, height * 0.23) : Math.min(130, height * 0.16)) : Math.min(120, height * 0.16));
   return { left, top, width: Math.max(1, width - left - right), height: Math.max(1, height - top - bottom) };
 }
 

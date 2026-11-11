@@ -15,6 +15,15 @@ export function transformGlyph(glyph, transform, language = "ru") {
 // Базовая линия шрифта в DOM зависит в том числе от fallback-глифов. Измеряем
 // её один раз для текста/стиля, а не заставляем браузер пересчитывать её на каждом кадре.
 let baselines = new WeakMap();
+// Для частично прозрачной надписи сначала собираем её как группу, иначе
+// заливка, обводки и соседние буквы на пересечениях становятся слишком яркими.
+let textScratch;
+function scratchContext(width, height) {
+  if (!textScratch) textScratch = document.createElement('canvas');
+  if (textScratch.width !== width) textScratch.width = width;
+  if (textScratch.height !== height) textScratch.height = height;
+  return textScratch.getContext('2d');
+}
 if (typeof document !== "undefined") {
   document.fonts?.addEventListener?.("loadingdone", () => { baselines = new WeakMap(); });
 }
@@ -76,7 +85,9 @@ export function drawCaption(ctx, alpha, sceneId) {
     // После uppercase одна графема может содержать несколько букв (например, ß → SS).
     // Межбуквенный интервал внутри неё должен совпадать с CSS, но reveal остаётся общим.
     const nativeSpacing = "letterSpacing" in ctx;
-    if (nativeSpacing) ctx.letterSpacing = `${o.ls}px`;
+    const computedSpacing = parseFloat(style.letterSpacing);
+    const spacing = Number.isFinite(computedSpacing) ? computedSpacing * scale : o.ls;
+    if (nativeSpacing) ctx.letterSpacing = `${spacing}px`;
     const segmenter = !nativeSpacing && typeof Intl.Segmenter === "function"
       ? new Intl.Segmenter(language, { granularity: "grapheme" }) : null;
     const metrics = glyphs.map((glyph) => {
@@ -87,12 +98,12 @@ export function drawCaption(ctx, alpha, sceneId) {
       let width = 0;
       const runs = parts.map((text) => {
         const offset = width;
-        width += ctx.measureText(text).width + o.ls;
+        width += ctx.measureText(text).width + spacing;
         return { text, offset };
       });
       return { width, runs };
     });
-    const w = metrics.reduce((sum, item) => sum + item.width, 0) - (glyphs.length ? o.ls : 0);
+    const w = metrics.reduce((sum, item) => sum + item.width, 0) - (glyphs.length ? spacing : 0);
     let x = (o.centerX ?? W / 2) - w / 2; // отступ DOM уже учитывается центрированием строки
     ctx.textAlign = "left";
     ctx.strokeStyle = o.stroke; ctx.lineWidth = o.sw; ctx.lineJoin = "round";
@@ -104,8 +115,8 @@ export function drawCaption(ctx, alpha, sceneId) {
         if (runs) runs.forEach((run) => ctx[method](run.text, x + run.offset, y));
         else ctx[method](glyph, x, y);
       };
-      if (glyph !== " " && reveal.outline > 0.001) {
-        const shape = contourShape(cap.dataset.font, o.weight, glyph);
+      if (glyph !== " " && !o.noOutline && reveal.outline > 0.001) {
+        const shape = contourShape(element.dataset.font || cap.dataset.font, o.weight, glyph);
         ctx.save();
         if (shape) {
           const unit = o.size / 1000;
@@ -146,6 +157,26 @@ export function drawCaption(ctx, alpha, sceneId) {
       x += width;
     });
     ctx.textAlign = "center";
+  };
+
+  // Непрозрачность применяется к строке целиком, как в DOM, включая её тень.
+  const builtinTextLine = (selector, options) => {
+    const element = cap?.querySelector(selector);
+    if (!element) return;
+    const fade = element.dataset.revealStyle === 'fade' || element.dataset.revealStyle === 'fade-up';
+    const value = parseFloat(getComputedStyle(element).opacity);
+    const opacity = Number.isFinite(value) ? Math.max(0, Math.min(1, value)) : 1;
+    if (opacity <= 0) return;
+    const destination = ctx;
+    if (opacity < 1) {
+      ctx = scratchContext(W, H); ctx.save(); ctx.resetTransform(); ctx.clearRect(0, 0, W, H);
+      ctx.setTransform(destination.getTransform()); ctx.globalAlpha = 1;
+    }
+    textLine(selector, {...options, noOutline: fade});
+    if (opacity < 1) {
+      ctx.restore(); ctx = destination; ctx.save(); ctx.resetTransform(); ctx.globalAlpha *= opacity;
+      ctx.drawImage(textScratch, 0, 0); ctx.restore();
+    }
   };
 
   // разделитель с ромбом: раскрывается от центра (--p), ромб появляется вместе с ним
@@ -198,12 +229,12 @@ export function drawCaption(ctx, alpha, sceneId) {
       y: style ? parseFloat(style.top) * scale : fallbackY };
   };
   const titlePosition = linePosition(".cap-title", (brand || photo || finale) ? 0.65 * H : 0.55 * H);
-  if (!photo) textLine(".cap-title", {
+  if (!photo) builtinTextLine(".cap-title", {
     ...titlePosition,
     weight: 600, size: tSize, ls: 0, stroke: titleColor || "#e0b25a", sw: 0.08 * u, shadow: true, fill: titleColor || titleGrad,
   });
   if (finale) {
-    textLine(".cap-sub", {
+    builtinTextLine(".cap-sub", {
       ...linePosition(".cap-sub", 0.79 * H), weight: 400, size: subSize, ls: 0.18 * subSize,
       stroke: subtitleColor || "#d9b061", sw: 0.04 * u, fill: subtitleColor || "#ecd08c",
     });
@@ -211,10 +242,10 @@ export function drawCaption(ctx, alpha, sceneId) {
   if (!brand && !photo && !finale) {
     rule(".r1", 0.66 * H);
     rule(".r2", 0.79 * H);
-    textLine(".cap-sub", {
+    builtinTextLine(".cap-sub", {
       ...linePosition(".cap-sub", 0.72 * H), weight: 400, size: subSize, ls: 0.32 * subSize, stroke: subtitleColor || "#d9b061", sw: 0.04 * u, fill: subtitleColor || "#ecd08c",
     });
-    textLine(".cap-date", {
+    builtinTextLine(".cap-date", {
       ...linePosition(".cap-date", 0.84 * H), weight: 400, size: dateSize, ls: 0.28 * dateSize, stroke: dateColor || "#d9b061", sw: 0.035 * u, fill: dateColor || "#d9b061",
     });
   }
@@ -222,11 +253,25 @@ export function drawCaption(ctx, alpha, sceneId) {
     const selector = `[data-custom="${el.dataset.custom}"]`;
     const size = fontSize(selector, 3.5 * u);
     const fill = getComputedStyle(el).getPropertyValue('--custom-color').trim() || '#ecd08c';
+    const opacityValue = parseFloat(getComputedStyle(el).opacity);
+    const opacity = Number.isFinite(opacityValue) ? Math.max(0, Math.min(1, opacityValue)) : 1;
+    if (opacity <= 0) continue;
+    const destination = ctx;
+    if (opacity < 1) {
+      ctx = scratchContext(W, H);
+      ctx.save(); ctx.resetTransform(); ctx.clearRect(0, 0, W, H);
+      ctx.setTransform(destination.getTransform()); ctx.globalAlpha = 1;
+    }
     ctx.save();
     if (el.dataset.independent === 'true') ctx.translate(0, -drift * scale);
     textLine(selector, { ...linePosition(selector, 0.75 * H), weight: 600, size, ls: 0,
-      stroke: fill, sw: 0.04 * u, fill });
+      stroke: fill, sw: 0.04 * u, fill, noOutline: el.dataset.revealStyle === 'fade' || el.dataset.revealStyle === 'fade-up' });
     ctx.restore();
+    if (opacity < 1) {
+      ctx.restore(); ctx = destination;
+      ctx.save(); ctx.resetTransform(); ctx.globalAlpha *= opacity;
+      ctx.drawImage(textScratch, 0, 0); ctx.restore();
+    }
   }
   ctx.restore();
 }

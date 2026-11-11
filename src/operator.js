@@ -19,6 +19,7 @@ export function createOperatorControls({ getState, seek, setDuration, togglePaus
         <button type="button" data-scene="brand" title="Фирменный фон">02 <small>Фон</small></button>
         <button type="button" data-scene="photo-pause" title="Фотопауза">08 <small>Фотопауза</small></button>
         <button type="button" data-scene="finale" title="Финал">09 <small>Финал</small></button>
+        <a class="operator-archive" href="./archive.html" title="Открыть отдельный 3D-прототип архива">Архив ↗</a>
       </nav>
       <button type="button" data-action="auto" aria-pressed="false" title="Автоматическая цепочка 01 → 02 → 08 → 09">Авто: выкл.</button>
       <button type="button" data-action="pin" aria-pressed="false" title="Не скрывать пульт">◇</button>
@@ -122,7 +123,7 @@ export function createOperatorControls({ getState, seek, setDuration, togglePaus
     else if (action === "record-chain") recordChain();
   });
   window.addEventListener("keydown", (event) => {
-    if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) return;
+    if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement || event.target instanceof HTMLSelectElement || event.target.isContentEditable) return;
     if (event.code === "Space" && getState().id !== "waiting" && !getState().recording) {
       event.preventDefault(); togglePause(); refresh();
     }

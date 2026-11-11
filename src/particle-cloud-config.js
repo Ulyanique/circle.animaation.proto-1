@@ -10,7 +10,7 @@ export function cloudSeedForId(id) {
 }
 export function particleCloudDefaults() {
   return Object.fromEntries(PARTICLE_CLOUD_IDS.map(id => [id, {
-    ...EFFECT_TIMING_DEFAULTS, present: false, enabled: true, offsetX: 0, offsetY: 0,
+    ...EFFECT_TIMING_DEFAULTS, name: '', present: false, enabled: true, offsetX: 0, offsetY: 0,
     seed: cloudSeedForId(id), radius: 1.2, color: '#e8c77e', count: 180, size: 0.035, opacity: 0.65, speed: 0.08,
   }]));
 }

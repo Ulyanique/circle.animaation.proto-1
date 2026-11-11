@@ -13,7 +13,7 @@ BRAND_DEFAULTS.decor.followLogo = true;
 BRAND_DEFAULTS.logo.offsetY = 0;
 BRAND_DEFAULTS.caption.titleVisible = false;
 BRAND_DEFAULTS.photo = {
-  textEnabled: true, offsetX: 0, offsetY: 0, text: "ЯНТАРНЫЙ ЦИРКУЛЬ", repeats: 2,
+  textEnabled: false, offsetX: 0, offsetY: 0, text: "ЯНТАРНЫЙ ЦИРКУЛЬ", repeats: 2,
   radius: 1.75, fontSize: 0.20, rotationSpeed: 0.035, textOpacity: 0.82,
   textColor: null, color: "#e8c77e",
 };

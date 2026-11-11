@@ -69,9 +69,9 @@ export class SolarBokeh {
     }
   }
 
-  update(t, ph, cfg, positions) {
+  update(t, ph, cfg, positions, composition = compositionFocus(ph, cfg.timeline)) {
     const env = cfg.rings.enabled ? ph.rings : 0;
-    const focus = compositionFocus(ph, cfg.timeline);
+    const focus = composition;
     const sun = smooth(2.05, 2.9, ph.local) * (1 - smooth(3.5, 4.5, ph.local));
     this.group.visible = env > 0.001;
     for (const { mesh, uniforms, side, i, seed } of this.discs) {

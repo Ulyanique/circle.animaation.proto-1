@@ -110,6 +110,18 @@ export function createSettingsUI({
       const sum = document.createElement("summary");
       sum.textContent = section.title;
       det.appendChild(sum);
+      if (section.id === "caption") {
+        const note = document.createElement("p");
+        note.className = "cfg-io-hint";
+        note.textContent = "«Вписать в поля» уменьшает строку по ширине до ориентировочных полей 5%; для длинного текста проверьте читаемость и положение вручную.";
+        det.appendChild(note);
+      }
+      if (section.id === "transition") {
+        const note = document.createElement("p");
+        note.className = "cfg-io-hint";
+        note.textContent = "Используется при входе в эту сцену в просмотре и в записи цепочки; на одиночный цикл не влияет. Задавайте короче длительности сцены.";
+        det.appendChild(note);
+      }
       if (section.id === "finale") {
         const note = document.createElement("p");
         note.className = "cfg-io-hint";
@@ -118,6 +130,8 @@ export function createSettingsUI({
       }
       for (const f of section.fields) {
         if (!(f.key in current[section.id])) continue;
+        if (section.id === "typography" && ((editing === "brand" && /^(subtitle|date)/.test(f.key)) ||
+            (editing === "photo-pause" && f.key !== "font") || (editing === "finale" && f.key.startsWith("date")))) continue;
         if (section.id === "logo" && (editing === "waiting" || editing === "photo-pause" || editing === "finale") && (f.key === "swayAmount" || f.key === "swaySpeed")) continue;
         if (section.id === "caption" && ((editing === "brand" && /^(subtitle|date)/.test(f.key)) ||
             (editing === "finale" && f.key.startsWith("date")))) continue;

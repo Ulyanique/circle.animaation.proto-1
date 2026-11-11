@@ -10,7 +10,7 @@ export const DECOR_IDS = Object.freeze(DECOR_SLOTS.map(slot => slot.id));
 export const decorSection = id => DECOR_SLOTS.find(slot => slot.id === id)?.section;
 export function brandDecorDefaults() {
   return Object.fromEntries(DECOR_SLOTS.map(({section}) => [section, {
-    ...EFFECT_TIMING_DEFAULTS, present: false, enabled: true, followLogo: false,
+    ...EFFECT_TIMING_DEFAULTS, name: '', present: false, enabled: true, followLogo: false,
     radius: 1.2, offsetX: 0, offsetY: 0, opacity: 0.22, color: '#d9b268',
     speed: 0.055, dustOpacity: 0.38, dustSize: 0.018,
   }]));

@@ -1,4 +1,5 @@
 import { CUSTOM_TEXT_IDS, customTextOrder } from './custom-text.js';
+import { FONTS, fontName } from './fonts.js';
 
 /** Применение текста и цветов к DOM и общим настройкам canvas-экспорта. */
 export function validCustomColor(value) {
@@ -52,9 +53,22 @@ export function syncCaptionContent(cap, caption, custom = {}) {
     const number = (value, fallback, min, max) => typeof value === 'number' && Number.isFinite(value) ? Math.max(min, Math.min(max, value)) : fallback;
     el.style.left = `${(0.5 + number(custom[`${id}X`], 0, -0.45, 0.45)) * 100}%`;
     el.style.top = `${(0.5 + number(custom[`${id}Y`], 0.25, -0.45, 0.45)) * 100}%`;
+    el.style.setProperty('--custom-opacity', String(number(custom[`${id}Opacity`], 1, 0, 1)));
+    el.dataset.revealStyle = ['fade', 'fade-up'].includes(custom[`${id}RevealStyle`]) ? custom[`${id}RevealStyle`] : 'draw';
+    const requestedCase = custom[`${id}Case`];
+    const textCase = requestedCase === 'uppercase' || requestedCase === 'lowercase' ? requestedCase : 'none';
+    if (el.style.textTransform !== textCase) { el.style.textTransform = textCase; changed = true; }
+    const requestedFont = custom[`${id}Font`];
+    const font = FONTS.some(item => item.id === requestedFont) ? requestedFont : '';
+    if ((el.dataset.font || '') !== font) { changed = true; }
+    if (font) { el.dataset.font = font; el.style.fontFamily = `"${fontName(font)}", Georgia, serif`; }
+    else { delete el.dataset.font; el.style.removeProperty('font-family'); }
     const scale = number(custom[`${id}Scale`], 1, 0.5, 2);
     if (el.dataset.scale !== String(scale)) { el.dataset.scale = String(scale); changed = true; }
     el.style.setProperty('--custom-scale', scale);
+    const tracking = number(custom[`${id}Tracking`], 0, 0, 0.6);
+    if (el.dataset.tracking !== String(tracking)) { el.dataset.tracking = String(tracking); changed = true; }
+    el.style.setProperty('--custom-tracking', `${tracking}em`);
     const value = custom[`${id}Text`];
     const text = typeof value === 'string' ? value : '';
     if (el.dataset.renderedText === text) continue;

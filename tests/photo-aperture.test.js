@@ -40,6 +40,6 @@ test('апертура управляется и сохраняется отде
   a.update(phase, cfg, root); assert.deepEqual([...a.geometry.getAttribute('position').array], previous);
   cfg.photo.apertureEnabled = false; a.update(phase, cfg, root); assert.equal(a.group.visible, false);
   assert.equal(parseConfigJSON(configToJSON(cfg), PHOTO_PAUSE_DEFAULTS).photo.apertureEnabled, false);
-  assert.equal(cfg.photo.textEnabled, true); assert.equal(cfg.logo.visible, true);
+  assert.equal(cfg.photo.textEnabled, false); assert.equal(cfg.logo.visible, true);
   a.dispose();
 });

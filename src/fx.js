@@ -207,13 +207,13 @@ export class Background {
     u.uSpread.value = cfg.background.lightSpread;
     u.uIntensity.value = cfg.background.lightIntensity;
     u.uShimmer.value = cfg.background.shimmer;
-    u.uGrain.value = cfg.background.grain;
-    u.uVig.value = cfg.background.vignette;
-    u.uLowerShade.value = cfg.background.lowerShade ?? 0.45;
-    u.uGrid.value = cfg.background.gridOpacity ?? 0.05;
-    u.uRays.value = cfg.background.godRays ?? 0.35;
-    u.uFog.value = cfg.background.fog ?? 0.6;
-    u.uBrushed.value = cfg.background.brushed ?? 0.35;
+    u.uGrain.value = cfg.background.grainEnabled === false ? 0 : cfg.background.grain;
+    u.uVig.value = cfg.background.vignetteEnabled === false ? 0 : cfg.background.vignette;
+    u.uLowerShade.value = cfg.background.lowerShadeEnabled === false ? 0 : (cfg.background.lowerShade ?? 0.45);
+    u.uGrid.value = cfg.background.gridEnabled === false ? 0 : (cfg.background.gridOpacity ?? 0.05);
+    u.uRays.value = cfg.background.godRaysEnabled === false ? 0 : (cfg.background.godRays ?? 0.35);
+    u.uFog.value = cfg.background.fogEnabled === false ? 0 : (cfg.background.fog ?? 0.6);
+    u.uBrushed.value = cfg.background.brushedEnabled === false ? 0 : (cfg.background.brushed ?? 0.35);
   }
 }
 

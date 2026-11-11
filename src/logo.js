@@ -21,6 +21,7 @@ export const revealUniforms = {
   uCenter: { value: new THREE.Vector2(0, 0) },
   uSpecPass: { value: 0 },
   uSpecX: { value: 0 },
+  uFacetPolish: { value: 0 },
 };
 
 const REVEAL_GLSL_COMMON = /* glsl */ `
@@ -34,6 +35,7 @@ const REVEAL_GLSL_COMMON = /* glsl */ `
   uniform vec2 uCenter;
   uniform float uSpecPass;
   uniform float uSpecX;
+  uniform float uFacetPolish;
   float rvHash(vec2 p){ p = fract(p*vec2(123.34,456.21)); p += dot(p,p+45.32); return fract(p.x*p.y); }
   float rvNoise(vec2 p){
     vec2 i = floor(p), f = fract(p);
@@ -79,6 +81,14 @@ function patchRevealMaterial(material, withEmission) {
          float rvShade = smoothstep(-1.45, 1.35, vLocalPos.x + vLocalPos.y * 0.22);
          vec3 rvFaceTone = mix(vec3(0.98, 0.95, 0.88), vec3(0.66, 0.71, 0.73), rvShade);
          outgoingLight *= mix(vec3(1.0), rvFaceTone, rvFront);
+         // Широкий мягкий градиент отражения на лицевой плоскости и
+         // отдельный акцент скоса. Он усиливает объём без новой геометрии,
+         // белых пятен и мелких высокочастотных полос; ноль даёт прежний вид.
+         float rvNormalZ = abs(normalize(vLocalNormal).z);
+         float rvBevel = smoothstep(0.08, 0.45, rvNormalZ) * (1.0 - smoothstep(0.90, 0.995, rvNormalZ));
+         float rvFaceLight = smoothstep(-1.5, 1.5, -vLocalPos.x + vLocalPos.y * 0.35);
+         float rvPolish = clamp(uFacetPolish, 0.0, 1.0);
+         outgoingLight *= 1.0 + rvPolish * (rvFront * (rvFaceLight - 0.5) * 0.20 + rvBevel * 0.12);
          // Микрогравировка в локальных координатах: не плавает по поверхности.
          // Производная подавляет муар, если линии становятся мельче пикселя.
          float rvBrush = vLocalPos.y * 110.0 + sin(vLocalPos.x * 9.0) * 0.32;

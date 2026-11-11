@@ -20,7 +20,7 @@ test('копирование каждого типа создаёт незави
   for (const scene of SCENES.filter(s => s.defaults)) {
     const cfg = mergeConfig(scene.defaults, {}), history = new EditorHistory();
     Object.assign(cfg.textLayers, {text1Present: true, text1Text: 'Копия', text1Color: '#125578', text1X: .2, text1Y: -.3,
-      text1TimingMode: 'custom', text1Start: 20, text1End: 70, text1Fade: 25, text1Visible: false});
+      text1AutoFit: true, text1TimingMode: 'custom', text1Start: 20, text1End: 70, text1Fade: 25, text1Visible: false});
     Object.assign(cfg.decor, {present: true, followLogo: true, offsetX: 2, offsetY: -1, color: '#aabbcc', timingMode: 'custom', timingStart: 20});
     Object.assign(cfg.particleCloud, {present: true, count: 250, color: '#123456', offsetX: 1});
     Object.assign(cfg.backgroundGlow, {present: true, intensity: .8, offsetY: 2, enabled: false});
@@ -35,7 +35,7 @@ test('копирование каждого типа создаёт незави
       apply(cfg, plan, history, scene.id);
       if (id === 'text1') {
         assert.equal(cfg.textLayers.text2Text, 'Копия'); assert.equal(cfg.textLayers.text2Visible, false);
-        assert.equal(cfg.textLayers.text2TimingMode, 'custom'); assert.equal(cfg.textLayers.text2Start, 20);
+        assert.equal(cfg.textLayers.text2AutoFit, true); assert.equal(cfg.textLayers.text2TimingMode, 'custom'); assert.equal(cfg.textLayers.text2Start, 20);
         assert.ok(cfg.textLayers.text2X > cfg.textLayers.text1X);
       } else {
         assert.equal(cfg[section].present, true);

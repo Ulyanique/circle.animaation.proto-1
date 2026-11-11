@@ -68,3 +68,21 @@ test('старые настройки сохраняют прежние фазы
   const ids = scenes.map(s => s.id), project = parseProjectJSON(projectToJSON(configs, ids), ids);
   for (const id of ids) for (const section of ['decor', 'particleCloud', ...BACKGROUND_GLOW_IDS]) assert.deepEqual(project.scenes[id][section], configs[id][section]);
 });
+
+test('характер проявления меняет огибающую только собственного интервала', () => {
+  const t = 6.5;
+  const normal = effectVisibility(t, phase, timeline, custom);
+  const soft = effectVisibility(t, phase, timeline, {...custom, timingCurve:'soft'});
+  const bright = effectVisibility(t, phase, timeline, {...custom, timingCurve:'bright'});
+  assert.ok(0 < soft && soft < normal && normal < bright && bright < 1);
+  for (const curve of ['normal', 'soft', 'bright']) {
+    assert.equal(effectVisibility(4, phase, timeline, {...custom, timingCurve:curve}), 0);
+    assert.equal(effectVisibility(11, phase, timeline, {...custom, timingCurve:curve}), 1);
+    assert.equal(effectVisibility(t, phase, timeline, {...custom, timingCurve:curve}), effectVisibility(t + 20, phase, timeline, {...custom, timingCurve:curve}));
+    assert.equal(effectVisibility(t, {beforeStart:false, reveal:.5, rings:.7}, timeline, {timingMode:'scene', timingCurve:curve}), .35);
+  }
+  assert.equal(effectVisibility(t, phase, timeline, {...custom, timingCurve:'unknown'}), normal);
+  const scene = SCENES.find(s => s.defaults);
+  const restored = parseConfigJSON(configToJSON(mergeConfig(scene.defaults, {decor:{...custom, timingCurve:'soft'}})), scene.defaults);
+  assert.equal(restored.decor.timingCurve, 'soft');
+});

@@ -1,0 +1,51 @@
+// Проверка управления порядком и реального WebGL-смешивания добавленных эффектов.
+const assert=require('node:assert/strict');const {launchBrowser}=require('./browser.cjs');
+(async()=>{const b=await launchBrowser({width:1440,height:900});try{
+ const p=await b.newPage(),errors=[];p.on('pageerror',e=>errors.push(e.message));
+ await p.goto(new URL('/tests/fixtures/editor.html',process.env.URL||'http://localhost:5173').href);await p.waitForFunction(()=>window.editorFixture);await p.click('.editor-toggle');
+ assert.equal(await p.$eval('[data-effect-order-mode]',e=>e.checked),false);
+ for(const type of ['decor','cloud','glow'])await p.$eval(`[data-add-${type}]`,e=>e.click());
+ const ranks=()=>p.evaluate(()=>{const s=window.editorFixture.state.scene;return [s.brandDecor.ring.renderOrder,s.particleCloud.points.renderOrder,s.backgroundGlow.sprite.renderOrder]});
+ assert.deepEqual(await ranks(),[0,0,0]);
+ assert.equal(await p.$eval('[data-action=effect-back]',e=>e.disabled),true);
+ await p.$eval('[data-effect-order-mode]',e=>e.click());let r=await ranks();assert.ok(r[2]>r[1]&&r[1]>r[0]);
+ assert.deepEqual(await p.$$eval('.editor-layer-entry:not([hidden]) [data-layer]',es=>es.map(e=>e.dataset.layer).filter(x=>['brandDecor','particleCloud','backgroundGlow'].includes(x))),['backgroundGlow','particleCloud','brandDecor']);
+ await p.$eval('[data-action=effect-back]',e=>e.click());r=await ranks();assert.ok(r[1]>r[2]&&r[2]>r[0]);
+ await p.$eval('[data-history=undo]',e=>e.click());r=await ranks();assert.ok(r[2]>r[1]);
+ await p.$eval('[data-history=redo]',e=>e.click());r=await ranks();assert.ok(r[1]>r[2]);
+ await p.$eval('[data-action=duplicate]',e=>e.click());
+ assert.ok(await p.evaluate(()=>window.editorFixture.state.scene.backgroundGlows.backgroundGlow2.sprite.renderOrder>window.editorFixture.state.scene.particleCloud.points.renderOrder));
+ await p.$eval('[data-history=undo]',e=>e.click());
+ assert.equal(await p.evaluate(()=>window.editorFixture.state.config.backgroundGlow2.present),false);
+ await p.$eval('[data-effect-order-mode]',e=>e.click());assert.deepEqual(await ranks(),[0,0,0]);
+ assert.deepEqual(await p.$$eval('.editor-layer-entry:not([hidden]) [data-layer]',es=>es.map(e=>e.dataset.layer).filter(x=>['brandDecor','particleCloud','backgroundGlow'].includes(x))),['brandDecor','particleCloud','backgroundGlow']);
+ const result=await p.evaluate(async()=>{
+   const THREE=await import('/node_modules/three/build/three.module.js');
+   const {BrandDecor}=await import('/src/brand-decor.js');
+   const {BackgroundGlow}=await import('/src/background-glow.js');
+   const {applyEffectOrder,effectOrderChanges,effectOrderDefaults}=await import('/src/effect-order.js');
+   const canvas=document.createElement('canvas');canvas.width=128;canvas.height=128;
+   const renderer=new THREE.WebGLRenderer({canvas,antialias:false,preserveDrawingBuffer:true});renderer.setSize(128,128,false);renderer.setClearColor(0x000000,1);renderer.outputColorSpace=THREE.LinearSRGBColorSpace;
+   const scene=new THREE.Scene(),camera=new THREE.OrthographicCamera(-1,1,1,-1,.1,10);camera.position.z=5;
+   const tex=new THREE.DataTexture(new Uint8Array([255,255,255,255]),1,1,THREE.RGBAFormat);tex.needsUpdate=true;
+   const decor=new BrandDecor('decor'), glow=new BackgroundGlow(tex,'backgroundGlow');
+   decor.group.visible=true;decor.group.position.z=-.25;decor.group.scale.setScalar(.65);decor.ring.material.color.setRGB(1,0,0);decor.ring.material.opacity=.6;decor.ticks.visible=false;decor.dust.visible=false;
+   glow.group.visible=true;glow.group.position.z=-1.4;glow.sprite.scale.setScalar(2);glow.material.color.setRGB(0,0,1);glow.material.opacity=.6;
+   scene.add(decor.group,glow.group);
+   const opaque=new THREE.Mesh(new THREE.PlaneGeometry(1,2),new THREE.MeshBasicMaterial({color:0x202020}));opaque.position.set(-.5,0,0);scene.add(opaque);
+   const cfg={effectOrder:effectOrderDefaults(),decor:{present:true},backgroundGlow:{present:true}};
+   const objects={brandDecors:{brandDecor:decor},particleClouds:{},backgroundGlows:{backgroundGlow:glow}};
+   const frame=()=>{applyEffectOrder(cfg,objects);renderer.render(scene,camera);const c=document.createElement('canvas');c.width=128;c.height=128;const x=c.getContext('2d');x.drawImage(canvas,0,0);return [...x.getImageData(0,0,128,128).data]};
+   const legacy=frame();cfg.effectOrder.enabled=true;const ordered=frame();
+   for(const ch of effectOrderChanges(cfg,'backgroundGlow','front'))cfg.effectOrder[ch.key]=ch.value;
+   const swapped=frame();cfg.effectOrder.enabled=false;const restored=frame();
+   let changes=0,leftChanges=0,rightChanges=0,legacyDiff=0;
+   for(let y=0;y<128;y++)for(let x=0;x<128;x++){const i=(y*128+x)*4;let delta=0,base=0;for(let c=0;c<3;c++){delta+=Math.abs(ordered[i+c]-swapped[i+c]);base+=Math.abs(legacy[i+c]-restored[i+c]);}if(delta>4){changes++;if(x<64)leftChanges++;else rightChanges++}legacyDiff+=base;}
+   const curtain=new THREE.Mesh(new THREE.PlaneGeometry(2,2),new THREE.MeshBasicMaterial({color:0x000000,transparent:true,opacity:1,depthTest:false,depthWrite:false}));
+   curtain.renderOrder=1000; curtain.position.z=2;scene.add(curtain);cfg.effectOrder.enabled=true;const covered=frame();
+   let curtainLeak=0;for(let i=0;i<covered.length;i+=4)curtainLeak+=covered[i]+covered[i+1]+covered[i+2];
+   renderer.dispose();tex.dispose();return {changes,leftChanges,rightChanges,legacyDiff,curtainLeak};
+ });
+ console.log('WebGL порядок:',result);assert.ok(result.rightChanges>10,'перестановка не меняет пересечение');assert.equal(result.leftChanges,0,'непрозрачный объект перестал закрывать эффекты');assert.equal(result.legacyDiff,0,'выключение не восстановило исходный вид');assert.equal(result.curtainLeak,0,'эффекты пробиваются через чёрную шторку');
+ assert.deepEqual(errors,[]);console.log('Порядок эффектов: UI, история, слоты, глубина и WebGL/canvas — OK');
+ }finally{await b.close()}})().catch(e=>{console.error(e);process.exitCode=1});

@@ -1,4 +1,5 @@
 import { defineConfig } from "vite";
+import { fileURLToPath } from "node:url";
 
 // Vite заменяет исходный <script> на собранный и не переносит его атрибуты.
 // Помечаем только файлы самой сборки, чтобы необязательные сторонние скрипты
@@ -50,6 +51,7 @@ export default defineConfig({
   },
   build: {
     target: "es2020",
+    rollupOptions: { input: { main: fileURLToPath(new URL("./index.html", import.meta.url)), archive: fileURLToPath(new URL("./archive.html", import.meta.url)) } },
     chunkSizeWarningLimit: 1500,
   },
 });

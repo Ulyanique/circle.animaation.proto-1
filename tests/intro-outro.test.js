@@ -59,3 +59,29 @@ test('фоновый ореол затухает радиально, а не о�
   assert.doesNotMatch(shader, /\(0\.14 \* halo \+ 0\.50 \* rays\) \* clearCaption/);
   bg.mesh.geometry.dispose(); bg.material.dispose();
 });
+
+test('блик и приглушение углов следуют фактическому началу титров интро и финала', async () => {
+  const { heroGlint, compositionFocus } = await import('../src/timeline.js');
+  const { FINALE_DEFAULTS } = await import('../src/scenes/finale.js');
+  for (const defaults of [WAITING_DEFAULTS, FINALE_DEFAULTS]) for (const delay of [0, .7, 2]) {
+    const cfg = mergeConfig(defaults, {intro:{titleDelay:delay}}), tl = cfg.timeline;
+    const phase = local => computePhase(tl.startDelay + local, tl);
+    const seq = introSequence(phase(tl.drawDuration + tl.emergeDuration), tl, cfg.intro);
+    const start = seq.captionStart, exit = tl.drawDuration + tl.emergeDuration + tl.holdDuration;
+    assert.equal(heroGlint(phase(start - .2), tl, start).intensity, 0);
+    assert.ok(heroGlint(phase(start + .7), tl, start).intensity > .8);
+    assert.equal(heroGlint(phase(start + 2.2), tl, start).intensity, 0);
+    assert.equal(heroGlint(phase(exit + .01), tl, start).intensity, 0);
+    assert.equal(compositionFocus(phase(start - .4), tl, start), 0);
+    assert.equal(compositionFocus(phase(start + 1.4), tl, start), 1);
+  }
+});
+
+test('если для титра не осталось времени, блик не вспыхивает на выходе', async () => {
+  const { heroGlint } = await import('../src/timeline.js');
+  const tl = {...WAITING_DEFAULTS.timeline, holdDuration:1};
+  const end = tl.drawDuration + tl.emergeDuration + tl.holdDuration;
+  for (const t of [end-.1, end, end+.1]) {
+    assert.equal(heroGlint(computePhase(tl.startDelay+t, tl), tl, end+1).intensity, 0);
+  }
+});

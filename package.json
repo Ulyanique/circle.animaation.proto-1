@@ -25,7 +25,20 @@
     "render:encode": "bash scripts/encode-loop.sh",
     "verify:settings": "node scripts/verify-settings.cjs",
     "verify:fonts": "node scripts/verify-fonts.cjs",
-    "verify:offline-video": "node scripts/verify-offline-video.cjs"
+    "verify:offline-video": "node scripts/verify-offline-video.cjs",
+    "verify:transitions": "node scripts/verify-transitions.cjs",
+    "verify:caption:fit": "node scripts/verify-caption-fit.cjs",
+    "verify:custom-fonts": "node scripts/verify-custom-fonts.cjs",
+    "verify:custom-opacity": "node scripts/verify-custom-opacity.cjs",
+    "verify:custom-reveal": "node scripts/verify-custom-reveal.cjs",
+    "verify:effect-order": "node scripts/verify-effect-order.cjs",
+    "verify:frame-determinism": "node scripts/verify-frame-determinism.cjs",
+    "benchmark:render": "node scripts/benchmark-render.cjs",
+    "verify:caption:timing": "node scripts/verify-caption-timing.cjs",
+    "verify:logo:timing": "node scripts/verify-logo-timing.cjs",
+    "verify:custom-timing:video": "node scripts/verify-custom-timing-video.cjs",
+    "verify:archive": "node scripts/verify-archive.cjs",
+    "verify:stale-editor": "node scripts/verify-stale-editor-module.cjs"
   },
   "dependencies": {
     "mediabunny": "^1.65.2",

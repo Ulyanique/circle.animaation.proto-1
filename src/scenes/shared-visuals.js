@@ -12,6 +12,7 @@ export function createSharedSceneConfig(timeline) {
   delete cfg.intro; // Эти движения относятся только к первому ролику.
   // Композиция фоновых сцен: знак крупнее и ниже, титр — в нижней трети,
   // чтобы не оставалось пустого поля под названием.
+  cfg.logo.facetPolish = 0; // утверждённые фоновые сцены сохраняют прежний материал
   cfg.logo.scale = 0.58;
   cfg.logo.offsetY = 0.86;
   cfg.playback.paused = false;

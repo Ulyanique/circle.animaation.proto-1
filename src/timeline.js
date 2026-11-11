@@ -154,10 +154,14 @@ export function plotSequence(phase, tl, { intro = false, finale = false } = {}) 
 }
 
 /** Единственный проход света по металлу — при передаче внимания названию, не на удержании. */
-export function heroGlint(phase, tl) {
+export function heroGlint(phase, tl, captionStart) {
   const settle = tl.drawDuration + tl.emergeDuration;
-  const start = settle - tl.emergeDuration * 0.02;
-  const end = settle + Math.min(2.2, tl.holdDuration * 0.45);
+  // В интро и финале заголовок начинается после кругов и подъёма,
+  // а не в начале удержания. Привязываем блик к реальному такту титра.
+  const start = captionStart === undefined ? settle - tl.emergeDuration * 0.02 : captionStart - 0.15;
+  const end = captionStart === undefined ? settle + Math.min(2.2, tl.holdDuration * 0.45)
+    : Math.min(start + 2.2, settle + tl.holdDuration);
+  if (phase.beforeStart || end <= start || phase.local >= settle + tl.holdDuration) return { intensity: 0, position: -1 };
   const span = Math.max(end - start, 1e-4);
   const progress = clamp01((phase.local - start) / span);
   const intensity = progress <= 0 || progress >= 1 ? 0 : Math.sin(Math.PI * progress) ** 2;
@@ -166,8 +170,9 @@ export function heroGlint(phase, tl) {
 }
 
 /** Угловой свет уступает внимание логотипу и тексту, пока дописывается название. */
-export function compositionFocus(phase, tl) {
+export function compositionFocus(phase, tl, captionStart) {
   const settle = tl.drawDuration + tl.emergeDuration;
+  if (captionStart !== undefined) return smooth(captionStart - 0.4, captionStart + 1.4, phase.local);
   return smooth(settle - tl.emergeDuration * 0.08, settle + 1.4, phase.local);
 }
 

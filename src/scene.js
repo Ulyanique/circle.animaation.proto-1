@@ -2,8 +2,10 @@ import { ConstructionGuides } from "./construction-guides.js";
 import { logoRotation } from "./scenes/logo-motion.js";
 import { updateTopIllumination, updateUpperRays } from "./top-illumination.js";
 import { ringSideVisible } from "./scenes/ring-sides.js";
-import { customTextAnimation } from "./custom-text.js";
-import { editorViewport } from "./editor-layers.js";
+import { logoTimingPhase } from "./logo-timing.js";
+import { captionTimedLine } from "./caption-timing.js";
+import { customTextAnimation, customTextVisual } from "./custom-text.js";
+import { applyEffectOrder } from "./effect-order.js";
 import * as THREE from "three";
 import { OUTPUT } from "./scenes/catalog.js";
 import {
@@ -33,6 +35,7 @@ import { Sparks, AnamorphicFlare, flarePosition } from "./sparks.js";
 import { Plotter } from "./plotter.js";
 import { SolarBokeh } from "./bokeh.js";
 import { captionState, finaleCaptionState, captionAccent, glyphReveal } from "./caption.js";
+import { captionDrift } from "./caption-layout.js";
 import { computePhase, compositionFocus, heroGlint, seamCurtainOpacity, logoDrawFinish } from "./timeline.js";
 import { introCues, introSequence, introOutro, finaleCues } from "./scenes/cues.js";
 
@@ -206,30 +209,14 @@ export class LogoScene {
   resize() {
     // внутренний рендер фиксирован 1920×1080 (pixelRatio = 1); на экран кадр масштабируется с letterbox
     const RW = OUTPUT.width, RH = OUTPUT.height, ASPECT = RW / RH;
-    const view = editorViewport(window.innerWidth, window.innerHeight, document.body.classList.contains("editor-on"));
-    const W = view.width, H = view.height;
-    let cw = W, ch = W / ASPECT;
-    if (ch > H) { ch = H; cw = H * ASPECT; }
-    const centerX = view.left + W / 2, centerY = view.top + H / 2;
-    this.renderer.domElement.style.left = centerX + "px";
-    this.renderer.domElement.style.top = centerY + "px";
-    this.renderer.domElement.style.width = Math.round(cw) + "px";
-    this.renderer.domElement.style.height = Math.round(ch) + "px";
-    // подпись повторяет рамку канваса: --u = 1% ширины кадра
-    const cap = document.getElementById("caption");
-    if (cap) {
-      cap.style.left = centerX + "px";
-      cap.style.top = centerY + "px";
-      cap.style.width = Math.round(cw) + "px";
-      cap.style.height = Math.round(ch) + "px";
-      cap.style.setProperty("--u", (cw / 100).toFixed(3) + "px");
+    // Внутренний рендер неизменен при перемещении и масштабе интерфейса.
+    if (this._w !== RW || this._h !== RH) {
+      this.renderer.setPixelRatio(1);
+      this.renderer.setSize(RW, RH, false);
+      this.composer.setSize(RW, RH);
     }
-    this._w = RW;
-    this._h = RH;
-    this.renderer.setPixelRatio(1);
-    this.renderer.setSize(RW, RH, false);
+    this._w = RW; this._h = RH;
     const pr = 1;
-    this.composer.setSize(RW, RH);
     this.camera.aspect = ASPECT;
     this.camera.updateProjectionMatrix();
 
@@ -300,9 +287,12 @@ export class LogoScene {
     // глубокий золотой оттенок в тенях через emissive
     m.emissive.set(cfg.colors.goldDeep).multiplyScalar(0.12);
 
+    // Изолируем собственный интервал знака от сценария света, фона и титров.
+    const logoPhase = logoTimingPhase(t, cfg.timeline, cfg.logoTiming, ph);
     // проявление из тени
-    revealUniforms.uReveal.value = ph.reveal * REVEAL_MAX;
+    revealUniforms.uReveal.value = logoPhase.reveal * REVEAL_MAX;
     revealUniforms.uRevealNoise.value = cfg.logo.revealNoise;
+    revealUniforms.uFacetPolish.value = THREE.MathUtils.clamp(cfg.logo.facetPolish ?? 0, 0, 1);
     revealUniforms.uRevealGlow.value = cfg.logo.revealGlow * (ph.name === "emerge" || ph.name === "fade" ? 1.0 : 0.6) *
       (1 + opening.strike * 0.55);
     revealUniforms.uGlowColor.value.set(cfg.colors.glowColor);
@@ -314,7 +304,7 @@ export class LogoScene {
     const quant = (f) => (f <= 0 ? 0 : Math.max(1, Math.round(f * ph.cycle)) / ph.cycle);
     const pulse = 1 + cfg.logo.pulseAmount * Math.sin(TAUt * quant(cfg.logo.pulseSpeed) * t);
     const retreat = finale?.active ? finale.retreat : 0;
-    const z = -cfg.logo.shadowDepth * (1 - ph.reveal) * (1 - ph.reveal) - retreat * (cfg.finale?.retreatDepth ?? 0);
+    const z = -cfg.logo.shadowDepth * (1 - logoPhase.reveal) * (1 - logoPhase.reveal) - retreat * (cfg.finale?.retreatDepth ?? 0);
     const root = this.logo.root;
     root.visible = cfg.logo.visible !== false;
     const lift = sequence ? sequence.lift : 1;
@@ -322,28 +312,29 @@ export class LogoScene {
     const y = (cfg.logo.offsetY ?? 0) * lift + sway * (sequence ? sequence.settled : 1);
     root.position.set((cfg.logo.offsetX ?? 0) * lift * (1 - (finale?.center ?? 0)), y * (1 - (finale?.center ?? 0)), z);
     const retreatScale = 1 - retreat * (1 - (cfg.finale?.retreatScale ?? 1));
-    root.scale.setScalar(cfg.logo.scale * scaleGrow * pulse * (0.55 + 0.45 * easeOutCubic(ph.reveal)) * retreatScale);  // сначала контур в малом размере, затем логотип растёт
+    root.scale.setScalar(cfg.logo.scale * scaleGrow * pulse * (0.55 + 0.45 * easeOutCubic(logoPhase.reveal)) * retreatScale);  // сначала контур в малом размере, затем логотип растёт
     // Интро смотрит прямо, фотопауза поворачивает только знак, остальные сцены сохраняют покачивание.
     const rotation = logoRotation({intro: this.introStyle, photo: this.photoSpin, time: t, local: ph.local,
       cycle: ph.cycle, start: logoDrawFinish(cfg.timeline), turns: cfg.photo?.logoTurns, swayAmount: cfg.logo.swayAmount, swaySpeed: cfg.logo.swaySpeed});
     root.rotation.set(rotation.x, rotation.y, rotation.z);
-    this.logo.updateOutline(ph.draw, ph.outline, cfg, ph.fill, ph.name === "fade");
+    this.logo.updateOutline(logoPhase.draw, logoPhase.outline, cfg, logoPhase.fill, logoPhase.reverse);
     this.contourWaves?.update(t, ph, cfg);
     if (!root.visible && this.contourWaves) this.contourWaves.group.visible = false;
 
     // кольца, свет из углов
     // В интро боковые круги появляются только после собранного знака.
     const env = sequence ? sequence.corners : ph.rings;
-    const focus = compositionFocus(ph, cfg.timeline);
+    const focus = compositionFocus(ph, cfg.timeline, sequence?.captionStart);
     const cornerEnv = env * (1 - 0.44 * focus);
     const cpos = this.corners.update(t, cfg, this.halfW, this.halfH, env, focus);
     if (this.introStyle || this.hideCenterRing) this.corners.centerRing.visible = false;
     const effectPhase = computePhase(t, cfg.timeline);
+    applyEffectOrder(cfg, this);
     this.constructionGuides.update(t, effectPhase, cfg, root, cpos, this.introStyle);
     for (const decor of Object.values(this.brandDecors)) decor.update(t, effectPhase, cfg, root);
     for (const cloud of Object.values(this.particleClouds)) cloud.update(t, effectPhase, cfg);
     for (const glow of Object.values(this.backgroundGlows)) glow.update(t, effectPhase, cfg);
-    this.solarBokeh.update(t, sequence ? { ...ph, rings: env } : ph, cfg, cpos);
+    this.solarBokeh.update(t, sequence ? { ...ph, rings: env } : ph, cfg, cpos, focus);
     this.plotter.update(ph, cfg, (sequence || finale?.active) ? root.position.y : cfg.logo.offsetY, root.position.x);
     const tilt = THREE.MathUtils.degToRad(cfg.rings.tilt);
     this.particles.update(t, cfg, this.halfW, this.halfH, this.pixelRatio, this.viewportH, this.fovRad, cpos, cfg.rings.radius, tilt, cornerEnv);
@@ -377,7 +368,7 @@ export class LogoScene {
     this.fillLight.intensity = cfg.lights.fillIntensity * exposure;
     // Один короткий тёплый проход по граням, пока собирается название.
     // На удержании ключевой акцент — текст, а не бегущий по нему блик.
-    const cue = heroGlint(ph, cfg.timeline);
+    const cue = heroGlint(ph, cfg.timeline, sequence?.captionStart);
     revealUniforms.uSpecPass.value = cfg.logo.glint * 1.8 * cue.intensity;
     const gx = cue.position * 1.6;
     revealUniforms.uSpecX.value = gx;
@@ -402,19 +393,28 @@ export class LogoScene {
       setStyleIfChanged(capEl, "--finale-subtitle-y", `${79 - 29 * (finale?.subtitleCenter ?? 0)}%`);
       const k = THREE.MathUtils.smoothstep(progress, 0.0, 0.8);
       capEl.style.opacity = "1";
-      capEl.style.setProperty("--drift", `${((1 - k) * (1 - (finale?.subtitleCenter ?? 0)) * window.innerHeight * 0.008).toFixed(3)}px`);
+      capEl.style.setProperty("--drift", `${captionDrift(k, finale?.subtitleCenter ?? 0, parseFloat(capEl.style.height) || window.innerHeight).toFixed(3)}px`);
       capEl.style.transform = "translate(-50%, calc(-50% + var(--drift)))";
       const u = parseFloat(capEl.style.getPropertyValue("--u")) || 19.2;
-      for (const [sel, name, line] of [
-        [".cap-title", "title", lines.title], [".r1", "rule1", lines.rule1],
-        [".cap-sub", "subtitle", lines.subtitle], [".r2", "rule2", lines.rule2],
-        [".cap-date", "date", lines.date],
+      for (const [sel, name, baseLine] of [
+        [".cap-title", "title", captionTimedLine(t, cfg.timeline, cfg.captionTiming, "title", lines.title)], [".r1", "rule1", lines.rule1],
+        [".cap-sub", "subtitle", captionTimedLine(t, cfg.timeline, cfg.captionTiming, "subtitle", lines.subtitle)], [".r2", "rule2", lines.rule2],
+        [".cap-date", "date", captionTimedLine(t, cfg.timeline, cfg.captionTiming, "date", lines.date)],
         ...Array.from(capEl.querySelectorAll(".cap-custom"), el => [`[data-custom="${el.dataset.custom}"]`, "title",
           el.dataset.independent === 'true' ? customTextAnimation(t, cfg.timeline, cfg.textLayers, el.dataset.custom) : lines.title]),
       ]) {
         const el = capEl.querySelector(sel);
         if (!el) continue;
-        const accent = captionAccent(name, line, ph.name === "fade" || ph.name === "rest");
+        const isCustom = el.classList.contains('cap-custom');
+        const isCaption = !isCustom && ['title', 'subtitle', 'date'].includes(name);
+        if (isCaption) {
+          const requested = cfg.captionTiming?.[`${name}RevealStyle`];
+          el.dataset.revealStyle = ['fade-up', 'draw'].includes(requested) ? requested : 'fade';
+        }
+        const visual = isCustom || isCaption ? customTextVisual(baseLine, el.dataset.revealStyle) : null;
+        const line = visual ? visual.line : baseLine;
+        const accent = visual?.fade ? {rise:visual.rise, pen:0} : captionAccent(name, line, ph.name === "fade" || ph.name === "rest");
+        if (visual) setStyleIfChanged(el, isCustom ? '--custom-reveal' : '--caption-reveal', visual.opacity.toFixed(4));
         setStyleIfChanged(el, "--p", line.outline.toFixed(4));
         if (line.fill !== undefined) setStyleIfChanged(el, "--f", line.fill.toFixed(4));
         setStyleIfChanged(el, "--lift", `${(accent.rise * u * (name === "subtitle" ? 1 - (finale?.subtitleCenter ?? 0) : 1)).toFixed(3)}px`);

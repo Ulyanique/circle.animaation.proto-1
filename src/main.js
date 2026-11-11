@@ -6,6 +6,7 @@ import { parse as parseFont } from "opentype.js";
 import { sources as contourSources } from "./contour-font-assets.js";
 import { refreshContours } from "./contour-preview.js";
 import { syncCaptionContent } from "./caption-content.js";
+import { applyCaptionFit } from "./caption-fit.js";
 import {
   cloneDefaults, loadSceneConfig, saveSceneConfig, replaceConfig, mergeConfig, projectToJSON,
 } from "./config.js";
@@ -16,10 +17,12 @@ import { FinaleScene } from "./finale-scene.js";
 import { createSettingsUI } from "./ui.js";
 import { AnimationRuntime, cycleDuration } from "./runtime.js";
 import { encodeOfflineVideo, frameCount } from "./offline-video.js";
+import { transitionDuration, drawOutgoingFrame } from "./scene-transition.js";
 import { OUTPUT, RECORDING_CHAIN, sceneById } from "./scenes/catalog.js";
 import { drawCaption } from "./caption-compositor.js";
 import { createOperatorControls, crossedBoundary } from "./operator.js";
 import { createFrameEditor } from "./editor.js";
+import { layoutEditorPreview } from "./editor-layout.js";
 
 const requestedScene = new URLSearchParams(location.search).get("scene") || "intro";
 let activeScene = sceneById(requestedScene);
@@ -76,13 +79,20 @@ function applyTypography(force = false) {
   const cap = document.getElementById("caption");
   const font = cfg.typography?.font || "cormorant-garamond";
   const sizes = ["title", "subtitle", "date"].map(name => cfg.caption?.[`${name}Scale`] ?? 1);
-  const signature = `${font}:${sizes.join(":")}`;
+  const tracking = ["title", "subtitle", "date"].map(name => cfg.typography?.[`${name}Tracking`]);
   const textChanged = syncCaptionContent(cap, cfg.caption, cfg.textLayers);
-  const changed = cap.dataset.fontSignature !== signature;
-  for (const [i, name] of ["title", "subtitle", "date"].entries()) cap.style.setProperty(`--${name}-scale`, sizes[i]);
-  cap.dataset.fontSignature = signature;
+  for (const [i, name] of ["title", "subtitle", "date"].entries()) {
+    cap.style.setProperty(`--${name}-scale`, sizes[i]);
+    const value = tracking[i];
+    if (Number.isFinite(value)) cap.style.setProperty(`--${name}-tracking`, `${Math.max(0, Math.min(.6, value))}em`);
+    else cap.style.removeProperty(`--${name}-tracking`);
+  }
   cap.style.fontFamily = `"${fontName(font)}", Georgia, serif`;
   cap.dataset.font = font;
+  const fitted = applyCaptionFit(cap, cfg.caption, cfg.textLayers);
+  const signature = `${font}:${sizes.join(":")}:${tracking.join(":")}:${fitted.join(":")}`;
+  const changed = cap.dataset.fontSignature !== signature;
+  cap.dataset.fontSignature = signature;
   if (textChanged || changed || force || !cap.classList.contains("contours-ready")) refreshContours(font);
 }
 applyTypography();
@@ -91,6 +101,8 @@ const adapters = { waiting: LogoScene, brand: BrandScene,
   "photo-pause": PhotoPauseScene, finale: FinaleScene };
 let scene = new adapters[sceneId](canvas, cfg);
 let runtime = new AnimationRuntime(scene, cfg, OUTPUT.fps);
+layoutEditorPreview(canvas, document.getElementById("caption"));
+applyTypography(true); // теперь известны реальные размеры рамки после resize сцены
 let editor;
 const settings = createSettingsUI({
   scenes: READY_IDS.map((id) => ({
@@ -122,11 +134,11 @@ const settings = createSettingsUI({
   onExportVideo: () => startRecording(),
 });
 
-window.addEventListener("resize", () => { scene.resize(); applyTypography(true); });
+window.addEventListener("resize", () => { layoutEditorPreview(canvas, document.getElementById("caption")); applyTypography(true); });
 
 // презентация: F — полный экран
 window.addEventListener("keydown", (e) => {
-  if (e.code === "KeyF" && !(e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement)) {
+  if (e.code === "KeyF" && !(e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement || e.target instanceof HTMLSelectElement || e.target.isContentEditable)) {
     if (document.fullscreenElement) document.exitFullscreen?.();
     else document.documentElement.requestFullscreen?.();
   }
@@ -183,7 +195,7 @@ editor = createFrameEditor({
     if (!wasPaused) saveScene();
     settings.refresh(); operator.refresh();
   },
-  onLayoutChange: () => { scene.resize(); applyTypography(true); },
+  onLayoutChange: (kind) => { layoutEditorPreview(canvas, document.getElementById("caption")); if (kind !== "pan") applyTypography(true); },
   onSettings: (section) => settings.openSection(section),
   onHistoryConflict: () => toast("Настройка изменилась вне редактора; история сцены очищена", true),
 });
@@ -227,13 +239,18 @@ function switchScene(id, source) {
     toast(`Не удалось открыть сцену: ${error.message}`, true);
     return false;
   }
-  const snapshot = document.createElement("canvas");
-  snapshot.width = REC_W; snapshot.height = REC_H;
-  snapshot.className = "transition-frame";
-  snapshot.style.width = canvas.style.width;
-  snapshot.style.height = canvas.style.height;
-  drawCompositeFrame(snapshot.getContext("2d"));
-  if (source !== SEQUENCE_SWITCH) document.body.appendChild(snapshot);
+  const duration = transitionDuration(nextCfg);
+  let snapshot = null;
+  if (duration > 0) {
+    snapshot = document.createElement("canvas");
+    snapshot.width = REC_W; snapshot.height = REC_H;
+    snapshot.className = "transition-frame";
+    snapshot.style.width = canvas.style.width;
+    snapshot.style.height = canvas.style.height;
+    snapshot.style.transitionDuration = `${duration}s`;
+    drawCompositeFrame(snapshot.getContext("2d"));
+    if (source !== SEQUENCE_SWITCH) document.body.appendChild(snapshot);
+  }
   const oldCanvas = canvas;
   const oldScene = scene;
   nextCanvas.id = "stage";
@@ -245,6 +262,7 @@ function switchScene(id, source) {
   scene = nextScene;
   runtime = new AnimationRuntime(scene, cfg, OUTPUT.fps);
   activateClasses(id);
+  layoutEditorPreview(canvas, document.getElementById("caption"));
   applyTypography(true);
   runtime.renderAt(cfg.timeline.startDelay, 1 / OUTPUT.fps);
   oldScene.dispose();
@@ -255,13 +273,15 @@ function switchScene(id, source) {
   history.replaceState(null, "", url);
   if (source === SEQUENCE_SWITCH) {
     recording.outgoing = snapshot;
-  } else {
+  } else if (snapshot) {
     transition = snapshot;
-    requestAnimationFrame(() => snapshot.classList.add("transition-out"));
-    setTimeout(() => {
-      snapshot.remove();
-      if (transition === snapshot) transition = null;
-    }, 1050);
+    requestAnimationFrame(() => {
+      snapshot.classList.add("transition-out");
+      setTimeout(() => {
+        snapshot.remove();
+        if (transition === snapshot) transition = null;
+      }, duration * 1000 + 150);
+    });
   }
   operator.refresh();
   return true;
@@ -326,8 +346,9 @@ async function runOfflineRecording(job, overlay, download) {
   try {
     const ids = job.kind === "sequence" ? RECORDING_CHAIN : [sceneId];
     const segments = ids.map(id => {
-      const timeline = configFor(id).timeline;
-      return { id, start:timeline.startDelay, speed:timeline.speed,
+      const sceneConfig = configFor(id);
+      const timeline = sceneConfig.timeline;
+      return { id, start:timeline.startDelay, speed:timeline.speed, transition:transitionDuration(sceneConfig),
         count:frameCount(cycleDuration(timeline), timeline.speed, OUTPUT.fps) };
     });
     const total = segments.reduce((sum, segment) => sum + segment.count, 0);
@@ -348,7 +369,7 @@ async function runOfflineRecording(job, overlay, download) {
           if (sceneId !== next.id && !switchScene(next.id, SEQUENCE_SWITCH))
             throw new Error(`Не удалось открыть сцену ${next.id}`);
           if (segmentIndex === 0) job.outgoing = null;
-          else stats.transitions.push({from, to:next.id, blendedFrames:0});
+          else stats.transitions.push({from, to:next.id, duration:next.transition, blendedFrames:0});
           stats.scenes.push(next.id);
         }
         const segment = segments[segmentIndex];
@@ -356,12 +377,8 @@ async function runOfflineRecording(job, overlay, download) {
         runtime.renderAt(segment.start + localIndex * segment.speed / OUTPUT.fps, 1 / OUTPUT.fps);
         drawCompositeFrame(ctx);
         if (job.outgoing) {
-          const p = Math.min(1, localIndex / (0.9 * OUTPUT.fps));
-          if (p >= 1) job.outgoing = null;
+          if (!drawOutgoingFrame(ctx, job.outgoing, localIndex, OUTPUT.fps, segment.transition, REC_W, REC_H)) job.outgoing = null;
           else {
-            const eased = p * p * (3 - 2 * p);
-            ctx.save(); ctx.globalAlpha = 1 - eased;
-            ctx.drawImage(job.outgoing, 0, 0, REC_W, REC_H); ctx.restore();
             stats.blendedFrames++; stats.transitions.at(-1).blendedFrames++;
           }
         }

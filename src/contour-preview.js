@@ -19,7 +19,7 @@ export function refreshContours(fontId) {
       span.querySelector('svg')?.remove();
       span.classList.remove('has-contour');
       const glyph = transformGlyph(span.dataset.glyph, style.textTransform, lang);
-      const shape = contourShape(fontId, weight, glyph);
+      const shape = contourShape(line.dataset.font || fontId, weight, glyph);
       if (!shape) continue;
       const rect = span.getBoundingClientRect();
       if (!rect.width || !rect.height) continue;
