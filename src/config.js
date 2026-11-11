@@ -347,7 +347,7 @@ export function mergeConfig(defaults, patch) {
 }
 
 /** Настройки сцены: её умолчания + сохранённое в браузере (если есть). */
-export function loadSceneConfig(sceneId, defaults) {
+export function loadSceneConfig(sceneId, defaults, onReadError) {
   const cfg = cloneDefaults(defaults);
   let raw = null;
   let migratePhotoCenter = false, migratePhotoSize = false, migrateBrandCenter = false, migrateGuides = false, migrateFinaleGuides = false;
@@ -363,6 +363,7 @@ export function loadSceneConfig(sceneId, defaults) {
     if (sceneId === "waiting" || sceneId === "brand") migrateGuides = !localStorage.getItem(`${GUIDES_PLACEMENT_MIGRATION}:${sceneId}`);
   } catch (e) {
     console.warn("Не удалось прочитать настройки", e);
+    onReadError?.(sceneId, e);
     return cfg;
   }
   if (!raw) {
@@ -437,6 +438,7 @@ export function loadSceneConfig(sceneId, defaults) {
     deepMerge(cfg, saved);
   } catch (e) {
     console.warn("Сохранённые настройки повреждены, взяты умолчания", e);
+    onReadError?.(sceneId, e);
   }
   return cfg;
 }
@@ -444,8 +446,9 @@ export function loadSceneConfig(sceneId, defaults) {
 export function saveSceneConfig(sceneId, cfg) {
   try {
     localStorage.setItem(sceneStorageKey(sceneId), JSON.stringify(cfg));
+    return true;
   } catch (e) {
-    /* localStorage может быть недоступен */
+    return false;
   }
 }
 

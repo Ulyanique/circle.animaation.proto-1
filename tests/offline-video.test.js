@@ -22,3 +22,10 @@ test('invalid export plans are rejected', () => {
   for (const args of [[0,1,60], [1,0,60], [NaN,1,60], [1,1,0], [1,1,29.5]])
     assert.throws(() => frameCount(...args));
 });
+
+test('video size estimate uses output frame count and target bitrate', async () => {
+  const { estimateVideoBytes } = await import('../src/offline-video.js');
+  assert.equal(estimateVideoBytes(600, 60), 50000000);
+  assert.equal(estimateVideoBytes(120, 60, 8000), 2000);
+  for (const args of [[0,60], [1,0], [1,60,-1], [1.5,60]]) assert.throws(() => estimateVideoBytes(...args));
+});

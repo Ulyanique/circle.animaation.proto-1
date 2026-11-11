@@ -23,6 +23,7 @@
     "render:frames": "node scripts/render-loop.cjs",
     "render:storyboard": "node scripts/render-storyboard.cjs",
     "render:encode": "bash scripts/encode-loop.sh",
+    "verify:storage": "node scripts/verify-storage-warning.cjs",
     "verify:settings": "node scripts/verify-settings.cjs",
     "verify:fonts": "node scripts/verify-fonts.cjs",
     "verify:offline-video": "node scripts/verify-offline-video.cjs",

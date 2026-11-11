@@ -10,11 +10,21 @@ export function frameCount(cycle, speed, fps) {
 /** @param {number} index @param {number} fps */
 export function frameTimestamp(index, fps) { return Math.round(index * 1000000 / fps) / 1000000; }
 
+export const DEFAULT_VIDEO_BITRATE = 40000000;
+
+/** Rough encoded payload estimate, not peak memory or a guaranteed file size.
+ * @param {number} total @param {number} fps @param {number} bitrate */
+export function estimateVideoBytes(total, fps, bitrate = DEFAULT_VIDEO_BITRATE) {
+  if (!Number.isInteger(total) || total < 1 || !Number.isFinite(fps) || fps <= 0 || !Number.isFinite(bitrate) || bitrate <= 0)
+    throw new Error('Некорректные параметры оценки видео');
+  return total / fps * bitrate / 8;
+}
+
 /** Offline WebCodecs: render and encode every frame, await backpressure, and verify the resulting MP4.
  * No real-time capture fallback: unsupported codecs and encoder failures are reported to the caller.
  * @param {{canvas:HTMLCanvasElement, fps:number, total:number, draw:(index:number)=>void, cancelled:()=>boolean,
  * progress?:(done:number,total:number)=>void, bitrate?:number}} options */
-export async function encodeOfflineVideo({canvas, fps, total, draw, cancelled, progress, bitrate = 40000000}) {
+export async function encodeOfflineVideo({canvas, fps, total, draw, cancelled, progress, bitrate = DEFAULT_VIDEO_BITRATE}) {
   if (!Number.isInteger(total) || total < 1) throw new Error('Нет кадров для экспорта');
   if (typeof VideoEncoder === 'undefined' || typeof VideoFrame === 'undefined')
     throw new Error('Браузер не поддерживает покадровый экспорт WebCodecs. Откройте проект в актуальном Chrome или Edge по HTTPS.');
@@ -23,6 +33,7 @@ export async function encodeOfflineVideo({canvas, fps, total, draw, cancelled, p
     throw new Error('Браузер не поддерживает кодирование H.264 для MP4 в этом разрешении. Попробуйте актуальный Chrome или Edge.');
   const target = new BufferTarget();
   const output = new Output({format:new Mp4OutputFormat(), target});
+  /** @type {number[]} */
   const timestamps = [];
   const source = new CanvasSource(canvas, {codec, bitrate, latencyMode:'quality', onEncodedPacket: packet => timestamps.push(packet.timestamp)});
   output.addVideoTrack(source, {frameRate:fps});

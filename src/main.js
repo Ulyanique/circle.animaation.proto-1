@@ -16,7 +16,7 @@ import { PhotoPauseScene } from "./photo-pause-scene.js";
 import { FinaleScene } from "./finale-scene.js";
 import { createSettingsUI } from "./ui.js";
 import { AnimationRuntime, cycleDuration } from "./runtime.js";
-import { encodeOfflineVideo, frameCount } from "./offline-video.js";
+import { encodeOfflineVideo, frameCount, estimateVideoBytes } from "./offline-video.js";
 import { transitionDuration, drawOutgoingFrame } from "./scene-transition.js";
 import { OUTPUT, RECORDING_CHAIN, sceneById } from "./scenes/catalog.js";
 import { drawCaption } from "./caption-compositor.js";
@@ -34,8 +34,9 @@ let sceneId = activeScene.id;
 // Настройки каждой готовой сцены живут отдельно: в браузере свой ключ на сцену.
 const READY_IDS = ["waiting", "brand", "photo-pause", "finale"];
 const configs = new Map();
+const storageFailures = new Set();
 for (const id of READY_IDS) {
-  configs.set(id, loadSceneConfig(id, sceneById(id).defaults));
+  configs.set(id, loadSceneConfig(id, sceneById(id).defaults, failedId => storageFailures.add(failedId)));
 }
 function configFor(id) {
   id = sceneById(id)?.id || id;
@@ -43,7 +44,10 @@ function configFor(id) {
   return configs.get(id);
 }
 function saveScene(id = sceneId) {
-  saveSceneConfig(sceneById(id)?.id || id, configFor(id));
+  id = sceneById(id)?.id || id;
+  if (saveSceneConfig(id, configFor(id))) storageFailures.delete(id);
+  else storageFailures.add(id);
+  updateStorageWarning();
 }
 /** Применить присланный JSON к сцене, не ломая ссылку, которую держит рендер. */
 function applySceneConfig(id, next) {
@@ -67,6 +71,21 @@ function toast(msg, isError = false) {
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => toastEl.classList.remove("show"), isError ? 10000 : 2200);
 }
+
+// Persistent warning: a toast can be overwritten by a later success message.
+const storageWarning = document.createElement("div");
+storageWarning.className = "storage-warning";
+storageWarning.setAttribute("role", "alert");
+storageWarning.innerHTML = '<span>Настройки не удалось прочитать или сохранить в браузере. Изменения могут потеряться после перезагрузки.</span> <button type="button">Скачать текущий проект JSON</button>';
+storageWarning.querySelector("button").addEventListener("click", () => {
+  const blob = new Blob([projectToJSON(Object.fromEntries(READY_IDS.map(id => [id, configFor(id)])), READY_IDS)], {type: "application/json"});
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(blob); link.download = "circle-scenes-backup.json";
+  link.click(); setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+});
+document.body.appendChild(storageWarning);
+function updateStorageWarning() { storageWarning.hidden = storageFailures.size === 0; }
+updateStorageWarning();
 
 function activateClasses(id) {
   for (const name of ["brand", "photo-pause", "finale"]) {
@@ -288,13 +307,14 @@ function switchScene(id, source) {
 }
 
 // The export owns the renderer until it has completed or has been cancelled.
-function exportOverlay(job) {
+function exportOverlay(job, estimatedMiB) {
   const overlay = document.createElement("div");
   overlay.className = "export-overlay";
-  overlay.innerHTML = '<div class="export-dialog" role="status" aria-live="polite"><strong>Покадровый экспорт</strong><p>Подготовка…</p><progress max="100" value="0"></progress><button type="button">Отменить</button></div>';
+  overlay.innerHTML = '<div class="export-dialog" role="status" aria-live="polite"><strong>Покадровый экспорт</strong><p>Подготовка…</p><small></small><progress max="100" value="0"></progress><button type="button">Отменить</button></div>';
   const inert = [...document.body.children].filter(el => el !== canvas && el.id !== "caption" && el.id !== "toast").map(el => [el, el.inert]);
   for (const [el] of inert) el.inert = true;
   document.body.appendChild(overlay);
+  overlay.querySelector("small").textContent = `Ориентировочный размер MP4: ${estimatedMiB} МиБ. Памяти браузеру потребуется больше; фактический размер может отличаться.`;
   const button = overlay.querySelector("button");
   button.addEventListener("click", () => { job.cancelled = true; button.disabled = true; button.textContent = "Отмена…"; });
   const blockKeys = event => { if (event.key !== "Tab") event.stopImmediatePropagation(); };
@@ -327,10 +347,20 @@ function startSequenceRecording({ download = true } = {}) {
 }
 function startOfflineRecording(kind, download) {
   if (recording || transition) return false;
+  let estimatedMiB;
+  try {
+    const ids = kind === "sequence" ? RECORDING_CHAIN : [sceneId];
+    const frames = ids.reduce((sum, id) => {
+      const timeline = configFor(id).timeline;
+      return sum + frameCount(cycleDuration(timeline), timeline.speed, OUTPUT.fps);
+    }, 0);
+    estimatedMiB = Math.ceil(estimateVideoBytes(frames, OUTPUT.fps) / 1024 ** 2);
+  } catch (error) { toast(`Ошибка экспорта: ${error.message}`, true); return false; }
+  if (download && estimatedMiB >= 256 && !confirm(`Ориентировочный размер MP4 — ${estimatedMiB} МиБ. Видео собирается в памяти браузера; потребуется больше памяти, а итоговый размер может отличаться. Продолжить?`)) return false;
   editor?.disable();
   const job = { kind, cancelled:false, outgoing:null };
   recording = job;
-  const overlay = exportOverlay(job);
+  const overlay = exportOverlay(job, estimatedMiB);
   operator.refresh();
   runOfflineRecording(job, overlay, download).catch(error => console.error("Ошибка экспорта", error));
   return true;
