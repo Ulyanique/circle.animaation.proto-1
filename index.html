@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Золотая анимация логотипа: прорисовка контура, проявление из тени, зацикленный свет из углов." />
+    <title>Янтарный циркуль · Интро и заставки</title>
+    <link rel="icon" href="data:," />
+    <!-- Критические стили здесь, а не в JS: даже при медленной загрузке модулей
+         не показываем белую страницу и неоформленный текст титра. -->
+    <style>
+      html, body { margin: 0; width: 100%; height: 100%; overflow: hidden; background: #050403; }
+      #stage, #caption, .toast { visibility: hidden; }
+      body.boot-ready #stage, body.boot-ready #caption, body.boot-ready .toast { visibility: visible; }
+      #boot-screen {
+        position: fixed; inset: 0; z-index: 9999; display: grid; place-items: center;
+        background: radial-gradient(ellipse at 50% 43%, #1d150d 0%, #090705 50%, #050403 100%);
+        color: #e8d6ae; font: 13px/1.6 Georgia, serif; text-align: center;
+        transition: opacity .45s ease; isolation: isolate;
+      }
+      #boot-screen.is-done { opacity: 0; pointer-events: none; }
+      .boot-content { padding: 30px; max-width: 440px; }
+      .boot-symbol {
+        width: 82px; height: 82px; margin: 0 auto 30px; border-radius: 50%;
+        border: 1px solid rgba(217, 176, 97, .13);
+        border-top-color: #e6bf72; border-right-color: rgba(230, 191, 114, .55);
+        box-shadow: 0 0 32px rgba(229, 168, 80, .1), inset 0 0 20px rgba(229, 168, 80, .04);
+        animation: boot-turn 2.8s linear infinite;
+      }
+      .boot-title { color: #e8bf76; font-size: 21px; letter-spacing: .13em; margin: 0 0 8px; }
+      .boot-detail { margin: 0; color: #b9a989; letter-spacing: .045em; }
+      #boot-retry {
+        display: none; margin: 25px auto 0; padding: 9px 22px; border-radius: 2px;
+        border: 1px solid rgba(230, 191, 114, .58); background: transparent;
+        color: #e8bf76; cursor: pointer; font: inherit;
+      }
+      #boot-screen[data-state="error"] .boot-symbol { animation: none; border-color: #9b6653; }
+      #boot-screen[data-state="error"] #boot-retry { display: block; }
+      @keyframes boot-turn { to { transform: rotate(360deg); } }
+      @media (prefers-reduced-motion: reduce) { .boot-symbol { animation: none; } #boot-screen { transition: none; } }
+    </style>
+    <script>
+      (() => {
+        // Стили сборки могут не загрузиться ещё до появления экрана в body.
+        // Сохраняем только ошибки помеченных файлов приложения; сторонние
+        // аналитические скрипты и другие необязательные ресурсы не мешают запуску.
+        const pending = [];
+        window.__drainBootAssetErrors = () => pending.splice(0);
+        window.addEventListener("error", (event) => {
+          const target = event.target;
+          if (!(target instanceof HTMLScriptElement || target instanceof HTMLLinkElement) ||
+              !target.hasAttribute("data-boot-critical")) return;
+          let path = "";
+          try { path = new URL(target.src || target.href, location.href).pathname; } catch (_) { /* noop */ }
+          if (window.__bootAssetError) window.__bootAssetError(path);
+          else pending.push(path);
+        }, true);
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="boot-screen" data-state="loading" role="status" aria-live="polite">
+      <div class="boot-content">
+        <div class="boot-symbol" aria-hidden="true"></div>
+        <p class="boot-title" id="boot-title">Янтарный циркуль</p>
+        <p class="boot-detail" id="boot-detail">Подготавливаем сцену и свет…</p>
+        <noscript><p class="boot-detail">Для заставки необходимо включить JavaScript в браузере.</p></noscript>
+        <button id="boot-retry" type="button" onclick="location.reload()">Повторить загрузку</button>
+      </div>
+    </div>
+    <script>
+      (() => {
+        const screen = document.getElementById("boot-screen");
+        const title = document.getElementById("boot-title");
+        const detail = document.getElementById("boot-detail");
+        let ready = false;
+        const slow = setTimeout(() => {
+          if (ready || screen.dataset.state === "error") return;
+          screen.dataset.state = "slow";
+          detail.textContent = "Первый кадр рендерится дольше обычного. Пожалуйста, подождите…";
+        }, 25000);
+        const timeout = setTimeout(() => {
+          if (!ready) window.__bootFail("Сцена не запустилась. Проверьте WebGL и обновите страницу.");
+        }, 180000);
+        window.__bootReady = () => {
+          if (ready || screen.dataset.state === "error") return;
+          ready = true;
+          clearTimeout(slow); clearTimeout(timeout);
+          document.body.classList.add("boot-ready");
+          screen.dataset.state = "ready";
+          screen.classList.add("is-done");
+          setTimeout(() => screen.remove(), 550);
+        };
+        window.__bootFail = (message) => {
+          if (screen.dataset.state === "error") return;
+          clearTimeout(slow); clearTimeout(timeout);
+          if (!screen.isConnected) document.body.prepend(screen);
+          document.body.classList.remove("boot-ready");
+          screen.classList.remove("is-done");
+          screen.dataset.state = "error";
+          title.textContent = "Не удалось открыть заставку";
+          detail.textContent = message || "Попробуйте обновить страницу или открыть её в браузере с WebGL.";
+        };
+        window.__bootAssetError = (path) => {
+          // Путь не содержит query-параметров и не раскрывает данные из URL.
+          const file = path ? ` (${path})` : "";
+          const hint = location.protocol === "file:"
+            ? "Откройте проект через npm run dev, а не как локальный файл."
+            : "Проверьте соединение и повторите загрузку.";
+          window.__bootFail(`Не загрузились файлы приложения${file}. ${hint}`);
+        };
+        for (const path of window.__drainBootAssetErrors()) window.__bootAssetError(path);
+        delete window.__drainBootAssetErrors;
+        window.addEventListener("error", (event) => {
+          // События ресурсов уже обработаны в head; исключения JS ловим отдельно.
+          if (event.target instanceof HTMLScriptElement || event.target instanceof HTMLLinkElement) return;
+          if (event.message) window.__bootFail(`Ошибка при запуске: ${event.message}`);
+        }, true);
+        window.addEventListener("unhandledrejection", (event) => {
+          window.__bootFail(`Ошибка при запуске: ${event.reason?.message || "не удалось загрузить сцену"}`);
+        });
+      })();
+    </script>
+    <canvas id="stage" aria-label="Анимация логотипа"></canvas>
+    <script>
+      document.getElementById("stage").addEventListener("webglcontextcreationerror", () => {
+        window.__bootFail("Не удалось создать WebGL-сцену. Проверьте поддержку WebGL в браузере.");
+      });
+      document.getElementById("stage").addEventListener("webglcontextlost", (event) => {
+        event.preventDefault();
+        window.__bootFail("WebGL-соединение прервалось. Обновите страницу, чтобы перезапустить заставку.");
+      });
+    </script>
+    <div id="caption" aria-hidden="true">
+      <div class="cap-title" data-text="Янтарный циркуль">Янтарный циркуль</div>
+      <div class="cap-rule r1"><span></span><i></i><span></span></div>
+      <div class="cap-sub" data-text="Вечер ретроспектива">Вечер ретроспектива</div>
+      <div class="cap-rule r2"><span></span><i></i><span></span></div>
+      <div class="cap-date" data-text="20 ноября 2026 года">20 ноября 2026 года</div>
+    </div>
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+    <script type="module" data-boot-critical src="/src/main.js"></script>
+  </body>
+</html>
