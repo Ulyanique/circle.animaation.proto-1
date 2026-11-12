@@ -3,8 +3,8 @@ import { OUTPUT } from "./scenes/catalog.js";
 import { contourShape } from "./contour-fonts.js";
 import { glyphReveal } from "./caption.js";
 
-const REC_W = OUTPUT.width, REC_H = OUTPUT.height;
-
+// Размер берём у целевого canvas: титр должен совпадать с мастером кадра,
+// а не с единственным форматом 1920×1080.
 /** Регистр тот же, что задаёт CSS для каждой графемы в предпросмотре. */
 export function transformGlyph(glyph, transform, language = "ru") {
   const text = glyph === "\u00a0" ? " " : glyph;
@@ -57,7 +57,9 @@ function capVal(sel, name) {
 }
 
 export function drawCaption(ctx, alpha, sceneId) {
-  const W = REC_W, H = REC_H, u = W / 100;
+  const W = ctx.canvas?.width || OUTPUT.width;
+  const H = ctx.canvas?.height || OUTPUT.height;
+  const u = W / 100;
   const cap = document.getElementById("caption");
   const scale = W / (parseFloat(cap?.style.width) || W);
   const drift = parseFloat(cap?.style.getPropertyValue("--drift")) || 0;

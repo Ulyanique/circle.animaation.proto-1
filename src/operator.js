@@ -1,4 +1,5 @@
 import { OUTPUT } from "./scenes/catalog.js";
+import { MASTER_PRESETS } from "./output-profile.js";
 
 /** Не реагировать на обычную перемотку; автопереход только при пересечении шва воспроизведением. */
 export function crossedBoundary(before, after, delay, cycle) {
@@ -7,7 +8,7 @@ export function crossedBoundary(before, after, delay, cycle) {
 }
 
 /** Единый пульт для всех готовых видов. В кадр и MP4 не входит. */
-export function createOperatorControls({ getState, seek, setDuration, togglePause, switchScene, record, recordChain }) {
+export function createOperatorControls({ getState, seek, setDuration, togglePause, switchScene, setMaster, record, recordChain }) {
   const panel = document.createElement("section");
   panel.className = "operator-panel";
   panel.setAttribute("aria-label", "Пульт заставок");
@@ -32,12 +33,18 @@ export function createOperatorControls({ getState, seek, setDuration, togglePaus
       <button type="button" data-action="next" title="Вперёд на кадр">+1</button>
       <output data-role="time" aria-live="off"></output>
       <label class="operator-duration">Цикл <input type="number" data-action="duration" min="1" max="300" step="0.1" aria-label="Длительность цикла в секундах"> с</label>
+      <label class="operator-master">Мастер
+        <select data-action="master" aria-label="Разрешение мастер-кадра">
+          ${Object.values(MASTER_PRESETS).map((preset) => `<option value="${preset.id}">${preset.label}</option>`).join("")}
+        </select>
+      </label>
       <button type="button" data-action="record" title="Записать один цикл текущей заставки">● Цикл</button>
       <button type="button" data-action="record-chain" title="Записать 01 → 02 → 08 → 09 с переходами одним MP4">● Вся цепочка</button>
     </div>`;
   document.body.appendChild(panel);
   const range = panel.querySelector('[data-action="seek"]');
   const duration = panel.querySelector('[data-action="duration"]');
+  const masterSelect = panel.querySelector('[data-action="master"]');
   const autoButton = panel.querySelector('[data-action="auto"]');
   const pinButton = panel.querySelector('[data-action="pin"]');
   let auto = false, pinned = false, dragging = false, editing = false;
@@ -71,6 +78,8 @@ export function createOperatorControls({ getState, seek, setDuration, togglePaus
     if (!dragging) range.value = String(Math.min(local, max));
     panel.querySelector('[data-role="time"]').textContent = `${local.toFixed(2)} / ${state.cycle.toFixed(2)} с`;
     if (!editing) duration.value = state.cycle.toFixed(1);
+    masterSelect.value = state.master;
+    masterSelect.disabled = state.recording;
     panel.querySelector('[data-action="play"]').textContent = state.config.playback.paused ? "▶" : "Ⅱ";
     for (const button of panel.querySelectorAll("[data-scene]")) {
       if (button.dataset.scene === state.id) button.setAttribute("aria-current", "page");
@@ -90,6 +99,7 @@ export function createOperatorControls({ getState, seek, setDuration, togglePaus
   range.addEventListener("pointerdown", () => { dragging = true; });
   window.addEventListener("pointerup", () => { dragging = false; });
   range.addEventListener("input", () => jump(Number(range.value)));
+  masterSelect.addEventListener("change", () => { if (!setMaster(masterSelect.value)) refresh(); });
   duration.addEventListener("focus", () => { editing = true; });
   duration.addEventListener("blur", () => { editing = false; refresh(); });
   duration.addEventListener("change", () => {

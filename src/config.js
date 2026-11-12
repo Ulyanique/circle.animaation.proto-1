@@ -309,6 +309,8 @@ export const SCHEMA = [
       { key: "dofStartBlur", label: "Размытие на старте", type: "range", min: 0, max: 8, step: 0.05 },
       { key: "chromaticAberration", label: "Хроматическая аберрация", type: "range", min: 0, max: 0.004, step: 0.0001 },
       { key: "anamorphic", label: "Анаморфный блик", type: "range", min: 0, max: 2, step: 0.01 },
+      { key: "ditherEnabled", label: "Дизеринг: включён", type: "bool" },
+      { key: "dither", label: "Дизеринг (против полос)", type: "range", min: 0, max: 2, step: 0.05 },
     ]
   },
 ];

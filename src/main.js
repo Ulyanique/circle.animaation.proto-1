@@ -18,7 +18,8 @@ import { PartnersScene, loadPartnersBackground } from "./partners-scene.js";
 import { FinaleScene } from "./finale-scene.js";
 import { createSettingsUI } from "./ui.js";
 import { AnimationRuntime, cycleDuration } from "./runtime.js";
-import { encodeOfflineVideo, frameCount, estimateVideoBytes } from "./offline-video.js";
+import { encodeOfflineVideo, frameCount, estimateVideoBytes, videoBitrateFor } from "./offline-video.js";
+import { masterSize, masterId, setMasterPreset, loadMasterPreset } from "./output-profile.js";
 import { transitionDuration, drawOutgoingFrame } from "./scene-transition.js";
 import { OUTPUT, RECORDING_CHAIN, sceneById } from "./scenes/catalog.js";
 import { drawCaption } from "./caption-compositor.js";
@@ -26,6 +27,8 @@ import { createOperatorControls, crossedBoundary } from "./operator.js";
 import { createFrameEditor } from "./editor.js";
 import { layoutEditorPreview } from "./editor-layout.js";
 
+// Профиль мастера читаем до создания сцены: рендерер сразу получает нужный размер.
+loadMasterPreset();
 const fabricReady = loadFabricTexture();
 const partnersReady = loadPartnersBackground();
 
@@ -176,7 +179,7 @@ document.addEventListener("visibilitychange", () => {
 let recording = null; // один цикл текущей сцены, переключение на время записи заблокировано
 const operator = createOperatorControls({
   getState: () => ({ id: sceneId, time: runtime.time, config: cfg, cycle: runtime.cycle,
-    recording: !!recording, recordingKind: recording?.kind }),
+    recording: !!recording, recordingKind: recording?.kind, master: masterId() }),
   seek: (value) => { cfg.playback.paused = true; runtime.renderAt(value, 1 / OUTPUT.fps); },
   setDuration: (value) => {
     const tl = cfg.timeline;
@@ -196,6 +199,7 @@ const operator = createOperatorControls({
     settings.refresh();
   },
   switchScene: (id) => switchScene(id),
+  setMaster: (id) => applyMaster(id),
   record: () => startRecording(),
   recordChain: () => startSequenceRecording(),
 });
@@ -225,11 +229,16 @@ editor = createFrameEditor({
   onHistoryConflict: () => toast("Настройка изменилась вне редактора; история сцены очищена", true),
 });
 
-const REC_W = OUTPUT.width, REC_H = OUTPUT.height;
+// Размер мастер-кадра. Композитор титров и экспорт читают его же, а не OUTPUT.
+let REC_W = masterSize().width, REC_H = masterSize().height;
+function syncMasterSize() {
+  const size = masterSize();
+  REC_W = size.width; REC_H = size.height;
+}
 
 // Одна и та же сборка WebGL + типографики для экспорта и контроля PNG.
 function drawCompositeFrame(ctx, includeCaption = true) {
-  ctx.drawImage(canvas, 0, 0, REC_W, REC_H);
+  ctx.drawImage(canvas, 0, 0, ctx.canvas.width, ctx.canvas.height);
   const cap = document.getElementById("caption");
   const op = includeCaption && cap ? parseFloat(getComputedStyle(cap).opacity) : 0;
   if (op > 0.001 && activeScene.id !== "partners") drawCaption(ctx, op, activeScene.id);
@@ -312,6 +321,21 @@ function switchScene(id, source) {
   return true;
 }
 
+/**
+ * Переключение мастер-разрешения. Композиция задана в долях кадра, поэтому
+ * меняется только пиксельная сетка: рендерер, композитор, титры и экспорт.
+ */
+function applyMaster(id) {
+  if (recording || transition) { toast("Во время записи или перехода формат менять нельзя", true); return false; }
+  if (!setMasterPreset(id)) return false;
+  syncMasterSize();
+  scene.resize();
+  applyTypography(true);
+  runtime.renderAt(runtime.time, 1 / OUTPUT.fps);
+  operator.refresh();
+  return true;
+}
+
 // The export owns the renderer until it has completed or has been cancelled.
 function exportOverlay(job, estimatedMiB) {
   const overlay = document.createElement("div");
@@ -360,7 +384,7 @@ function startOfflineRecording(kind, download) {
       const timeline = configFor(id).timeline;
       return sum + frameCount(cycleDuration(timeline), timeline.speed, OUTPUT.fps);
     }, 0);
-    estimatedMiB = Math.ceil(estimateVideoBytes(frames, OUTPUT.fps) / 1024 ** 2);
+    estimatedMiB = Math.ceil(estimateVideoBytes(frames, OUTPUT.fps, videoBitrateFor(REC_W, REC_H)) / 1024 ** 2);
   } catch (error) { toast(`Ошибка экспорта: ${error.message}`, true); return false; }
   if (download && estimatedMiB >= 256 && !confirm(`Ориентировочный размер MP4 — ${estimatedMiB} МиБ. Видео собирается в памяти браузера; потребуется больше памяти, а итоговый размер может отличаться. Продолжить?`)) return false;
   editor?.disable();
@@ -395,6 +419,7 @@ async function runOfflineRecording(job, overlay, download) {
     if (!ctx) throw new Error("Не удалось создать кадр для экспорта");
     let segmentIndex = -1, segmentStart = 0;
     const result = await encodeOfflineVideo({canvas:videoCanvas, fps:OUTPUT.fps, total,
+      bitrate:videoBitrateFor(REC_W, REC_H),
       cancelled:() => job.cancelled,
       progress:(done, count) => overlay.progress(done, count),
       draw(index) {

@@ -157,6 +157,8 @@ export const WAITING_DEFAULTS = {
     dofStartBlur: 0,     // размытие в начале фазы появления
     chromaticAberration: 0.0003,   // радиальная: сильнее у краёв кадра
     anamorphic: 0.45,       // анаморфный блик вдоль блика по золоту
+    ditherEnabled: true,    // финальный дизеринг против полос на тёмных градиентах
+    dither: 1.0,            // амплитуда в LSB; 0 — выключить
   },
   playback: {
     paused: false,

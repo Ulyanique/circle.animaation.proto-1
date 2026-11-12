@@ -25,6 +25,9 @@ export const revealUniforms = {
   uStudioRelief: { value: 0 },
   uCinematicGold: { value: 0 },
   uCinematicTime: { value: 0 },
+  // Мягкая куполообразность лицевой плоскости: плоская грань иначе отражает
+  // окружение одной точкой и выглядит заливкой.
+  uDome: { value: 0.12 },
 };
 
 const REVEAL_GLSL_COMMON = /* glsl */ `
@@ -42,6 +45,7 @@ const REVEAL_GLSL_COMMON = /* glsl */ `
   uniform float uStudioRelief;
   uniform float uCinematicGold;
   uniform float uCinematicTime;
+  uniform float uDome;
   float rvHash(vec2 p){ p = fract(p*vec2(123.34,456.21)); p += dot(p,p+45.32); return fract(p.x*p.y); }
   float rvNoise(vec2 p){
     vec2 i = floor(p), f = fract(p);
@@ -69,6 +73,15 @@ function patchRevealMaterial(material, withEmission) {
          if (rvF > uReveal || uReveal <= 0.0) discard;`
       );
     if (withEmission) {
+      // Лицо знака — почти плоскость. Слегка «выпуклый» нормаль даёт мягкое
+      // скольжение отражения софтбокса по металлу вместо равномерной заливки.
+      shader.fragmentShader = shader.fragmentShader.replace(
+        "#include <normal_fragment_begin>",
+        `#include <normal_fragment_begin>
+         float rvFaceMask = smoothstep(0.55, 0.95, abs(vLocalNormal.z));
+         vec2 rvDome = vLocalPos.xy * uDome;
+         normal = normalize(normal + vec3(rvDome, 0.0) * rvFaceMask);`
+      );
       shader.fragmentShader = shader.fragmentShader.replace(
         "#include <emissivemap_fragment>",
         `#include <emissivemap_fragment>
@@ -85,7 +98,8 @@ function patchRevealMaterial(material, withEmission) {
          // На боковых гранях сохраняем естественное отражение окружения.
          float rvFront = smoothstep(0.55, 0.92, abs(vLocalNormal.z));
          float rvShade = smoothstep(-1.45, 1.35, vLocalPos.x + vLocalPos.y * 0.22);
-         vec3 rvFaceTone = mix(vec3(0.98, 0.95, 0.88), vec3(0.66, 0.71, 0.73), rvShade);
+         // Тень остаётся тёплой: золото не должно уходить в серый пластик.
+         vec3 rvFaceTone = mix(vec3(0.98, 0.95, 0.88), vec3(0.74, 0.66, 0.54), rvShade);
          outgoingLight *= mix(vec3(1.0), rvFaceTone, rvFront);
          // Широкий мягкий градиент отражения на лицевой плоскости и
          // отдельный акцент скоса. Он усиливает объём без новой геометрии,
@@ -101,7 +115,9 @@ function patchRevealMaterial(material, withEmission) {
          float rvCard = exp(-pow((rvCardCoord + 0.52) * 1.35, 2.0));
          float rvDarkCard = exp(-pow((rvCardCoord - 0.55) * 1.35, 2.0));
          float rvEdgeCard = exp(-pow((rvCardCoord + 0.05) * 5.0, 2.0));
-         float rvStudio = 0.43 + 0.72 * rvCard - 0.16 * rvDarkCard;
+         // Основа карточки больше не уводит теневую сторону в чёрный:
+         // настоящие отражения окружения уже дают объём.
+         float rvStudio = 0.84 + 0.36 * rvCard - 0.05 * rvDarkCard;
          outgoingLight *= mix(1.0, rvStudio, rvFront * uCinematicGold);
          outgoingLight += vec3(0.17, 0.075, 0.018) * (rvCard * rvBevel + 0.32 * rvEdgeCard * rvFront) * uCinematicGold;
          // Настоящие нормали скоса: широкая студийная карточка освещает

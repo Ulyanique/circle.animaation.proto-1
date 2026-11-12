@@ -81,6 +81,11 @@ body.operator-idle:not(.ui-on) .cfg-toggle { opacity: .55; }
 .operator-transport input[type="range"] { flex: 1; min-width: 60px; accent-color: #d9b061; cursor: pointer; }
 .operator-transport output { min-width: 98px; text-align: center; font-variant-numeric: tabular-nums; color: #ffe3a1; }
 .operator-duration { white-space: nowrap; color: #bca780; }
+.operator-master { white-space: nowrap; color: #bca780; display: flex; align-items: center; gap: 5px; }
+.operator-master select {
+  padding: 5px 6px; border: 1px solid rgba(217,176,97,.36); border-radius: 4px;
+  background: #110e0a; color: #ffe3a1; font: inherit; cursor: pointer;
+}
 .operator-duration input { width: 65px; padding: 5px; border: 1px solid rgba(217,176,97,.36); border-radius: 4px;
   background: #110e0a; color: #ffe3a1; font: inherit; font-variant-numeric: tabular-nums; }
 .operator-busy .operator-scenes, .operator-busy .operator-transport input,

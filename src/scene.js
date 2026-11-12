@@ -8,7 +8,6 @@ import { captionTimedLine } from "./caption-timing.js";
 import { customTextAnimation, customTextVisual } from "./custom-text.js";
 import { applyEffectOrder } from "./effect-order.js";
 import * as THREE from "three";
-import { OUTPUT } from "./scenes/catalog.js";
 import {
   EffectComposer,
   RenderPass,
@@ -22,7 +21,9 @@ import {
   ToneMappingEffect,
   ToneMappingMode,
 } from "postprocessing";
-import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
+import { createStudioEnvironment } from "./studio-environment.js";
+import { masterSize } from "./output-profile.js";
+import { DitherEffect } from "./dither-effect.js";
 import { BACKGROUND_GLOW_IDS } from "./background-glow-config.js";
 import { BackgroundGlow } from "./background-glow.js";
 import { PARTICLE_CLOUD_IDS } from "./particle-cloud-config.js";
@@ -77,10 +78,8 @@ export class LogoScene {
     this.camera = new THREE.PerspectiveCamera(FOV, 1, 0.1, 100);
     this.camera.position.set(0, 0, CAM_Z);
 
-    // Окружение: студийный HDR-подобный env для реалистичных металлических бликов
-    const pmrem = new THREE.PMREMGenerator(this.renderer);
-    this.envTexture = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
-    pmrem.dispose();
+    // Окружение: собственные софтбоксы под бренд, а не стандартная комната three.js.
+    this.envTexture = createStudioEnvironment(this.renderer);
 
     // Фон и свет из углов
     this.background = new Background();
@@ -199,17 +198,22 @@ export class LogoScene {
     });
     this.chroma = new ChromaticAberrationEffect();
     this.vignette = new VignetteEffect({ darkness: 0.45, offset: 0.35 });
+    // Финальный дизеринг: полосы на тёмных градиентах заметнее всего на большом экране.
+    this.dither = new DitherEffect();
     this.tone = new ToneMappingEffect({ mode: ToneMappingMode.ACES_FILMIC });
     this.smaa = new SMAAEffect({ preset: SMAAPreset.ULTRA });
 
     this.composer.addPass(new EffectPass(this.camera, this.dof));
     this.composer.addPass(new EffectPass(this.camera, this.bloom, this.chroma, this.vignette, this.tone));
     this.composer.addPass(new EffectPass(this.camera, this.smaa));
+    this.composer.addPass(new EffectPass(this.camera, this.dither));
   }
 
   resize() {
-    // внутренний рендер фиксирован 1920×1080 (pixelRatio = 1); на экран кадр масштабируется с letterbox
-    const RW = OUTPUT.width, RH = OUTPUT.height, ASPECT = RW / RH;
+    // Внутренний рендер следует профилю мастера (умолчание — 1920×1080),
+    // на экран кадр масштабируется с letterbox.
+    const { width: RW, height: RH } = masterSize();
+    const ASPECT = RW / RH;
     // Внутренний рендер неизменен при перемещении и масштабе интерфейса.
     if (this._w !== RW || this._h !== RH) {
       this.renderer.setPixelRatio(1);
@@ -235,6 +239,7 @@ export class LogoScene {
     this.background.mesh.scale.set((bgH * this.camera.aspect) / 2 * 1.3, bgH / 2 * 1.3, 1);
     this.background.mesh.position.z = -3.5;
     this.logo.setResolution(RW * pr, RH * pr);
+    this.plotter.setResolution?.(RW * pr, RH * pr);
   }
 
   /** Статичные вещи, которые не меняются каждый кадр (но могут меняться от настроек). */
@@ -469,7 +474,7 @@ export class LogoScene {
     this.camera.lookAt(0, 0, 0);
     this.camera.updateMatrixWorld();
     this._introCenter.copy(root.position).project(this.camera);
-    this.background.uniforms.uIntroCenter.value.set(this._introCenter.x * OUTPUT.width / OUTPUT.height, this._introCenter.y);
+    this.background.uniforms.uIntroCenter.value.set(this._introCenter.x * this.camera.aspect, this._introCenter.y);
 
     // верхнее свечение: появляется вместе с логотипом
     updateTopIllumination(this.topLight, this.topGlow, cfg, ph.reveal, exposure);
@@ -503,6 +508,7 @@ export class LogoScene {
     this.bloom.luminanceMaterial.threshold = p.bloomThreshold;
     this.bloom.radius = p.bloomRadius;
     this.chroma.offset.set(p.chromaticAberration, p.chromaticAberration);
+    this.dither.strength = p.ditherEnabled === false ? 0 : (p.dither ?? 1);
   }
 
   render(dt) {

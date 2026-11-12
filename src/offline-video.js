@@ -11,6 +11,17 @@ export function frameCount(cycle, speed, fps) {
 export function frameTimestamp(index, fps) { return Math.round(index * 1000000 / fps) / 1000000; }
 
 export const DEFAULT_VIDEO_BITRATE = 40000000;
+export const MAX_VIDEO_BITRATE = 120000000;
+const BASE_PIXELS = 1920 * 1080;
+
+/** Битрейт растёт вместе с площадью кадра: 4K требует вчетверо больше данных.
+ * @param {number} width @param {number} height */
+export function videoBitrateFor(width, height) {
+  if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0)
+    throw new Error('Некорректный размер кадра для оценки битрейта');
+  const scaled = DEFAULT_VIDEO_BITRATE * (width * height) / BASE_PIXELS;
+  return Math.round(Math.min(MAX_VIDEO_BITRATE, Math.max(DEFAULT_VIDEO_BITRATE, scaled)));
+}
 
 /** Rough encoded payload estimate, not peak memory or a guaranteed file size.
  * @param {number} total @param {number} fps @param {number} bitrate */
