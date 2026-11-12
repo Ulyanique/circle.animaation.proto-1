@@ -5,3 +5,21 @@
 export function captionDrift(progress, centered, frameHeight) {
   return (1 - progress) * (1 - centered) * frameHeight * .008;
 }
+
+/** Небольшая посадка штатного названия в интро, в единицах --u.
+ * Вход длится столько же, сколько штатное проявление строки. Перед выходом
+ * смещение гарантированно сводится к нулю даже при коротком удержании.
+ * @param {{local:number,beforeStart:boolean}} phase
+ * @param {{drawDuration:number,emergeDuration:number,holdDuration:number}} timeline
+ * @param {number} captionStart @param {boolean} enabled */
+export function introTitleLanding(phase, timeline, captionStart, enabled) {
+  if (!enabled || phase.beforeStart || phase.local < captionStart) return 0;
+  const smooth = x => {
+    const t = Math.max(0, Math.min(1, x));
+    return t * t * t * (t * (t * 6 - 15) + 10);
+  };
+  const exit = timeline.drawDuration + timeline.emergeDuration + timeline.holdDuration;
+  const entrance = 1 - smooth((phase.local - captionStart) / .88);
+  const beforeExit = 1 - smooth((phase.local - (exit - .2)) / .2);
+  return .75 * entrance * beforeExit;
+}

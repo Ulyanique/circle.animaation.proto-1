@@ -19,7 +19,7 @@ test('частицы воспроизводимы, ограничены ради
 });
 
 test('независимое облако позиционируется, анимируется и скрывается детерминированно', () => {
-  for (const scene of SCENES.filter(s => s.defaults)) {
+  for (const scene of SCENES.filter(s => s.defaults && s.status === "ready")) {
     const cfg = mergeConfig(scene.defaults, {particleCloud: {present: true, offsetX: 1.5, offsetY: -.6, radius: 2, count: 100, speed: 0.1}});
     const effect = new ParticleCloud();
     const time = cfg.timeline.startDelay + cfg.timeline.drawDuration + cfg.timeline.emergeDuration + 1;
@@ -40,7 +40,7 @@ test('независимое облако позиционируется, ани
 });
 
 test('старые конфиги не добавляют облако; новая настройка независима и сохраняется в JSON', () => {
-  const scenes = SCENES.filter(s => s.defaults);
+  const scenes = SCENES.filter(s => s.defaults && s.status === "ready");
   const configs = {};
   for (const [i, scene] of scenes.entries()) {
     const old = parseConfigJSON('{"logo":{"offsetX":0.2}}', scene.defaults);
@@ -65,7 +65,7 @@ test('четыре облака имеют независимые объекты
   assert.notEqual(defaults.particleCloud, defaults.particleCloud2);
   for (const id of PARTICLE_CLOUD_IDS) assert.ok(SCHEMA.some(s => s.id === id));
   const configs = {};
-  for (const scene of SCENES.filter(s => s.defaults)) {
+  for (const scene of SCENES.filter(s => s.defaults && s.status === "ready")) {
     const cfg = mergeConfig(scene.defaults, {}); configs[scene.id] = cfg;
     const clouds = PARTICLE_CLOUD_IDS.map(id => new ParticleCloud(id));
     for (const [i, id] of PARTICLE_CLOUD_IDS.entries()) {
@@ -101,7 +101,7 @@ test('четыре облака имеют независимые объекты
 
 test('старый JSON с одним облаком не создаёт дополнительные облака', async () => {
   const { PARTICLE_CLOUD_IDS } = await import('../src/particle-cloud-config.js');
-  for (const scene of SCENES.filter(s => s.defaults)) {
+  for (const scene of SCENES.filter(s => s.defaults && s.status === "ready")) {
     const old = parseConfigJSON('{"particleCloud":{"present":true,"offsetX":1.23,"color":"#abcdef"}}', scene.defaults);
     assert.equal(old.particleCloud.present, true);
     assert.equal(old.particleCloud.offsetX, 1.23); assert.equal(old.particleCloud.color, '#abcdef');

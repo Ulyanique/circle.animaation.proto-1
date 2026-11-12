@@ -1,4 +1,4 @@
-// Настройки каждой сцены: вкладки 01/02/08/09, изоляция значений, JSON сцены и проекта.
+// Настройки каждой сцены: вкладки 01/02/04/08/09, изоляция значений, JSON сцены и проекта.
 const fs = require("node:fs");
 const path = require("node:path");
 const { launchBrowser } = require("./browser.cjs");
@@ -154,7 +154,7 @@ if (OUT) fs.mkdirSync(OUT, { recursive: true });
     const failed =
       errors.length > 0 ||
       closed.display === "none" || closed.open ||
-      !opened.open || opened.tabs.join(",") !== "waiting,brand,photo-pause,finale" ||
+      !opened.open || opened.tabs.join(",") !== "waiting,brand,partners,photo-pause,finale" ||
       opened.active !== "waiting" || opened.heading !== "01" ||
       !brandPanel.open || brandPanel.active !== "brand" ||
       Number(brandPanel.scale) !== 0.58 || Number(brandPanel.offsetY) !== 0 ||

@@ -14,6 +14,21 @@ export const DEFAULTS = WAITING_DEFAULTS;
 
 // Схема UI: группы → поля. type: range | color | bool
 export const SCHEMA = [
+  { id: "partners", title: "Спонсоры и партнёры (текстовые заглушки)", fields: [
+    {key:"title",label:"Название вечера",type:"text",maxLength:120},
+    {key:"subtitle",label:"Подзаголовок",type:"text",maxLength:120},
+    {key:"organizerLabel",label:"Заголовок организатора",type:"text",maxLength:60},
+    {key:"organizer1",label:"Организатор 1",type:"text",maxLength:80},
+    {key:"organizer2",label:"Организатор 2",type:"text",maxLength:80},
+    {key:"partnerLabel",label:"Заголовок партнёров",type:"text",maxLength:60},
+    {key:"partner1",label:"Партнёр 1",type:"text",maxLength:80},
+    {key:"partner2",label:"Партнёр 2",type:"text",maxLength:80},
+    {key:"frameVisible",label:"Показывать рамку",type:"bool"},
+    {key:"curtainVisible",label:"Показывать занавес",type:"bool"},
+    {key:"foliageVisible",label:"Показывать золотую ветвь",type:"bool"},
+    {key:"compassVisible",label:"Показывать циркуль",type:"bool"},
+    {key:"motion",label:"Движение декора при удержании",type:"range",min:0,max:1,step:.01},
+  ] },
   { id: "intro", title: "Последовательность интро", fields: [
     { key: "cornerDuration", label: "Прорисовка боковых кругов", type: "range", min: 0.2, max: 4, step: 0.05 },
     { key: "liftDuration", label: "Подъём логотипа", type: "range", min: 0.2, max: 3, step: 0.05 },
@@ -91,6 +106,7 @@ export const SCHEMA = [
   ] },
   { id: "caption", title: "Надписи", fields: [
     { key: "titleVisible", label: "Название: показывать", type: "bool" },
+    { key: "titleMetallic", label: "Название: металлическое золото", type: "bool" },
     { key: "titleAutoFit", label: "Название: вписать в поля", type: "bool" },
     { key: "titleText", label: "Название: текст", type: "text", maxLength: 120 },
     { key: "titleColor", label: "Название: свой цвет", type: "color", fallback: "#e0b25a" },
@@ -136,6 +152,8 @@ export const SCHEMA = [
   {
     id: "logo", title: "Логотип", fields: [
       { key: "visible", label: "Показывать логотип", type: "bool" },
+      { key: "cinematic", label: "Кинематографичный свет и металл", type: "bool" },
+      { key: "directedMotion", label: "Интро: режиссёрская подача движения", type: "bool" },
       { key: "scale", label: "Размер", type: "range", min: 0.3, max: 2.5, step: 0.01 },
       { key: "offsetX", label: "Положение по горизонтали", type: "range", min: -2, max: 2, step: 0.01 },
       { key: "offsetY", label: "Положение по высоте", type: "range", min: -2, max: 2, step: 0.01 },
@@ -145,6 +163,7 @@ export const SCHEMA = [
       { key: "roughness", label: "Шероховатость", type: "range", min: 0, max: 1, step: 0.01 },
       { key: "clearcoat", label: "Лак", type: "range", min: 0, max: 1, step: 0.01 },
       { key: "facetPolish", label: "Объём граней золота", type: "range", min: 0, max: 1, step: 0.01 },
+      { key: "studioRelief", label: "Студийный свет и отражения", type: "range", min: 0, max: 1, step: 0.01 },
       { key: "envIntensity", label: "Отражения среды", type: "range", min: 0, max: 3, step: 0.01 },
       { key: "holdScaleFrom", label: "Масштаб в начале удержания", type: "range", min: 0.5, max: 1.5, step: 0.001 },
       { key: "holdScaleTo", label: "Масштаб в конце удержания", type: "range", min: 0.5, max: 1.5, step: 0.001 },
@@ -223,6 +242,7 @@ export const SCHEMA = [
   },
   {
     id: "background", title: "Фон и свет", fields: [
+      { key: "fabricTexture", label: "Текстура тёмного камня", type: "range", min: 0, max: 1, step: 0.01 },
       { key: "lightSpread", label: "Расход света", type: "range", min: 0.2, max: 3, step: 0.01 },
       { key: "lightIntensity", label: "Яркость света на фоне", type: "range", min: 0, max: 3, step: 0.01 },
       { key: "shimmer", label: "Переливание", type: "range", min: 0, max: 2, step: 0.01 },

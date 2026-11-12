@@ -29,7 +29,7 @@ test('огибающая совместима с прежними фазами, 
 });
 
 test('реальные объекты эффектов используют свой интервал вместо фаз логотипа', () => {
-  for (const scene of SCENES.filter(s => s.defaults)) {
+  for (const scene of SCENES.filter(s => s.defaults && s.status === "ready")) {
     const config = mergeConfig(scene.defaults, {timeline, decor: {present: true, enabled: true, ...custom},
       particleCloud: {present: true, enabled: true, ...custom},
       backgroundGlow: {present: true, enabled: true, ...custom},
@@ -52,7 +52,7 @@ test('реальные объекты эффектов используют св
 });
 
 test('старые настройки сохраняют прежние фазы; новые интервалы сохраняются по эффектам и сценам', () => {
-  const scenes = SCENES.filter(s => s.defaults), configs = {};
+  const scenes = SCENES.filter(s => s.defaults && s.status === "ready"), configs = {};
   for (const [index, scene] of scenes.entries()) {
     const legacy = parseConfigJSON('{"decor":{"enabled":true},"particleCloud":{"present":true},"backgroundGlow":{"present":true}}', scene.defaults);
     for (const section of ['decor', 'particleCloud', ...BACKGROUND_GLOW_IDS]) {
@@ -82,7 +82,7 @@ test('характер проявления меняет огибающую то
     assert.equal(effectVisibility(t, {beforeStart:false, reveal:.5, rings:.7}, timeline, {timingMode:'scene', timingCurve:curve}), .35);
   }
   assert.equal(effectVisibility(t, phase, timeline, {...custom, timingCurve:'unknown'}), normal);
-  const scene = SCENES.find(s => s.defaults);
+  const scene = SCENES.find(s => s.defaults && s.status === "ready");
   const restored = parseConfigJSON(configToJSON(mergeConfig(scene.defaults, {decor:{...custom, timingCurve:'soft'}})), scene.defaults);
   assert.equal(restored.decor.timingCurve, 'soft');
 });

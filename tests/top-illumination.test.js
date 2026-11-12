@@ -6,7 +6,7 @@ import { SCENES } from '../src/scenes/catalog.js';
 import { mergeConfig, parseConfigJSON, configToJSON, projectToJSON, parseProjectJSON } from '../src/config.js';
 
 test('старые настройки сохраняют исходный вид и фазы верхнего света', () => {
-  for (const scene of SCENES.filter(s => s.defaults)) {
+  for (const scene of SCENES.filter(s => s.defaults && s.status === "ready")) {
     const cfg = parseConfigJSON('{"lights":{"topGlow":10}}', scene.defaults);
     const light = new THREE.PointLight(), glow = new THREE.Sprite(new THREE.SpriteMaterial());
     updateTopIllumination(light, glow, cfg, .5, 1.2);
@@ -22,7 +22,7 @@ test('старые настройки сохраняют исходный вид
 });
 
 test('настройки верхнего света независимы по сценам и сохраняются в JSON', () => {
-  const scenes = SCENES.filter(s => s.defaults);
+  const scenes = SCENES.filter(s => s.defaults && s.status === "ready");
   const configs = Object.fromEntries(scenes.map(s => [s.id, mergeConfig(s.defaults, {})]));
   const cfg = configs[scenes[0].id];
   Object.assign(cfg.topIllumination, {offsetX: 2, offsetY: -1, scale: .5, color: '#123456', lightColor: '#654321', enabled: false});
@@ -43,7 +43,7 @@ test('верхние лучи движутся и сохраняются на у
   const { updateUpperRays } = await import('../src/top-illumination.js');
   const { Background } = await import('../src/fx.js');
   const { computePhase } = await import('../src/timeline.js');
-  for (const scene of SCENES.filter(s => s.defaults)) {
+  for (const scene of SCENES.filter(s => s.defaults && s.status === "ready")) {
     const cfg = mergeConfig(scene.defaults, {}), bg = new Background(), tl = cfg.timeline;
     const at = local => computePhase(tl.startDelay + local, tl);
     const intro = scene.id === 'waiting';

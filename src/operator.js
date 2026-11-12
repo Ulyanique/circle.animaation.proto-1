@@ -17,6 +17,7 @@ export function createOperatorControls({ getState, seek, setDuration, togglePaus
       <nav class="operator-scenes" aria-label="Выбор ролика">
         <button type="button" data-scene="waiting" title="Интро — открытие вечера">01 <small>Интро</small></button>
         <button type="button" data-scene="brand" title="Фирменный фон">02 <small>Фон</small></button>
+        <button type="button" data-scene="partners" title="Спонсоры и партнёры">04 <small>Спонсоры</small></button>
         <button type="button" data-scene="photo-pause" title="Фотопауза">08 <small>Фотопауза</small></button>
         <button type="button" data-scene="finale" title="Финал">09 <small>Финал</small></button>
         <a class="operator-archive" href="./archive.html" title="Открыть отдельный 3D-прототип архива">Архив ↗</a>

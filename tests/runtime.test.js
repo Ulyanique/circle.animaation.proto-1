@@ -27,6 +27,7 @@ test("единый формат и каталог девяти сцен без �
   assert.equal(cycleDuration(PHOTO_PAUSE_DEFAULTS.timeline), 24);
   assert.equal(cycleDuration(FINALE_DEFAULTS.timeline), 18);
   assert.equal(SCENES.filter((scene) => scene.status === "ready").length, 4);
+  assert.equal(sceneById("partners")?.status, "preview");
   assert.deepEqual(RECORDING_CHAIN, ["waiting", "brand", "photo-pause", "finale"]);
   assert.ok(RECORDING_CHAIN.every((id) => sceneById(id)?.status === "ready"));
   assert.equal(sceneById("nonexistent"), undefined);
@@ -138,7 +139,7 @@ test("описание сцены копируется для настроек, 
 test("каждая сцена получает полный независимый конфиг со своей композицией", () => {
   const cfg = cloneDefaults(BRAND_DEFAULTS);
   for (const key of ["background", "colors", "rings", "particles", "lights", "sparks"]) {
-    assert.deepEqual(cfg[key], WAITING_DEFAULTS[key], key);
+    assert.deepEqual(cfg[key], key === "background" ? {...WAITING_DEFAULTS[key], fabricTexture: 0} : WAITING_DEFAULTS[key], key);
     assert.notEqual(cfg[key], WAITING_DEFAULTS[key], key);
   }
   // Фирменная сцена сохраняет размер и теперь центрирована.

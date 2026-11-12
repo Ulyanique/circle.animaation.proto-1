@@ -104,7 +104,7 @@ test('четыре построительные окружности незав�
   const defaults = brandDecorDefaults(); assert.notEqual(defaults.decor, defaults.decor2);
   for (const {section} of DECOR_SLOTS) assert.ok(SCHEMA.some(s => s.id === section));
   const configs = {};
-  for (const scene of SCENES.filter(s => s.defaults)) {
+  for (const scene of SCENES.filter(s => s.defaults && s.status === "ready")) {
     const cfg = mergeConfig(scene.defaults, {}); configs[scene.id] = cfg;
     const effects = DECOR_SLOTS.map(({section}) => new BrandDecor(section));
     for (const [i, {section}] of DECOR_SLOTS.entries()) Object.assign(cfg[section], {

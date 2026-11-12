@@ -18,7 +18,7 @@ test('два исходных круга имеют независимые см�
 });
 
 test('положение, масштаб и видимость групп сохраняются раздельно в каждой сцене', () => {
-  for (const scene of SCENES.filter(s => s.defaults)) {
+  for (const scene of SCENES.filter(s => s.defaults && s.status === "ready")) {
     const cfg = mergeConfig(scene.defaults, {rings:{leftOffsetX: 3, leftOffsetY: -1, rightScale: 1.7, leftVisible: false}});
     const loaded = parseConfigJSON(configToJSON(cfg), scene.defaults);
     assert.equal(loaded.rings.leftOffsetX, 3);

@@ -33,7 +33,7 @@ test('кадр получает место между панелями, обыч
 test('видимость элементов сохраняется независимо и старые JSON получают прежние значения', async () => {
   const { SCENES } = await import('../src/scenes/catalog.js');
   const { mergeConfig, configToJSON, parseConfigJSON, projectToJSON, parseProjectJSON } = await import('../src/config.js');
-  const scenes = SCENES.filter(scene => scene.defaults);
+  const scenes = SCENES.filter(scene => scene.defaults && scene.status === "ready");
   const configs = Object.fromEntries(scenes.map(scene => [scene.id, mergeConfig(scene.defaults, {})]));
   for (const scene of scenes) {
     const old = parseConfigJSON('{"caption":{"titleX":0.1},"logo":{"scale":0.5}}', scene.defaults);

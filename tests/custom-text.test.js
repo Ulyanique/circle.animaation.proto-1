@@ -8,7 +8,7 @@ import { mergeConfig, configToJSON, parseConfigJSON, projectToJSON, parseProject
 
 test('дополнительные надписи независимы по сценам и сохраняются в JSON', () => {
   assert.equal(CUSTOM_TEXT_IDS.length, 8);
-  const scenes = SCENES.filter(scene => scene.defaults);
+  const scenes = SCENES.filter(scene => scene.defaults && scene.status === "ready");
   const configs = Object.fromEntries(scenes.map(scene => [scene.id, mergeConfig(scene.defaults, {})]));
   for (const [index, scene] of scenes.entries()) {
     const cfg = configs[scene.id];
@@ -108,7 +108,7 @@ test('порядок надписей совместим со старыми и 
 
 test('перестановка — атомарная история, отдельно для каждой сцены', async () => {
   const { customTextOrder, customTextReorder } = await import('../src/custom-text.js');
-  const scenes = SCENES.filter(s => s.defaults), history = new EditorHistory();
+  const scenes = SCENES.filter(s => s.defaults && s.status === "ready"), history = new EditorHistory();
   const configs = scenes.map(s => mergeConfig(s.defaults, {}));
   for (const cfg of configs) Object.assign(cfg.textLayers, {text1Present: true, text2Present: true});
   const cfg = configs[0], before = structuredClone(cfg.textLayers);

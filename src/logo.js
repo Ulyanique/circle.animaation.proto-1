@@ -22,6 +22,9 @@ export const revealUniforms = {
   uSpecPass: { value: 0 },
   uSpecX: { value: 0 },
   uFacetPolish: { value: 0 },
+  uStudioRelief: { value: 0 },
+  uCinematicGold: { value: 0 },
+  uCinematicTime: { value: 0 },
 };
 
 const REVEAL_GLSL_COMMON = /* glsl */ `
@@ -36,6 +39,9 @@ const REVEAL_GLSL_COMMON = /* glsl */ `
   uniform float uSpecPass;
   uniform float uSpecX;
   uniform float uFacetPolish;
+  uniform float uStudioRelief;
+  uniform float uCinematicGold;
+  uniform float uCinematicTime;
   float rvHash(vec2 p){ p = fract(p*vec2(123.34,456.21)); p += dot(p,p+45.32); return fract(p.x*p.y); }
   float rvNoise(vec2 p){
     vec2 i = floor(p), f = fract(p);
@@ -89,6 +95,37 @@ function patchRevealMaterial(material, withEmission) {
          float rvFaceLight = smoothstep(-1.5, 1.5, -vLocalPos.x + vLocalPos.y * 0.35);
          float rvPolish = clamp(uFacetPolish, 0.0, 1.0);
          outgoingLight *= 1.0 + rvPolish * (rvFront * (rvFaceLight - 0.5) * 0.20 + rvBevel * 0.12);
+         // Широкие отражения студийных флагов дают лицу знака глубину;
+         // они закреплены в координатах металла и медленно сдвигаются во времени.
+         float rvCardCoord = vLocalPos.x + vLocalPos.y * 0.48 + 0.16 * sin(uCinematicTime * 0.24);
+         float rvCard = exp(-pow((rvCardCoord + 0.52) * 1.35, 2.0));
+         float rvDarkCard = exp(-pow((rvCardCoord - 0.55) * 1.35, 2.0));
+         float rvEdgeCard = exp(-pow((rvCardCoord + 0.05) * 5.0, 2.0));
+         float rvStudio = 0.43 + 0.72 * rvCard - 0.16 * rvDarkCard;
+         outgoingLight *= mix(1.0, rvStudio, rvFront * uCinematicGold);
+         outgoingLight += vec3(0.17, 0.075, 0.018) * (rvCard * rvBevel + 0.32 * rvEdgeCard * rvFront) * uCinematicGold;
+         // Настоящие нормали скоса: широкая студийная карточка освещает
+         // верхние кромки, противоположные остаются глубоким металлом.
+         // Ноль сохраняет прежний материал; плоское лицо не получает полосу.
+         vec3 rvN = normalize(vec3(vLocalNormal.x, -vLocalNormal.y, vLocalNormal.z));
+         vec3 rvSoftbox = normalize(vec3(-0.48, 0.72, 0.50));
+         float rvEdgeLight = pow(max(dot(rvN, rvSoftbox), 0.0), 2.0);
+         float rvRim = rvBevel * clamp(uStudioRelief, 0.0, 1.0);
+         outgoingLight *= 1.0 + rvRim * (1.45 * rvEdgeLight - 0.20);
+         outgoingLight += outgoingLight * rvRim * rvEdgeLight * 0.65;
+         // Отражение большого софтбокса тянется по граням лица; это не
+         // движущийся в экранном пространстве блик и не меняет силуэт.
+         float rvFaceCoord = vLocalPos.x + vLocalPos.y * 0.62 + 0.18 * sin(uCinematicTime * 0.18);
+         float rvFaceCard = exp(-pow((rvFaceCoord + 0.42) * 2.0, 2.0));
+         float rvRelief = clamp(uStudioRelief, 0.0, 1.0);
+         outgoingLight *= 1.0 + rvRelief * rvFront * (0.52 * rvFaceCard - 0.15);
+         // Боковые поверхности и теневая сторона скоса остаются тёмным
+         // отражающим металлом, а не плоской заливкой. Геометрия не меняется.
+         float rvSide = 1.0 - smoothstep(0.10, 0.48, rvNormalZ);
+         float rvShadowEdge = rvBevel * (1.0 - rvEdgeLight);
+         outgoingLight *= 1.0 - rvRelief * (0.32 * rvSide + 0.16 * rvShadowEdge);
+         float rvSlimCard = exp(-pow((rvFaceCoord + 0.18) * 4.5, 2.0));
+         outgoingLight += vec3(0.11, 0.055, 0.015) * rvRelief * rvFront * rvSlimCard;
          // Микрогравировка в локальных координатах: не плавает по поверхности.
          // Производная подавляет муар, если линии становятся мельче пикселя.
          float rvBrush = vLocalPos.y * 110.0 + sin(vLocalPos.x * 9.0) * 0.32;

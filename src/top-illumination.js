@@ -17,6 +17,7 @@ export function updateTopIllumination(light, glow, cfg, reveal, exposure) {
 export function updateUpperRays(background, phase, cfg, intro, opening, time) {
   const top = cfg.topIllumination, u = background.uniforms;
   u.uIntroLight.value = top.raysEnabled !== false ? upperRaysCue(phase, cfg.timeline, intro, opening) * top.raysIntensity : 0;
+  u.uCinematic.value = cfg.logo.cinematic === true ? 1 : 0;
   u.uUpperTime.value = time * top.raysSpeed;
   u.uUpperColor.value.set(top.raysColor);
 }

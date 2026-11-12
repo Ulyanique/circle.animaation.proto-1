@@ -1,5 +1,6 @@
 import "./styles.css";
 import "./font-assets.js";
+import { loadFabricTexture } from "./fabric-texture.js";
 import { fontName, loadFonts } from "./fonts.js";
 import { loadContourFonts } from "./contour-fonts.js";
 import { parse as parseFont } from "opentype.js";
@@ -13,6 +14,7 @@ import {
 import { LogoScene } from "./scene.js";
 import { BrandScene } from "./brand-scene.js";
 import { PhotoPauseScene } from "./photo-pause-scene.js";
+import { PartnersScene, loadPartnersBackground } from "./partners-scene.js";
 import { FinaleScene } from "./finale-scene.js";
 import { createSettingsUI } from "./ui.js";
 import { AnimationRuntime, cycleDuration } from "./runtime.js";
@@ -24,15 +26,18 @@ import { createOperatorControls, crossedBoundary } from "./operator.js";
 import { createFrameEditor } from "./editor.js";
 import { layoutEditorPreview } from "./editor-layout.js";
 
+const fabricReady = loadFabricTexture();
+const partnersReady = loadPartnersBackground();
+
 const requestedScene = new URLSearchParams(location.search).get("scene") || "intro";
 let activeScene = sceneById(requestedScene);
-if (!activeScene?.defaults || activeScene.status !== "ready") {
+if (!activeScene?.defaults || !["ready", "preview"].includes(activeScene.status)) {
   throw new Error(`Сцена «${requestedScene}» пока не подготовлена`);
 }
 // "waiting" остаётся внутренним идентификатором для старых ссылок и настроек.
 let sceneId = activeScene.id;
 // Настройки каждой готовой сцены живут отдельно: в браузере свой ключ на сцену.
-const READY_IDS = ["waiting", "brand", "photo-pause", "finale"];
+const READY_IDS = ["waiting", "brand", "partners", "photo-pause", "finale"];
 const configs = new Map();
 const storageFailures = new Set();
 for (const id of READY_IDS) {
@@ -88,7 +93,7 @@ function updateStorageWarning() { storageWarning.hidden = storageFailures.size =
 updateStorageWarning();
 
 function activateClasses(id) {
-  for (const name of ["brand", "photo-pause", "finale"]) {
+  for (const name of ["brand", "partners", "photo-pause", "finale"]) {
     document.body.classList.toggle(`scene-${name === "photo-pause" ? "photo" : name}`, id === name);
   }
   document.body.classList.toggle("scene-waiting", id === "waiting");
@@ -117,7 +122,7 @@ function applyTypography(force = false) {
 applyTypography();
 
 const adapters = { waiting: LogoScene, brand: BrandScene,
-  "photo-pause": PhotoPauseScene, finale: FinaleScene };
+  "partners": PartnersScene, "photo-pause": PhotoPauseScene, finale: FinaleScene };
 let scene = new adapters[sceneId](canvas, cfg);
 let runtime = new AnimationRuntime(scene, cfg, OUTPUT.fps);
 layoutEditorPreview(canvas, document.getElementById("caption"));
@@ -126,7 +131,7 @@ let editor;
 const settings = createSettingsUI({
   scenes: READY_IDS.map((id) => ({
     id,
-    label: ({ waiting: "01", brand: "02", "photo-pause": "08", finale: "09" })[id],
+    label: ({ waiting: "01", brand: "02", partners: "04", "photo-pause": "08", finale: "09" })[id],
     title: sceneById(id).title,
   })),
   getSceneId: () => sceneId,
@@ -198,6 +203,7 @@ const operator = createOperatorControls({
 editor = createFrameEditor({
   getState: () => ({ id: sceneId, time: runtime.time, scene, canvas, config: cfg, defaults: activeScene.defaults }),
   onEnable: () => {
+    if (sceneId === "partners") { toast("Имена в этой сцене меняются в настройках. Логотипы пока не загружены.", true); return false; }
     if (recording || transition) { toast("Во время записи или перехода редактирование недоступно", true); return false; }
     cfg.playback.paused = true;
     const tl = cfg.timeline;
@@ -226,7 +232,7 @@ function drawCompositeFrame(ctx, includeCaption = true) {
   ctx.drawImage(canvas, 0, 0, REC_W, REC_H);
   const cap = document.getElementById("caption");
   const op = includeCaption && cap ? parseFloat(getComputedStyle(cap).opacity) : 0;
-  if (op > 0.001) drawCaption(ctx, op, activeScene.id);
+  if (op > 0.001 && activeScene.id !== "partners") drawCaption(ctx, op, activeScene.id);
 }
 
 /** Тот же композит, что записывается в видео; includeCaption=false — эталон для теста. */
@@ -374,6 +380,7 @@ async function runOfflineRecording(job, overlay, download) {
   if (job.kind === "sequence") { window.__sequenceStats = stats; window.__lastSequenceBlob = null; }
   else { window.__recStats = stats; window.__lastVideoBlob = null; }
   try {
+    await Promise.all([fabricReady, partnersReady]); // ассеты не меняются в середине записи
     const ids = job.kind === "sequence" ? RECORDING_CHAIN : [sceneId];
     const segments = ids.map(id => {
       const sceneConfig = configFor(id);
@@ -456,7 +463,13 @@ function frame(now) {
   if (!firstFrameRendered) {
     firstFrameRendered = true;
     const fonts = Promise.all([loadFonts(), loadContourFonts(contourSources, parseFont)]).catch((error) => console.warn("Не удалось загрузить контуры шрифтов", error));
-    fonts.then(() => { applyTypography(true); scene.refreshTextTexture?.(); window.__bootReady?.(); });
+    Promise.all([fonts, fabricReady, partnersReady]).then(([, fabricLoaded, partnersLoaded]) => {
+      applyTypography(true); scene.refreshTextTexture?.();
+      if (!recording) runtime.renderAt(runtime.time, 1 / OUTPUT.fps);
+      window.__bootReady?.();
+      if (!partnersLoaded && sceneId === "partners") toast("Фон спонсоров не загрузился", true);
+      if (!fabricLoaded) toast("Текстура камня не загрузилась; используется упрощённый фон", true);
+    });
   }
   editor?.refresh();
   if (now - lastOperatorRefresh >= 120) {

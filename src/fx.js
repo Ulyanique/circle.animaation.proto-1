@@ -1,3 +1,4 @@
+import { fabricTexture, fabricState } from './fabric-texture.js';
 import { ringSidePosition, ringSideVisible, ringSideScale } from "./scenes/ring-sides.js";
 import * as THREE from "three";
 import { seededRandom } from "./random.js";
@@ -35,7 +36,11 @@ const bgFS = /* glsl */ `
   uniform float uRays;
   uniform float uFog;
   uniform float uBrushed;
+  uniform float uFabricTexture;
+  uniform sampler2D uFabricMap;
+  uniform float uFabricReady;
   uniform float uIntroLight;
+  uniform float uCinematic;
   uniform vec2 uIntroCenter;
   uniform float uUpperTime;
   uniform vec3 uUpperColor;
@@ -121,6 +126,20 @@ const bgFS = /* glsl */ `
     float edge = smoothstep(0.2, 1.0, length(p * vec2(0.62, 0.95)));
     col = mix(col * 0.45, col, edge);
 
+    // Матовый графитовый камень: мягкая неоднородность и мелкая неподвижная
+    // зернистость. Ноль выключает слой; картинка содержит только фактуру.
+    if (uFabricTexture > 0.001) {
+      float cloudy = noise(p * 3.2) * 0.5 + noise(p * 8.0) * 0.5;
+      float fine = (hash(floor(vUv * uRes)) - 0.5) * 0.0024;
+      vec3 stone = texture2D(uFabricMap, vUv).rgb;
+      vec3 fallback = vec3(0.72, 0.76, 0.82) * (0.012 + 0.010 * cloudy);
+      // В кинематографичном режиме слегка очищаем область титров,
+      // не удаляя каменную фактуру и не затрагивая остальные режимы.
+      float captionZone = exp(-pow((vUv.x - 0.5) / 0.38, 4.0) - pow((vUv.y - 0.31) / 0.20, 4.0));
+      float stoneStrength = 1.0 - 0.25 * uCinematic * captionZone;
+      col += (fallback + stone * (0.48 * uFabricReady) + vec3(fine)) * uFabricTexture * stoneStrength;
+    }
+
     // Верхний объёмный свет за знаком работает во всех сценах.
     // Экранная маска мягко освобождает нижнюю зону для надписей.
     if (uIntroLight > 0.001) {
@@ -139,7 +158,22 @@ const bgFS = /* glsl */ `
       // мягко ослабляются ниже центра, освобождая место для титров.
       float halo = exp(-radius * radius * 2.4);
       float clearCaption = smoothstep(-0.55, 0.40, h.y);
-      col += uUpperColor * uIntensity * uIntroLight * (0.14 * halo + 0.50 * rays * clearCaption);
+      float lightField = 0.14 * halo + 0.50 * rays * clearCaption;
+      if (uCinematic > 0.5) {
+        // Несколько широких световых пятен вместо симметричной звезды.
+        // Локальные координаты привязаны к знаку, время — абсолютное.
+        float y = max(h.y, 0.0);
+        float spread = 0.085 + 0.11 * y;
+        float drift = 0.035 * sin(ut * 0.21);
+        float a = (h.x + 0.46 * y - drift) / spread;
+        float b = (h.x - 0.13 * y + 0.14 + drift * 0.5) / (spread * 1.35);
+        float c = (h.x - 0.58 * y - 0.08) / (spread * 0.9);
+        float shafts = 0.58 * exp(-a*a*1.7) + 0.33 * exp(-b*b*1.4) + 0.24 * exp(-c*c*1.7);
+        float atmosphere = 0.72 + 0.28 * noise(h * 2.2 + vec2(sin(ut * 0.08) * 0.2, 0.0));
+        float upper = smoothstep(-0.08, 0.22, h.y) * exp(-y * 0.85);
+        lightField = 0.075 * halo + 0.32 * shafts * atmosphere * upper + 0.045 * rays * clearCaption;
+      }
+      col += uUpperColor * uIntensity * uIntroLight * lightField;
     }
 
     // виньетка
@@ -182,7 +216,11 @@ export class Background {
       uRays: { value: 0.35 },
       uFog: { value: 0.6 },
       uBrushed: { value: 0.35 },
+      uFabricTexture: { value: 0 },
+      uFabricMap: { value: fabricTexture },
+      uFabricReady: { value: 0 },
       uIntroLight: { value: 0 },
+      uCinematic: { value: 0 },
       uIntroCenter: { value: new THREE.Vector2(0, 0.4) },
       uUpperTime: { value: 0 },
       uUpperColor: { value: new THREE.Color(0xffd98a) },
@@ -214,6 +252,8 @@ export class Background {
     u.uRays.value = cfg.background.godRaysEnabled === false ? 0 : (cfg.background.godRays ?? 0.35);
     u.uFog.value = cfg.background.fogEnabled === false ? 0 : (cfg.background.fog ?? 0.6);
     u.uBrushed.value = cfg.background.brushedEnabled === false ? 0 : (cfg.background.brushed ?? 0.35);
+    u.uFabricTexture.value = Math.max(0, Math.min(1, cfg.background.fabricTexture ?? 0));
+    u.uFabricReady.value = fabricState.ready ? 1 : 0;
   }
 }
 
@@ -377,7 +417,7 @@ export class Corners {
   /**
    * @param {number} halfW, halfH — полуразмеры видимой области на z=0
    */
-  update(t, cfg, halfW, halfH, env = 1, focus = 0) {
+  update(t, cfg, halfW, halfH, env = 1, focus = 0, sideEnvelopes = null) {
     this.rebuild(cfg);
     this.group.visible = cfg.rings.enabled;
     const sides = {
@@ -401,18 +441,19 @@ export class Corners {
     for (const name of ["left", "right"]) {
       const s = this.sides[name];
       const c = sides[name];
+      const sideEnv = sideEnvelopes?.[name] ?? env;
       s.group.position.set(c.x, c.y, 0);
-      s.group.visible = cfg.rings.enabled && ringSideVisible(cfg.rings, name) && env > 0.0005;
+      s.group.visible = cfg.rings.enabled && ringSideVisible(cfg.rings, name) && sideEnv > 0.0005;
       s.group.scale.setScalar(ringSideScale(cfg.rings, name));
       // кольца рисуются дугой из плоскости фона: появление и уход — через проход дуги, без масштаба
       s.layers.forEach((l) => {
         l.mesh.material.color.copy(ringCol);
-        l.u.value = ringSweep(env, l.idx);
+        l.u.value = ringSweep(sideEnv, l.idx);
         l.mesh.material.opacity = 1 - 0.38 * focus;
       });
       // Риски и пунктир не должны заранее выдавать уже замкнутый круг:
       // отрисовываем только построенный сектор, как у основных дуг.
-      const construction = ringSweep(env, 0);
+      const construction = ringSweep(sideEnv, 0);
       if (s.ticks) {
         s.ticks.count = Math.ceil(96 * construction);
         s.ticks.rotation.set(0, 0, t * sp * 0.2 * c.dir);
@@ -421,14 +462,14 @@ export class Corners {
 
       const flick = 1 + cfg.rings.flicker * (Math.sin(t * 1.8 + (name === "left" ? 0 : 2.1)) * 0.5 + Math.sin(t * 0.75 + 4.0) * 0.5);
       const lightCol = name === "left" ? cfg.colors.lightLeft : cfg.colors.lightRight;
-      const intensity = cfg.rings.lightStrength * flick * 6 * cfg.lights.exposure * env * (1 - 0.55 * focus);
+      const intensity = cfg.rings.lightStrength * flick * 6 * cfg.lights.exposure * sideEnv * (1 - 0.55 * focus);
       const light = this.lights[name];
       light.color.set(lightCol);
       light.intensity = intensity;
       light.distance = 10 + cfg.background.lightSpread * 4;
       const sprite = this.sprites[name];
       sprite.material.color.set(lightCol);
-      sprite.material.opacity = Math.min(1, 0.45 * cfg.rings.glowIntensity * flick) * env * (1 - 0.50 * focus);
+      sprite.material.opacity = Math.min(1, 0.45 * cfg.rings.glowIntensity * flick) * sideEnv * (1 - 0.50 * focus);
       sprite.scale.setScalar(cfg.rings.radius * 4.2 * cfg.background.lightSpread);
     }
     return { left: this.sides.left.group.position, right: this.sides.right.group.position };

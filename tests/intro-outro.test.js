@@ -26,10 +26,10 @@ test('интро уходит в обратном порядке: титры, п
     assert.equal(captions(.26).title.outline, 0);
     assert.equal(sequence(.24).lift, 1); assert.equal(sequence(.26).corners, 1);
     assert.ok(sequence(.33).lift > 0 && sequence(.33).lift < 1);
-    assert.equal(sequence(.41).lift, 0); assert.ok(sequence(.46).corners > 0 && sequence(.46).corners < 1);
-    assert.equal(sequence(.52).corners, 0); assert.equal(exit(.52).reveal, 1);
+    assert.equal(sequence(.45).lift, 0); assert.ok(sequence(.49).corners > 0 && sequence(.49).corners < 1);
+    assert.equal(sequence(.54).corners, 0); assert.equal(exit(.54).reveal, 1);
     assert.ok(exit(.59).reveal > 0 && exit(.59).reveal < 1);
-    assert.equal(exit(.65).reveal, 0); assert.equal(exit(.65).draw, 1);
+    assert.equal(exit(.67).reveal, 0); assert.equal(exit(.67).draw, 1);
     assert.ok(exit(.72).draw > 0 && exit(.72).draw < 1);
     assert.ok(introGuidesVisibility(phase(.72), tl) > 0);
     const withExit = p => ({...phase(p), ...exit(p)});
@@ -84,4 +84,45 @@ test('если для титра не осталось времени, блик 
   for (const t of [end-.1, end, end+.1]) {
     assert.equal(heroGlint(computePhase(tl.startDelay+t, tl), tl, end+1).intensity, 0);
   }
+});
+
+test('обратная точка без скачка передаёт контур орбите на выходе интро', () => {
+  for (const fadeDuration of [1, 2.3, 8]) {
+    const tl = {...WAITING_DEFAULTS.timeline, fadeDuration};
+    const start = tl.drawDuration + tl.emergeDuration + tl.holdDuration;
+    const sample = p => {
+      const phase = computePhase(tl.startDelay + start + p * fadeDuration, tl);
+      return plotSequence({...phase, ...introOutro(phase, tl)}, tl, {intro:true});
+    };
+    const before = sample(.80 - 1e-5), after = sample(.80 + 1e-5);
+    for (const key of ['sweep', 'transfer', 'head', 'trace']) {
+      assert.ok(Math.abs(before[key] - after[key]) < .001, `${key} скачет при передаче`);
+    }
+    assert.ok(sample(.73).trace < sample(.70).trace);
+  }
+});
+
+test('режиссёрская подача задерживает правый круг, не меняя начало и конец', async () => {
+  const {introCornerEnvelopes} = await import('../src/scenes/cues.js');
+  for (const env of [0, .1, .3, .5, .8, 1]) {
+    const legacy = introCornerEnvelopes(env, false), directed = introCornerEnvelopes(env, true);
+    assert.equal(legacy.left, env); assert.equal(legacy.right, env);
+    assert.equal(directed.left, env); assert.ok(directed.right <= env && directed.right >= 0);
+  }
+  assert.equal(introCornerEnvelopes(0, true).right, 0);
+  assert.equal(introCornerEnvelopes(1, true).right, 1);
+  assert.ok(introCornerEnvelopes(.5, true).right < .5);
+  for (let i=1; i<=100; i++) assert.ok(introCornerEnvelopes(i/100,true).right >= introCornerEnvelopes((i-1)/100,true).right);
+});
+
+test('режиссёрская подача настраивается и включена только для интро', async () => {
+  const {BRAND_DEFAULTS} = await import('../src/scenes/brand.js');
+  const {PHOTO_PAUSE_DEFAULTS} = await import('../src/scenes/photo-pause.js');
+  const {FINALE_DEFAULTS} = await import('../src/scenes/finale.js');
+  const {SCHEMA, configToJSON, parseConfigJSON} = await import('../src/config.js');
+  assert.equal(WAITING_DEFAULTS.logo.directedMotion, true);
+  for (const scene of [BRAND_DEFAULTS, PHOTO_PAUSE_DEFAULTS, FINALE_DEFAULTS]) assert.equal(scene.logo.directedMotion, false);
+  assert.ok(SCHEMA.find(x=>x.id==='logo').fields.some(x=>x.key==='directedMotion'));
+  const cfg=mergeConfig(WAITING_DEFAULTS,{logo:{directedMotion:false}});
+  assert.equal(parseConfigJSON(configToJSON(cfg), WAITING_DEFAULTS).logo.directedMotion,false);
 });

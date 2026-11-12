@@ -76,7 +76,8 @@ const glyphs = (text) => [...segmenter.segment(text)].map(({ segment }) => segme
       assert.equal(result.id, sceneId);
       assert.deepEqual(result.size, [1920, 1080]);
       assert.deepEqual(result.calls.measure, expectedMeasure, `${sceneId}: измерения графем`);
-      assert.deepEqual(result.calls.stroke, expectedPaint, `${sceneId}: контуры графем`);
+      // Штатные титры сейчас используют плавное проявление без обводки.
+      assert.deepEqual(result.calls.stroke, [], `${sceneId}: у плавного проявления не должно быть контура`);
       assert.deepEqual(result.calls.fill, expectedPaint, `${sceneId}: заливка графем`);
       assert.equal(result.raw[0], "Янтарный циркуль");
       assert.equal(result.raw[1], sceneId === "waiting" ? "Вечер ретроспектива" : "История продолжается");

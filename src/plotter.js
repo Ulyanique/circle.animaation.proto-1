@@ -13,6 +13,7 @@ const VERT = /* glsl */ `
   uniform vec2 uRes;
   uniform float uSweep;
   uniform float uTransfer;
+  uniform float uDirected;
   varying float vProgress;
   varying float vSide;
   varying float vTail;
@@ -25,8 +26,8 @@ const VERT = /* glsl */ `
     vec2 normalPx = vec2(-tangentPx.y, tangentPx.x);
     float behind = max(0.0, uSweep - aProgress);
     // Короткое, привязанное к времени пламя у наконечника вместо следа предыдущих кадров.
-    float tail = exp(-behind * behind * 180.0) * (1.0 - uTransfer);
-    float halfWidthPx = 0.62 + 1.0 * tail;
+    float tail = exp(-behind * behind * mix(180.0, 105.0, uDirected)) * (1.0 - uTransfer);
+    float halfWidthPx = 0.62 + mix(1.0, 1.25, uDirected) * tail;
     c.xy += normalPx * aSide * halfWidthPx * 2.0 / uRes * c.w;
     gl_Position = c;
     vProgress = aProgress;
@@ -100,6 +101,7 @@ export class Plotter {
       uSweep: { value: 0 },
       uOpacity: { value: 0 },
       uTransfer: { value: 0 },
+      uDirected: { value: 0 },
       uRes: { value: new THREE.Vector2(OUTPUT.width, OUTPUT.height) },
       uGold: { value: new THREE.Color(0xe0b25a) },
     };
@@ -132,17 +134,23 @@ export class Plotter {
   }
 
   update(phase, cfg, centerY = cfg.logo.offsetY, centerX = cfg.logo.offsetX ?? 0) {
-    const { sweep, transfer, opacity, head, trace, reverse } = plotSequence(phase, cfg.timeline, { intro: this.twoHeads, finale: this.finale });
+    const directed = this.twoHeads && !this.finale && cfg.logo.directedMotion === true;
+    const { sweep, transfer, opacity, head, trace, reverse } = plotSequence(phase, cfg.timeline, { intro: this.twoHeads, finale: this.finale, directed });
     this.group.visible = cfg.rings.enabled && (opacity > 0.001 || head > 0.001);
     if (!this.group.visible) return;
     this.group.position.set(centerX, centerY, -0.08);
     this.group.scale.setScalar(cfg.rings.radius * 0.8);
     this.uniforms.uSweep.value = sweep;
     this.uniforms.uTransfer.value = transfer;
+    this.uniforms.uDirected.value = directed ? 1 : 0;
     this.uniforms.uOpacity.value = opacity * 0.7;
     this.uniforms.uGold.value.set(cfg.colors.ringColor);
     const a = START_ANGLE - sweep * (this.twoHeads ? Math.PI : TAU);
     this.head.position.set(Math.cos(a), Math.sin(a), 0.025);
+    // Лёгкое усиление во время движения; при передаче и в покое исходный размер.
+    const headSize = 0.17 * (1 + (directed ? 0.22 * Math.sin(Math.PI * sweep) * (1 - transfer) : 0));
+    this.head.scale.setScalar(headSize);
+    if (this.head2) this.head2.scale.setScalar(headSize);
     if (this.head2) {
       this.head2.position.set(-Math.cos(a), -Math.sin(a), 0.025);
       this.head2.material.color.set(cfg.colors.goldHighlight);

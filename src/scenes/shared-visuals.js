@@ -9,9 +9,14 @@ import { WAITING_DEFAULTS } from "./waiting.js";
 export function createSharedSceneConfig(timeline) {
   const cfg = JSON.parse(JSON.stringify(WAITING_DEFAULTS));
   cfg.constructionGuides.enabled = false;
+  cfg.background.fabricTexture = 0; // другие сцены сохраняют свой фон
   delete cfg.intro; // Эти движения относятся только к первому ролику.
   // Композиция фоновых сцен: знак крупнее и ниже, титр — в нижней трети,
   // чтобы не оставалось пустого поля под названием.
+  cfg.caption.titleMetallic = false; // только интро получает новый титр по умолчанию
+  cfg.logo.studioRelief = 0; // не меняем утверждённый вид других сцен
+  cfg.logo.directedMotion = false; // новый ритм только для интро
+  cfg.logo.cinematic = false; // новый свет сначала только в интро
   cfg.logo.facetPolish = 0; // утверждённые фоновые сцены сохраняют прежний материал
   cfg.logo.scale = 0.58;
   cfg.logo.offsetY = 0.86;

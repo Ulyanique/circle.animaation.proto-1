@@ -102,6 +102,7 @@ export function createSettingsUI({
     const current = cfg();
     const defaults = defs();
     for (const section of SCHEMA) {
+      if (editing === "partners" && !["partners", "timeline", "playback", "transition"].includes(section.id)) continue;
       if (!current[section.id] || (section.id === "caption" && editing === "photo-pause")) continue;
       const det = document.createElement("details");
       det.className = "cfg-sec";
@@ -110,6 +111,11 @@ export function createSettingsUI({
       const sum = document.createElement("summary");
       sum.textContent = section.title;
       det.appendChild(sum);
+      if (section.id === "partners") {
+        const note = document.createElement("p"); note.className = "cfg-io-hint";
+        note.textContent = "Пока показаны названия вместо логотипов. Для точной замены нужны файлы логотипов; загрузка изображений в этой версии ещё не добавлена.";
+        det.appendChild(note);
+      }
       if (section.id === "caption") {
         const note = document.createElement("p");
         note.className = "cfg-io-hint";

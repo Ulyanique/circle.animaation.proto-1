@@ -1,3 +1,4 @@
+import { METALLIC_TITLE_CSS } from './caption-material.js';
 import { CUSTOM_TEXT_IDS, customTextOrder } from './custom-text.js';
 import { FONTS, fontName } from './fonts.js';
 
@@ -9,6 +10,9 @@ export function validCustomColor(value) {
 export function syncCaptionContent(cap, caption, custom = {}) {
   if (!cap) return false;
   let changed = false;
+  // A user's explicit color remains authoritative, even in the metallic mode.
+  cap.dataset.titleMetallic = String(caption?.titleMetallic === true && !validCustomColor(caption?.titleColor));
+  cap.style.setProperty('--title-metallic-gradient', METALLIC_TITLE_CSS);
   for (const [name, selector] of [['title', '.cap-title'], ['subtitle', '.cap-sub'], ['date', '.cap-date']]) {
     const el = cap.querySelector(selector);
     if (!el) continue;

@@ -50,9 +50,9 @@ export function introSequence(phase, timeline, config) {
     const ringProgress = clamp(exitStart / rise);
     const ringsAtExit = ringProgress * ringProgress * (3 - 2 * ringProgress);
     const cornersAtExit = ringsAtExit * smooth(cornerStart, cornerEnd, exitStart);
-    return { corners: cornersAtExit * (1 - smooth(.40, .52, p)),
-      lift: liftAtExit * (1 - smooth(.25, .40, p)),
-      settled: smooth(liftEnd, liftEnd + .8, exitStart) * (1 - smooth(.25, .40, p)),
+    return { corners: cornersAtExit * (1 - smooth(.44, .54, p)),
+      lift: liftAtExit * (1 - smooth(.25, .44, p)),
+      settled: smooth(liftEnd, liftEnd + .8, exitStart) * (1 - smooth(.25, .44, p)),
       captionStart, cornerStart, cornerEnd, liftEnd };
   }
   return {
@@ -63,6 +63,14 @@ export function introSequence(phase, timeline, config) {
     settled: smooth(liftEnd, liftEnd + 0.8, phase.local),
     captionStart, cornerStart, cornerEnd, liftEnd,
   };
+}
+
+/** Два круга реагируют не синхронно: правый мягко подхватывает левый.
+ * Огибающая остаётся ограниченной и следует любому пользовательскому таймингу.
+ * @param {number} env @param {boolean} enabled */
+export function introCornerEnvelopes(env, enabled) {
+  const left = clamp(env);
+  return { left, right: enabled ? left * smooth(.08, .92, left) : left };
 }
 
 export const CONTOUR_WAVE_COUNT = 3;
@@ -128,8 +136,8 @@ export function introOutro(phase, tl) {
   const start = tl.drawDuration + tl.emergeDuration + tl.holdDuration;
   if (phase.beforeStart || phase.local < start) return null;
   const p = clamp((phase.local - start) / Math.max(.0001, tl.fadeDuration));
-  const reveal = 1 - smooth(.52, .65, p);
+  const reveal = 1 - smooth(.54, .67, p);
   return { reveal, fill: reveal,
-    outline: smooth(.56, .65, p) * (1 - smooth(.75, .79, p)),
-    draw: 1 - smooth(.65, .78, p) };
+    outline: smooth(.58, .67, p) * (1 - smooth(.77, .81, p)),
+    draw: 1 - smooth(.67, .80, p) };
 }
