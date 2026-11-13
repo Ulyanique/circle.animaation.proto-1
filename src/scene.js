@@ -23,7 +23,18 @@ import {
   ToneMappingMode,
 } from "postprocessing";
 import { createStudioEnvironment } from "./studio-environment.js";
-import { masterSize } from "./output-profile.js";
+import { masterSize, masterId } from "./output-profile.js";
+import { applyQualityPreset, qualityPostOverrides, suggestedQuality, DEFAULT_QUALITY, isQualityPreset } from "./quality-presets.js";
+
+/**
+ * MSAA выбранного пресета: пресет может только выключать сэмплы, но не
+ * добавлять их сверх авторской настройки сцены.
+ * @param {any} post
+ * @param {string} qualityId
+ */
+function effectiveMsaa(post, qualityId) {
+  return Math.min(Number(post.msaaSamples) || 0, qualityPostOverrides(qualityId).msaaSamples);
+}
 import { DitherEffect } from "./dither-effect.js";
 import { CaptionLayer, CAPTION_SHADER } from "./caption-layer.js";
 import { BACKGROUND_GLOW_IDS } from "./background-glow-config.js";
@@ -187,7 +198,8 @@ export class LogoScene {
     this._captionOverride = false;
     this._captionSource = null;
 
-    this._msaaSig = String(cfg.post.msaaSamples);
+    this._quality = suggestedQuality(masterId());
+    this._msaaSig = String(effectiveMsaa(cfg.post, this._quality));
     this._setupComposer();
     this.resize();
     this.applyStatic();
@@ -196,7 +208,7 @@ export class LogoScene {
   _setupComposer() {
     const cfg = this.cfg;
     this.composer = new EffectComposer(this.renderer, {
-      multisampling: cfg.post.msaaSamples,
+      multisampling: effectiveMsaa(cfg.post, this._quality),
       frameBufferType: THREE.HalfFloatType,
     });
     this.composer.addPass(new RenderPass(this.scene, this.camera));
@@ -310,7 +322,7 @@ export class LogoScene {
     this.applyStatic();
 
     // MSAA задаётся при создании composer → пересоздаём при смене значения
-    const msaaSig = String(cfg.post.msaaSamples);
+    const msaaSig = String(effectiveMsaa(cfg.post, this._quality));
     if (msaaSig !== this._msaaSig) {
       this._msaaSig = msaaSig;
       this.composer.dispose();
@@ -556,7 +568,9 @@ export class LogoScene {
   }
 
   _applyPost(ph, cfg, t) {
-    const p = cfg.post;
+    // Пресет качества (черновик/превью/мастер) накладывается поверх настроек
+    // сцены, не переписывая их: сцена остаётся источником правды.
+    const p = applyQualityPreset(cfg.post, this._quality);
     this.smaa.blendMode.opacity.value = p.smaa ? 1 : 0;
     this.dof.blendMode.opacity.value = p.dofEnabled ? 1 : 0;
     // размытие уходит в ноль, пока проявляется логотип (контур в начале остаётся чётким)
@@ -571,6 +585,30 @@ export class LogoScene {
 
   render(dt) {
     this.composer.render(dt);
+  }
+
+  /** Текущий пресет качества кадра. */
+  get quality() {
+    return this._quality;
+  }
+
+  /**
+   * Переключение пресета качества. Кадр меняется только по стоимости
+   * сглаживания и блума, композиция и тайминги остаются прежними.
+   * @param {string} id
+   */
+  setQuality(id) {
+    const next = isQualityPreset(id) ? id : DEFAULT_QUALITY;
+    if (next === this._quality) return false;
+    this._quality = next;
+    const sig = String(effectiveMsaa(this.cfg.post, next));
+    if (sig !== this._msaaSig) {
+      this._msaaSig = sig;
+      this.composer.dispose();
+      this._setupComposer();
+      this.composer.setSize(this._w, this._h);
+    }
+    return true;
   }
 
   /**

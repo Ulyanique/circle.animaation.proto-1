@@ -23,6 +23,7 @@ import { masterSize, masterId, setMasterPreset, loadMasterPreset } from "./outpu
 import { transitionDuration, drawOutgoingFrame } from "./scene-transition.js";
 import { OUTPUT, RECORDING_CHAIN, sceneById } from "./scenes/catalog.js";
 import { createOperatorControls, crossedBoundary } from "./operator.js";
+import { loadQuality, saveQuality } from "./quality-presets.js";
 import { createFrameEditor } from "./editor.js";
 import { layoutEditorPreview } from "./editor-layout.js";
 
@@ -126,6 +127,9 @@ applyTypography();
 const adapters = { waiting: LogoScene, brand: BrandScene,
   "partners": PartnersScene, "photo-pause": PhotoPauseScene, finale: FinaleScene };
 let scene = new adapters[sceneId](canvas, cfg);
+// Пресет качества запоминаем между запусками: на площадке важно не искать его
+// заново. Значение по умолчанию — полный кадр превью.
+scene.setQuality(loadQuality());
 let runtime = new AnimationRuntime(scene, cfg, OUTPUT.fps);
 scene.setCaptionSource(captionSourceFor(sceneId));
 layoutEditorPreview(canvas, document.getElementById("caption"));
@@ -179,7 +183,7 @@ document.addEventListener("visibilitychange", () => {
 let recording = null; // один цикл текущей сцены, переключение на время записи заблокировано
 const operator = createOperatorControls({
   getState: () => ({ id: sceneId, time: runtime.time, config: cfg, cycle: runtime.cycle,
-    recording: !!recording, recordingKind: recording?.kind, master: masterId() }),
+    recording: !!recording, recordingKind: recording?.kind, master: masterId(), quality: scene.quality }),
   seek: (value) => { cfg.playback.paused = true; runtime.renderAt(value, 1 / OUTPUT.fps); },
   setDuration: (value) => {
     const tl = cfg.timeline;
@@ -200,6 +204,14 @@ const operator = createOperatorControls({
   },
   switchScene: (id) => switchScene(id),
   setMaster: (id) => applyMaster(id),
+  setQuality: (id) => {
+    if (recording || transition) { toast("Во время записи или перехода качество менять нельзя", true); return false; }
+    scene.setQuality(id);
+    saveQuality(scene.quality);
+    runtime.renderAt(runtime.time, 1 / OUTPUT.fps);
+    operator.refresh();
+    return true;
+  },
   record: () => startRecording(),
   recordChain: () => startSequenceRecording(),
 });
