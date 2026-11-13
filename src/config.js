@@ -147,6 +147,9 @@ export const SCHEMA = [
       { key: "startDelay", label: "Задержка старта", type: "range", min: 0, max: 5, step: 0.05 },
       { key: "ringsIntro", label: "Появление кругов", type: "range", min: 0.1, max: 6, step: 0.05 },
       { key: "speed", label: "Скорость", type: "range", min: 0.1, max: 3, step: 0.01 },
+      // Сетка такта: 0 BPM — выключена и ничего не меняет в прежних настройках.
+      { key: "beatBpm", label: "Сетка такта: BPM (0 — выкл.)", type: "range", min: 0, max: 200, step: 1 },
+      { key: "beatOffset", label: "Сетка такта: фаза (сек)", type: "range", min: 0, max: 5, step: 0.01 },
     ]
   },
   {

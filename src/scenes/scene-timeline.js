@@ -3,7 +3,7 @@ import { WAITING_DEFAULTS } from "./waiting.js";
 /** Те же вход и обратный уход, что у первой сцены; отличается только удержание. */
 /** @param {number} cycle */
 export function createSceneTimeline(cycle) {
-  const { drawDuration, emergeDuration, fadeDuration, restDuration, ringsIntro } = WAITING_DEFAULTS.timeline;
+  const { drawDuration, emergeDuration, fadeDuration, restDuration, ringsIntro, beatBpm, beatOffset } = WAITING_DEFAULTS.timeline;
   return {
     drawDuration,
     emergeDuration,
@@ -13,5 +13,7 @@ export function createSceneTimeline(cycle) {
     startDelay: 0,
     ringsIntro,
     speed: 1,
+    beatBpm,
+    beatOffset,
   };
 }

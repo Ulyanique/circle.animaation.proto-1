@@ -1,6 +1,7 @@
 import { OUTPUT } from "./scenes/catalog.js";
 import { MASTER_PRESETS } from "./output-profile.js";
 import { QUALITY_PRESETS } from "./quality-presets.js";
+import { beatDuration, beatInBar, nearestBeat } from "./beat-grid.js";
 
 /** Не реагировать на обычную перемотку; автопереход только при пересечении шва воспроизведением. */
 export function crossedBoundary(before, after, delay, cycle) {
@@ -33,6 +34,7 @@ export function createOperatorControls({ getState, seek, setDuration, togglePaus
       <input type="range" data-action="seek" min="0" step="0.0166666667" aria-label="Перемотка текущего ролика">
       <button type="button" data-action="next" title="Вперёд на кадр">+1</button>
       <output data-role="time" aria-live="off"></output>
+      <output data-role="beat" class="operator-beat" aria-live="off" title="Сетка такта: доля и такт"></output>
       <label class="operator-duration">Цикл <input type="number" data-action="duration" min="1" max="300" step="0.1" aria-label="Длительность цикла в секундах"> с</label>
       <label class="operator-master">Мастер
         <select data-action="master" aria-label="Разрешение мастер-кадра">
@@ -84,6 +86,17 @@ export function createOperatorControls({ getState, seek, setDuration, togglePaus
     const local = localTime(state);
     if (!dragging) range.value = String(Math.min(local, max));
     panel.querySelector('[data-role="time"]').textContent = `${local.toFixed(2)} / ${state.cycle.toFixed(2)} с`;
+    // Сетка такта: при 0 BPM подпись пустая, чтобы не занимать место.
+    const beatEl = panel.querySelector('[data-role="beat"]');
+    const beat = beatDuration(state.config.timeline);
+    if (beat > 0) {
+      const index = nearestBeat(local, state.config.timeline) + 1;
+      beatEl.textContent = `такт ${Math.floor((index - 1) / 4) + 1} · доля ${beatInBar(local, state.config.timeline)}`;
+      beatEl.hidden = false;
+    } else {
+      beatEl.textContent = "";
+      beatEl.hidden = true;
+    }
     if (!editing) duration.value = state.cycle.toFixed(1);
     masterSelect.value = state.master;
     masterSelect.disabled = state.recording;
