@@ -22,7 +22,6 @@ import { encodeOfflineVideo, frameCount, estimateVideoBytes, videoBitrateFor } f
 import { masterSize, masterId, setMasterPreset, loadMasterPreset } from "./output-profile.js";
 import { transitionDuration, drawOutgoingFrame } from "./scene-transition.js";
 import { OUTPUT, RECORDING_CHAIN, sceneById } from "./scenes/catalog.js";
-import { drawCaption } from "./caption-compositor.js";
 import { createOperatorControls, crossedBoundary } from "./operator.js";
 import { createFrameEditor } from "./editor.js";
 import { layoutEditorPreview } from "./editor-layout.js";
@@ -128,6 +127,7 @@ const adapters = { waiting: LogoScene, brand: BrandScene,
   "partners": PartnersScene, "photo-pause": PhotoPauseScene, finale: FinaleScene };
 let scene = new adapters[sceneId](canvas, cfg);
 let runtime = new AnimationRuntime(scene, cfg, OUTPUT.fps);
+scene.setCaptionSource(captionSourceFor(sceneId));
 layoutEditorPreview(canvas, document.getElementById("caption"));
 applyTypography(true); // теперь известны реальные размеры рамки после resize сцены
 let editor;
@@ -236,21 +236,35 @@ function syncMasterSize() {
   REC_W = size.width; REC_H = size.height;
 }
 
-// Одна и та же сборка WebGL + типографики для экспорта и контроля PNG.
-function drawCompositeFrame(ctx, includeCaption = true) {
+// Титр рисуется внутри сцены (см. CaptionLayer), поэтому композит — это кадр
+// WebGL целиком: превью и экспорт совпадают пиксель в пиксель.
+function captionSourceFor(id) {
+  return () => {
+    if (id === "partners" || !document.getElementById("caption")) return null;
+    return { sceneId: id, alpha: 1 };
+  };
+}
+
+function drawCompositeFrame(ctx) {
   ctx.drawImage(canvas, 0, 0, ctx.canvas.width, ctx.canvas.height);
-  const cap = document.getElementById("caption");
-  const op = includeCaption && cap ? parseFloat(getComputedStyle(cap).opacity) : 0;
-  if (op > 0.001 && activeScene.id !== "partners") drawCaption(ctx, op, activeScene.id);
 }
 
 /** Тот же композит, что записывается в видео; includeCaption=false — эталон для теста. */
 function compositeFrameAt(time, dt = 1 / OUTPUT.fps, includeCaption = true) {
-  runtime.renderAt(time, dt);
-  const frame = document.createElement("canvas");
-  frame.width = REC_W; frame.height = REC_H;
-  drawCompositeFrame(frame.getContext("2d"), includeCaption);
-  return frame;
+  scene.setCaptionVisible(includeCaption);
+  // В редакторе DOM-титр остаётся видимым для рамок, но кадр всё равно
+  // собирается с запечённым в WebGL текстом — так экспорт не теряет надпись.
+  scene.setCaptionOverride(true);
+  try {
+    runtime.renderAt(time, dt);
+    const frame = document.createElement("canvas");
+    frame.width = REC_W; frame.height = REC_H;
+    drawCompositeFrame(frame.getContext("2d"));
+    return frame;
+  } finally {
+    scene.setCaptionVisible(true);
+    scene.setCaptionOverride(false);
+  }
 }
 
 // Склейка без перезагрузки: последний композит старого вида (WebGL + DOM-титры)
@@ -295,6 +309,7 @@ function switchScene(id, source) {
   cfg = nextCfg;
   scene = nextScene;
   runtime = new AnimationRuntime(scene, cfg, OUTPUT.fps);
+  scene.setCaptionSource(captionSourceFor(id));
   activateClasses(id);
   layoutEditorPreview(canvas, document.getElementById("caption"));
   applyTypography(true);

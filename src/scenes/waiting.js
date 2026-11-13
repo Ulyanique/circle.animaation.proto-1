@@ -72,6 +72,7 @@ export const WAITING_DEFAULTS = {
     outlineWidthPx: 1.6,   // толщина контура в пикселях (1920×1080)
     outlineGlow: 0.35,     // сила свечения контура
     glint: 0.55,           // короткий тёплый блик без потери силуэта
+    amber: 0.4,            // янтарный срез на боковых гранях и мягкая подсветка за знаком
   },
   colors: {
     gold: "#c8962e",       // основной металл
@@ -115,22 +116,22 @@ export const WAITING_DEFAULTS = {
     speed: 0.5,
     spread: 1.0,           // разброс вокруг колец
     brightness: 1.0,
-    dust: 360,             // пыль по всей сцене
+    dust: 220,             // пыль по всей сцене
     rayLift: 1.0,          // насколько пыль подсвечивается световыми лучами
   },
   background: {
     fabricTexture: 0.8,     // каменная фактура; ключ сохранён для старых настроек
     lightSpread: 0.7,     // насколько далеко расходится свет от кругов
-    lightIntensity: 0.65,  // яркость отражённого света на фоне
+    lightIntensity: 0.52,  // яркость отражённого света на фоне
     shimmer: 0.55,         // переливание (шум)
     godRaysEnabled: true, fogEnabled: true, brushedEnabled: true, grainEnabled: true,
     vignetteEnabled: true, lowerShadeEnabled: true, gridEnabled: true,
-    godRays: 0.35,         // световые лучи от кругов
-    fog: 0.7,              // объёмный туман, подсвеченный кругами
+    godRays: 0.22,         // световые лучи от кругов
+    fog: 0.45,             // объёмный туман, подсвеченный кругами
     brushed: 0.35,         // тонкая диагональная текстура
-    grain: 0.012,          // зерно плёнки (тонкое)
-    vignette: 0.85,
-    lowerShade: 0.45,      // затемнение нижнего левого угла (как в референсе)
+    grain: 0.009,          // зерно плёнки (тонкое)
+    vignette: 0.6,
+    lowerShade: 0.28,      // затемнение нижнего левого угла (как в референсе)
     gridOpacity: 0.02,     // чертёжная сетка на фоне (тонкая)
   },
   constructionGuides: { enabled: true, offsetX: 0, offsetY: 0, scale: 1, opacity: 0.12, color: "#d9b268", timingMode: "scene", timingStart: 25, timingEnd: 90, timingFade: 15 },

@@ -19,3 +19,21 @@ test('объём граней регулируется и хранится от�
     assert.equal(parseConfigJSON(configToJSON(old), defaults).logo.facetPolish, .23);
   }
 });
+
+test('янтарный срез — общая настройка логотипа, совместимая со старыми JSON', () => {
+  assert.equal(WAITING_DEFAULTS.logo.amber, .4);
+  assert.ok(SCHEMA.find(s => s.id === 'logo').fields.some(f => f.key === 'amber'));
+  for (const defaults of [WAITING_DEFAULTS, FINALE_DEFAULTS, BRAND_DEFAULTS, PHOTO_PAUSE_DEFAULTS]) {
+    // Старый файл без ключа получает значение сцены, а не NaN.
+    const old = parseConfigJSON('{"logo":{"scale":1}}', defaults);
+    assert.equal(old.logo.amber, defaults.logo.amber);
+    // Своё значение переживает экспорт и импорт.
+    old.logo.amber = 0;
+    assert.equal(parseConfigJSON(configToJSON(old), defaults).logo.amber, 0);
+  }
+  // Сцены независимы: правка одной не меняет умолчания остальных.
+  const before = BRAND_DEFAULTS.logo.amber;
+  WAITING_DEFAULTS.logo.amber = .1;
+  assert.equal(BRAND_DEFAULTS.logo.amber, before);
+  WAITING_DEFAULTS.logo.amber = .4;
+});

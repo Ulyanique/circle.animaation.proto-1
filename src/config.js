@@ -153,6 +153,7 @@ export const SCHEMA = [
     id: "logo", title: "Логотип", fields: [
       { key: "visible", label: "Показывать логотип", type: "bool" },
       { key: "cinematic", label: "Кинематографичный свет и металл", type: "bool" },
+      { key: "amber", label: "Янтарный срез и подсветка", type: "range", min: 0, max: 1, step: 0.01 },
       { key: "directedMotion", label: "Интро: режиссёрская подача движения", type: "bool" },
       { key: "scale", label: "Размер", type: "range", min: 0.3, max: 2.5, step: 0.01 },
       { key: "offsetX", label: "Положение по горизонтали", type: "range", min: -2, max: 2, step: 0.01 },

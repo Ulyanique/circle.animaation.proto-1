@@ -355,9 +355,12 @@ body.operator-idle:not(.ui-on) .cfg-toggle { opacity: .55; }
 /* ── титр: каждая графема гравируется контуром, затем получает заливку. ── */
 #caption {
   position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%);
-  pointer-events: none; opacity: 1; font-family: "Cormorant Garamond", Georgia, serif;
+  pointer-events: none; opacity: 0; font-family: "Cormorant Garamond", Georgia, serif;
   --u: 10px;
 }
+/* Титр в кадре рисует WebGL (CaptionLayer) — DOM-слой виден только в редакторе,
+   где нужны измеримые буквы и рамки. Так экспорт и превью идут одним путём. */
+body.editor-on #caption { opacity: 1; }
 #caption > * { position: absolute; left: 50%; white-space: nowrap; line-height: 1; text-align: center; }
 #caption [data-text] {
   transform: translate(-50%, calc(-50% + var(--lift, 0px))); color: transparent;
@@ -386,11 +389,11 @@ body.operator-idle:not(.ui-on) .cfg-toggle { opacity: .55; }
   left: calc(50% + var(--title-offset-x, 0%)); top: calc(55% + var(--title-offset-y, 0%)); font-weight: 600;
   font-size: calc(var(--u) * 7.2 * var(--title-scale, 1) * var(--title-fit, 1));
   letter-spacing: var(--title-tracking, 0em); padding-left: var(--title-tracking, 0em);
-  -webkit-text-stroke: calc(var(--u) * 0.08) var(--title-color, #e0b25a);
-  filter: drop-shadow(0 calc(var(--u) * 0.2) calc(var(--u) * 0.5) rgba(0, 0, 0, 0.7));
+  -webkit-text-stroke: calc(var(--u) * 0.055) var(--title-color, #e0b25a);
+  filter: drop-shadow(0 calc(var(--u) * 0.10) calc(var(--u) * 0.26) rgba(0, 0, 0, 0.5));
 }
 .cap-title .cap-glyph::after {
-  background: var(--title-color, linear-gradient(180deg, #fff3cc 0%, #f0cc78 40%, #c08c36 75%, #e8c06a 100%));
+  background: var(--title-color, linear-gradient(180deg, #fff4d8 0%, #f7e2b4 22%, #e6c184 44%, #cfa260 58%, #e9cb8d 76%, #d3a65f 90%, #bf8f4c 100%));
   -webkit-background-clip: text; background-clip: text; color: transparent;
 }
 /* Металл только для штатного названия без пользовательского цвета.
@@ -414,16 +417,16 @@ body.operator-idle:not(.ui-on) .cfg-toggle { opacity: .55; }
 .r2 { top: 79%; }
 #caption .cap-sub {
   left: calc(50% + var(--subtitle-offset-x, 0%)); top: calc(72% + var(--subtitle-offset-y, 0%)); font-weight: 400;
-  font-size: calc(var(--u) * 2.4 * var(--subtitle-scale, 1) * var(--subtitle-fit, 1)); letter-spacing: var(--subtitle-tracking, 0.32em); padding-left: var(--subtitle-tracking, 0.32em);
+  font-size: calc(var(--u) * 2.6 * var(--subtitle-scale, 1) * var(--subtitle-fit, 1)); letter-spacing: var(--subtitle-tracking, 0.22em); padding-left: var(--subtitle-tracking, 0.22em);
   text-transform: uppercase; -webkit-text-stroke: calc(var(--u) * 0.04) var(--subtitle-color, #d9b061);
 }
 .cap-sub .cap-glyph::after { color: var(--subtitle-color, #ecd08c); }
 #caption .cap-date {
   left: calc(50% + var(--date-offset-x, 0%)); top: calc(84% + var(--date-offset-y, 0%)); font-weight: 400;
-  font-size: calc(var(--u) * 1.5 * var(--date-scale, 1) * var(--date-fit, 1)); letter-spacing: var(--date-tracking, 0.28em); padding-left: var(--date-tracking, 0.28em);
-  text-transform: uppercase; -webkit-text-stroke: calc(var(--u) * 0.035) var(--date-color, #d9b061);
+  font-size: calc(var(--u) * 1.95 * var(--date-scale, 1) * var(--date-fit, 1)); letter-spacing: var(--date-tracking, 0.22em); padding-left: var(--date-tracking, 0.22em);
+  text-transform: uppercase; -webkit-text-stroke: calc(var(--u) * 0.04) var(--date-color, #e6c489);
 }
-.cap-date .cap-glyph::after { color: var(--date-color, #d9b061); }
+.cap-date .cap-glyph::after { color: var(--date-color, #e6c489); }
 .cfg-select select {
   max-width: 180px; padding: 5px 8px; color: var(--text);
   background: #252018; border: 1px solid rgba(217,176,97,.35);

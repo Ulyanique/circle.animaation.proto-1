@@ -28,6 +28,7 @@ export const revealUniforms = {
   // Мягкая куполообразность лицевой плоскости: плоская грань иначе отражает
   // окружение одной точкой и выглядит заливкой.
   uDome: { value: 0.12 },
+  uAmber: { value: 0.4 },
 };
 
 const REVEAL_GLSL_COMMON = /* glsl */ `
@@ -46,6 +47,7 @@ const REVEAL_GLSL_COMMON = /* glsl */ `
   uniform float uCinematicGold;
   uniform float uCinematicTime;
   uniform float uDome;
+  uniform float uAmber;
   float rvHash(vec2 p){ p = fract(p*vec2(123.34,456.21)); p += dot(p,p+45.32); return fract(p.x*p.y); }
   float rvNoise(vec2 p){
     vec2 i = floor(p), f = fract(p);
@@ -120,6 +122,10 @@ function patchRevealMaterial(material, withEmission) {
          float rvStudio = 0.84 + 0.36 * rvCard - 0.05 * rvDarkCard;
          outgoingLight *= mix(1.0, rvStudio, rvFront * uCinematicGold);
          outgoingLight += vec3(0.17, 0.075, 0.018) * (rvCard * rvBevel + 0.32 * rvEdgeCard * rvFront) * uCinematicGold;
+         // Янтарный срез: тонкий тёплый свет на боковых гранях, как у полированного
+         // камня. Ноль возвращает чистое золото.
+         float rvAmberSide = 1.0 - smoothstep(0.06, 0.40, abs(normalize(vLocalNormal).z));
+         outgoingLight += vec3(0.26, 0.095, 0.014) * rvAmberSide * clamp(uAmber, 0.0, 1.0);
          // Настоящие нормали скоса: широкая студийная карточка освещает
          // верхние кромки, противоположные остаются глубоким металлом.
          // Ноль сохраняет прежний материал; плоское лицо не получает полосу.

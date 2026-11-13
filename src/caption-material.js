@@ -1,7 +1,7 @@
 // Shared stops keep the DOM preview and the export canvas on the same palette.
 export const METALLIC_TITLE_STOPS = [
-  [0, '#fff6db'], [0.20, '#f7dea5'], [0.43, '#d29c4f'],
-  [0.51, '#98612c'], [0.58, '#f5dca3'], [0.78, '#d6a158'], [1, '#8a5424'],
+  [0, '#fff5d8'], [0.22, '#f6dfae'], [0.44, '#e0b981'],
+  [0.56, '#cda367'], [0.64, '#f0d6a3'], [0.82, '#d9ac6c'], [1, '#b08245'],
 ];
 
 /** A restrained warm reflection; zero reproduces the original palette exactly. */

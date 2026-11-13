@@ -12,6 +12,7 @@ import {
   EffectComposer,
   RenderPass,
   EffectPass,
+  ShaderPass,
   BloomEffect,
   SMAAEffect,
   SMAAPreset,
@@ -24,6 +25,7 @@ import {
 import { createStudioEnvironment } from "./studio-environment.js";
 import { masterSize } from "./output-profile.js";
 import { DitherEffect } from "./dither-effect.js";
+import { CaptionLayer, CAPTION_SHADER } from "./caption-layer.js";
 import { BACKGROUND_GLOW_IDS } from "./background-glow-config.js";
 import { BackgroundGlow } from "./background-glow.js";
 import { PARTICLE_CLOUD_IDS } from "./particle-cloud-config.js";
@@ -155,6 +157,15 @@ export class LogoScene {
     this.topGlow.position.set(0, 1.5, -0.6);
     this.topGlow.scale.setScalar(9);
     this.scene.add(this.topGlow);
+    // Мягкая янтарная подсветка за знаком: тёплый акцент, который отделяет
+    // металл от коричневого фона и напоминает о названии бренда.
+    this.amberGlow = new THREE.Sprite(new THREE.SpriteMaterial({
+      map: this.corners.glowTex, color: 0xc06c1e, transparent: true, depthWrite: false,
+      blending: THREE.AdditiveBlending, opacity: 0,
+    }));
+    this.amberGlow.position.set(0, 0.2, -0.7);
+    this.amberGlow.scale.set(3.6, 3.6, 1);
+    this.scene.add(this.amberGlow);
     this.scene.add(this.particles.group);
 
     // Полноэкранная заслонка внутри WebGL: одинаково действует на превью,
@@ -168,6 +179,13 @@ export class LogoScene {
     this.seamCurtain.renderOrder = 1000;
     this.seamCurtain.frustumCulled = false;
     this.scene.add(this.seamCurtain);
+
+    // Титр — отдельный проход композитора: общий тон, SMAA и дизеринг без
+    // блума, аберрации и DoF, которые размывают буквы на большом экране.
+    this.captionLayer = new CaptionLayer();
+    this._captionVisible = true;
+    this._captionOverride = false;
+    this._captionSource = null;
 
     this._msaaSig = String(cfg.post.msaaSamples);
     this._setupComposer();
@@ -197,14 +215,29 @@ export class LogoScene {
       radius: 0.8,
     });
     this.chroma = new ChromaticAberrationEffect();
-    this.vignette = new VignetteEffect({ darkness: 0.45, offset: 0.35 });
+    this.vignette = new VignetteEffect({ darkness: 0.28, offset: 0.45 });
     // Финальный дизеринг: полосы на тёмных градиентах заметнее всего на большом экране.
     this.dither = new DitherEffect();
     this.tone = new ToneMappingEffect({ mode: ToneMappingMode.ACES_FILMIC });
     this.smaa = new SMAAEffect({ preset: SMAAPreset.ULTRA });
 
+    this.captionPass = new ShaderPass(new THREE.ShaderMaterial({
+      uniforms: {
+        inputBuffer: { value: null },
+        uCaption: { value: this.captionLayer.texture },
+        uOpacity: { value: 1 },
+      },
+      ...CAPTION_SHADER,
+      depthTest: false,
+      depthWrite: false,
+    }));
+    this.captionPass.enabled = false;
+
     this.composer.addPass(new EffectPass(this.camera, this.dof));
-    this.composer.addPass(new EffectPass(this.camera, this.bloom, this.chroma, this.vignette, this.tone));
+    this.composer.addPass(new EffectPass(this.camera, this.bloom, this.chroma, this.vignette));
+    // Титр садится в кадр до тонмаппинга: тот же грейд, что у всего кадра.
+    this.composer.addPass(this.captionPass);
+    this.composer.addPass(new EffectPass(this.camera, this.tone));
     this.composer.addPass(new EffectPass(this.camera, this.smaa));
     this.composer.addPass(new EffectPass(this.camera, this.dither));
   }
@@ -240,6 +273,7 @@ export class LogoScene {
     this.background.mesh.position.z = -3.5;
     this.logo.setResolution(RW * pr, RH * pr);
     this.plotter.setResolution?.(RW * pr, RH * pr);
+    this.captionLayer.setSize(RW, RH);
   }
 
   /** Статичные вещи, которые не меняются каждый кадр (но могут меняться от настроек). */
@@ -257,10 +291,15 @@ export class LogoScene {
     const introExit = this.isIntro ? introOutro(ph, cfg.timeline) : null;
     if (introExit) ph = { ...ph, ...introExit };
     const finale = cfg.finale ? finaleCues(ph, cfg.timeline, cfg.finale) : null;
+    // Состояние финальной последовательности доступно проверкам кадра.
+    this._finaleState = finale;
     if (finale?.active && ph.name === "fade") {
       ph = { ...ph, reveal: finale.reveal, fill: finale.reveal, outline: finale.outline, draw: finale.draw };
     }
     const opening = this.introStyle && !finale?.active ? introCues(ph, cfg.timeline) : { beams: 0, strike: 0, approach: 0 };
+    // Такт стартовой вспышки доступен проверкам кадра: uIntroLight принадлежит
+    // общему слою верхних лучей и в фоновых сценах не равен нулю.
+    this._openingBeams = opening.beams;
     const sequencePhase = finale?.active
       ? computePhase(cfg.timeline.startDelay + cfg.timeline.drawDuration + cfg.timeline.emergeDuration + cfg.timeline.holdDuration - 1e-6, cfg.timeline) : ph;
     const sequence = this.introStyle ? introSequence(sequencePhase, cfg.timeline, cfg.intro) : null;
@@ -306,6 +345,7 @@ export class LogoScene {
       (1 + opening.strike * 0.55);
     revealUniforms.uGlowColor.value.set(cfg.colors.glowColor);
     revealUniforms.uK.value = this.logo.parsed.K;
+    revealUniforms.uAmber.value = THREE.MathUtils.clamp(cfg.logo.amber ?? 0, 0, 1);
 
     // движение: пульсация + покачивание + плавное увеличение во время удержания
     const scaleGrow = THREE.MathUtils.lerp(cfg.logo.holdScaleFrom, cfg.logo.holdScaleTo, easeOutCubic(ph.grow));
@@ -417,7 +457,6 @@ export class LogoScene {
         : captionState(t, cfg.timeline, sequence?.captionStart, this.isIntro ? 0.42 : 1);
       setStyleIfChanged(capEl, "--finale-subtitle-y", `${79 - 29 * (finale?.subtitleCenter ?? 0)}%`);
       const k = THREE.MathUtils.smoothstep(progress, 0.0, 0.8);
-      capEl.style.opacity = "1";
       capEl.style.setProperty("--drift", `${captionDrift(k, finale?.subtitleCenter ?? 0, parseFloat(capEl.style.height) || window.innerHeight).toFixed(3)}px`);
       capEl.style.transform = "translate(-50%, calc(-50% + var(--drift)))";
       const u = parseFloat(capEl.style.getPropertyValue("--u")) || 19.2;
@@ -468,6 +507,18 @@ export class LogoScene {
       }
     }
 
+    // Титр обновляется после всех CSS-переменных кадра: один путь для превью
+    // и экспорта. В редакторе показываем DOM-слой, чтобы работали рамки.
+    // Текст перерисовывается только когда он виден, но проход остаётся в цепочке
+    // с нулевой непрозрачностью: кадр с титром и без него идёт по одному пути,
+    // поэтому эталон compositeFrameAt(..., false) совпадает побитово.
+    const caption = this._captionSource ? this._captionSource() : null;
+    const captionShown = Boolean(caption) && this._captionVisible &&
+      (this._captionOverride || !document.body.classList.contains("editor-on"));
+    if (captionShown) this.captionLayer.update(caption.sceneId, caption.alpha ?? 1, true);
+    this.captionPass.fullscreenMaterial.uniforms.uOpacity.value = captionShown ? (caption.alpha ?? 1) : 0;
+    this.captionPass.enabled = Boolean(caption);
+
     // Камера интро плавно подъезжает к знаку; остальные ролики сохраняют общую композицию.
     const camK = finale?.active ? 0 : (1 - ph.reveal) * 0.6;
     this.camera.position.set(this.introStyle ? 0 : -0.6 * camK, this.introStyle ? 0 : 0.35 * camK, CAM_Z + 1.2 * opening.approach);
@@ -478,6 +529,9 @@ export class LogoScene {
 
     // верхнее свечение: появляется вместе с логотипом
     updateTopIllumination(this.topLight, this.topGlow, cfg, ph.reveal, exposure);
+    this.amberGlow.position.set(root.position.x, root.position.y + 0.15, root.position.z - 0.7);
+    this.amberGlow.scale.setScalar(3.2 + 0.4 * scaleGrow);
+    this.amberGlow.material.opacity = (cfg.logo.amber ?? 0) * 0.18 * ph.reveal * (cinematic ? 1 : 0.6);
     // Уменьшаем только видимую дымку, не мощность источника на металле.
     if (this.introStyle && cfg.logo.cinematic === true) {
       this.topGlow.material.opacity *= 0.48;
@@ -515,7 +569,23 @@ export class LogoScene {
     this.composer.render(dt);
   }
 
+  /** Источник титра: возвращает {sceneId, alpha} или null, когда титра нет. */
+  setCaptionSource(source) {
+    this._captionSource = source;
+  }
+
+  /** Принудительно запечь титр в кадр — экспорт при открытом редакторе. */
+  setCaptionOverride(on) {
+    this._captionOverride = on === true;
+  }
+
+  /** Скрыть/показать титр без изменения настроек — для проверок кадра. */
+  setCaptionVisible(visible) {
+    this._captionVisible = visible !== false;
+  }
+
   dispose() {
+    this.captionLayer.dispose();
     this.contourWaves?.dispose();
     for (const cloud of Object.values(this.particleClouds)) cloud.dispose();
     this.logo.dispose();

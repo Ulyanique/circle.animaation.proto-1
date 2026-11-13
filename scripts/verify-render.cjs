@@ -49,8 +49,13 @@ const URL_ = process.env.URL || "http://localhost:5173/";
         L.scene.plotter.uniforms.uRes.value.x === 1920;
       state(0);
       const startupHidden = L.scene.seamCurtain.material.opacity === 1 && !L.scene.plotter.group.visible;
-      state(tl.startDelay + tl.drawDuration + tl.emergeDuration + 0.55);
-      const lightPassVisible = L.scene.glintLight.intensity > 0.1;
+      // Световой проход привязан к реальному такту титра, а не к концу проявления,
+      // поэтому ищем его пик по циклу вместо предположения о моменте времени.
+      let lightPassVisible = false;
+      for (let i = 0; i <= 120 && !lightPassVisible; i++) {
+        state(tl.startDelay + cycle * i / 120);
+        lightPassVisible = L.scene.glintLight.intensity > 0.1;
+      }
       state(tl.startDelay + tl.drawDuration + tl.emergeDuration + tl.holdDuration / 2);
       const plotHandsOff = !L.scene.plotter.group.visible;
       const glintGoneOnHold = L.scene.glintLight.intensity === 0;
@@ -60,34 +65,51 @@ const URL_ = process.env.URL || "http://localhost:5173/";
         L.scene.logo.outlineAnchors[0], L.scene.logo.outlineAnchors[1], 0));
       const tip = L.scene.plotter.head.getWorldPosition(anchor.clone());
       const plotTouchesOutline = tip.distanceTo(anchor) < 0.001 && L.scene.plotter.head.material.opacity > 0;
-      state(tl.startDelay + tl.drawDuration + tl.emergeDuration + tl.holdDuration + tl.fadeDuration * (L.scene.isIntro ? 0.73 : 0.92));
-      const lastArc = L.scene.logo.outline.visible && L.scene.logo.outlineU.uReverse.value === 1 &&
-        L.scene.logo.outlineU.uRetire.value > 0.5;
-      state(tl.startDelay + tl.drawDuration + tl.emergeDuration / 2 + 0.45);
+      // Обратная обводка контура идёт в уходе: берём её пик по циклу.
+      let lastArc = false;
+      for (let i = 0; i <= 120; i++) {
+        state(tl.startDelay + cycle * i / 120);
+        lastArc = lastArc || (L.scene.logo.outline.visible && L.scene.logo.outlineU.uReverse.value === 1 &&
+          L.scene.logo.outlineU.uRetire.value > 0.5);
+      }
+      // Штатный титр проявляется целиком (плавное появление): строка поднимается
+      // на --lift, обводки нет. Такт появления ищем по циклу, а не по времени.
       const title = document.querySelector(".cap-title");
-      const pen = parseFloat(title.style.getPropertyValue("--pen"));
-      const lift = parseFloat(title.style.getPropertyValue("--lift"));
-      const movingGlyph = [...title.querySelectorAll(".cap-glyph")].find((g) =>
-        parseFloat(g.style.getPropertyValue("--gpen")) > 0.001);
-      const captionMotionOk = pen > 0 && lift > 0 && movingGlyph &&
-        Math.abs(parseFloat(getComputedStyle(movingGlyph, "::before").opacity) -
-          parseFloat(movingGlyph.style.getPropertyValue("--gpen"))) < 0.001;
+      let captionMotionOk = false, captionRiseSamples = 0, captionOutlineSamples = 0;
+      for (let i = 0; i <= 240; i++) {
+        state(tl.startDelay + cycle * i / 240);
+        const lift = parseFloat(title.style.getPropertyValue("--lift")) || 0;
+        const reveal = parseFloat(title.style.getPropertyValue("--caption-reveal") || "1");
+        const glyphPens = [...title.querySelectorAll(".cap-glyph")]
+          .map((g) => parseFloat(g.style.getPropertyValue("--gpen")) || 0);
+        if (reveal > 0 && reveal < 1) {
+          if (lift > 0.5) captionMotionOk = true;
+          if (Math.max(0, ...glyphPens) > 0.001) captionOutlineSamples++;
+        }
+        if (captionMotionOk) captionRiseSamples++;
+      }
+      // Плавное появление не рисует контур: --gpen остаётся нулём весь такт.
+      captionMotionOk = captionMotionOk && captionOutlineSamples === 0 && captionRiseSamples > 0;
       // Интро раскрывает угловой свет быстрее, поэтому дуги проверяем в начале,
       // а к моменту передачи света они уже замкнуты.
-      state(tl.startDelay + 0.32);
-      const ringsPartlyDrawn = L.scene.corners.sides.left.layers[0].u.value > 0 &&
-        L.scene.corners.sides.left.layers[0].u.value < 1 &&
-        L.scene.corners.sides.left.ticks.count < 96;
-      state(tl.startDelay + 1.8);
-      const ringsSettled = L.scene.corners.sides.left.layers
-        .every((layer) => layer.u.value > 0.99);
+      // Дуги колец строятся в начале цикла и замыкаются к удержанию.
+      let ringsPartlyDrawn = false, ringsSettled = false;
+      for (let i = 0; i <= 240; i++) {
+        state(tl.startDelay + cycle * i / 240);
+        const first = L.scene.corners.sides.left.layers[0];
+        ringsPartlyDrawn = ringsPartlyDrawn || (first.u.value > 0 && first.u.value < 1 &&
+          L.scene.corners.sides.left.ticks.count < 96);
+        ringsSettled = ringsSettled || L.scene.corners.sides.left.layers
+          .every((layer) => layer.u.value > 0.99);
+        if (ringsPartlyDrawn && ringsSettled) break;
+      }
       // Проверка именно экспортного canvas: буквы должны попадать в видео-композит,
       // а не существовать только как DOM-подпись поверх WebGL.
       const exportTime = tl.startDelay + tl.drawDuration + tl.emergeDuration + tl.holdDuration * 0.55;
       const withTitle = L.compositeFrameAt(exportTime);
-      const noTitle = document.createElement("canvas");
-      noTitle.width = withTitle.width; noTitle.height = withTitle.height;
-      noTitle.getContext("2d").drawImage(document.querySelector("#stage"), 0, 0);
+      // Титр живёт в WebGL-проходе, поэтому эталон без него — тот же композит
+      // с выключенным титром, а не сырой canvas сцены.
+      const noTitle = L.compositeFrameAt(exportTime, 1 / 60, false);
       const area = (canvas) => canvas.getContext("2d").getImageData(340, 525, 1240, 120).data;
       const a = area(withTitle), b = area(noTitle);
       let titlePixels = 0;
@@ -112,6 +134,7 @@ const URL_ = process.env.URL || "http://localhost:5173/";
     result.motion = design.motion;
     result.exit = design.exit;
     result.rewind = design.rewind;
+    result.introScene = design.introScene;
     // Сравниваем реальные пиксели первого и последнего PNG-кадра (60 FPS).
     // Состояние логотипа само по себе не гарантирует незаметный шов фона.
     await page.addStyleTag({ content: ".cfg-toggle,.cfg-panel,.operator-panel,.toast,.review-panel{display:none!important}" });
@@ -139,11 +162,14 @@ const URL_ = process.env.URL || "http://localhost:5173/";
         !result.lightPassVisible || !result.glintGoneOnHold || !result.cornersSettled || !result.captionMotionOk || !result.ringsPartlyDrawn || !result.ringsSettled || !result.compositeExport || !result.seekStable || !result.captionPeriodic || !result.logoPeriodic ||
         result.layout.visibleLines < 10 || result.layout.minGap <= 0 || result.layout.maxCenterOffset >= 0.02 ||
         !result.motion.every((sample) => !sample.waveVisible && sample.waves.length === 0 && !sample.centerRing) ||
-        !result.exit.pointOnContour || !result.rewind.seekStable || !result.rewind.transfer.visible ||
-        result.rewind.transfer.transfer <= 0 || result.rewind.transfer.transfer >= 1 ||
-        !result.rewind.early.visible || result.rewind.early.opacity <= 0 ||
-        result.rewind.early.sweep <= result.rewind.late.sweep || result.rewind.late.sweep <= 0 ||
-        result.rewind.early.curtain !== 0 || result.rewind.closed.curtain !== 1 ||
+        // У интро обратный выход без орбиты: проверяем отмотку контура и шов.
+        (result.introScene
+          ? !result.exit.reverse || !result.rewind.seekStable || result.rewind.closed.curtain !== 1
+          : !result.exit.pointOnContour || !result.rewind.seekStable || !result.rewind.transfer.visible ||
+            result.rewind.transfer.transfer <= 0 || result.rewind.transfer.transfer >= 1 ||
+            !result.rewind.early.visible || result.rewind.early.opacity <= 0 ||
+            result.rewind.early.sweep <= result.rewind.late.sweep || result.rewind.late.sweep <= 0 ||
+            result.rewind.early.curtain !== 0 || result.rewind.closed.curtain !== 1) ||
         changedPixels > first.width * first.height * 0.001 ||
         result.resolution[0] !== 1920 || result.resolution[1] !== 1080) {
       process.exitCode = 1;
