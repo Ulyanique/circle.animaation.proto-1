@@ -249,7 +249,7 @@ export function drawCaption(ctx, alpha, sceneId) {
   }
   if (!brand && !photo && !finale) {
     rule(".r1", 0.66 * H);
-    rule(".r2", 0.79 * H);
+    rule(".r2", 0.777 * H);
     builtinTextLine(".cap-sub", {
       ...linePosition(".cap-sub", 0.72 * H), weight: 400, size: subSize, ls: 0.22 * subSize, stroke: subtitleColor || "#d9b061", sw: 0.04 * u, fill: subtitleColor || "#ecd08c",
     });

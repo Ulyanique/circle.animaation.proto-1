@@ -521,7 +521,11 @@ export class LogoScene {
 
     // Камера интро плавно подъезжает к знаку; остальные ролики сохраняют общую композицию.
     const camK = finale?.active ? 0 : (1 - ph.reveal) * 0.6;
-    this.camera.position.set(this.introStyle ? 0 : -0.6 * camK, this.introStyle ? 0 : 0.35 * camK, CAM_Z + 1.2 * opening.approach);
+    // Долгий подъезд на удержании (настройка «Камера»). Считается по объёму
+    // удержания, поэтому не зависит от частоты кадров и не ломает seek.
+    const dolly = this._holdDolly(ph, cfg);
+    this.camera.position.set(this.introStyle ? 0 : -0.6 * camK, this.introStyle ? 0 : 0.35 * camK,
+      CAM_Z + 1.2 * opening.approach + dolly);
     this.camera.lookAt(0, 0, 0);
     this.camera.updateMatrixWorld();
     this._introCenter.copy(root.position).project(this.camera);
@@ -567,6 +571,24 @@ export class LogoScene {
 
   render(dt) {
     this.composer.render(dt);
+  }
+
+  /**
+   * Смещение камеры за время удержания: медленный подъезд на несколько
+   * процентов, без ускорения на границах фазы.
+   * @param {{name:string, local:number, beforeStart:boolean}} ph
+   * @param {any} cfg
+   * @returns {number}
+   */
+  _holdDolly(ph, cfg) {
+    const amount = Number(cfg.camera?.holdDolly) || 0;
+    if (amount <= 0 || ph.beforeStart) return 0;
+    const tl = cfg.timeline;
+    const holdStart = tl.drawDuration + tl.emergeDuration;
+    const p = THREE.MathUtils.clamp((ph.local - holdStart) / Math.max(tl.holdDuration, 1e-4), 0, 1);
+    // ease-out-quint: движение начинается сразу и мягко тормозит к уходу.
+    const eased = 1 - Math.pow(1 - p, 5);
+    return amount * eased;
   }
 
   /** Источник титра: возвращает {sceneId, alpha} или null, когда титра нет. */

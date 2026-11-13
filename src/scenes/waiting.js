@@ -16,7 +16,9 @@ export const WAITING_DEFAULTS = {
   logoTiming: logoTimingDefaults(),
   editorLocks: editorLockDefaults(),
   effectOrder: effectOrderDefaults(),
-  typography: { font: "cormorant-garamond", titleTracking: 0, subtitleTracking: 0.32, dateTracking: 0.28 },
+  // Подзаголовок: 0,32em разрывал слово на буквы; 0,22em держит группы и
+  // оставляет воздух. Дата чуть плотнее, чтобы длинная строка не «расползалась».
+  typography: { font: "cormorant-garamond", titleTracking: 0, subtitleTracking: 0.22, dateTracking: 0.24 },
   caption: {
     titleText: "Янтарный циркуль", subtitleText: "Вечер ретроспектива", dateText: "20 ноября 2026 года",
     titleColor: null, subtitleColor: null, dateColor: null,
@@ -164,4 +166,7 @@ export const WAITING_DEFAULTS = {
   playback: {
     paused: false,
   },
+  // Камера на удержании: медленный подъезд даёт ощущение съёмки, а не
+  // отрисованной плоскости. Ноль — прежняя неподвижная камера.
+  camera: { holdDolly: 0 },
 };
