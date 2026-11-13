@@ -414,10 +414,10 @@ body.editor-on #caption { opacity: 1; }
   border: 1px solid #e0b25a; transform: rotate(45deg); opacity: var(--p, 0);
 }
 .r1 { top: 66%; }
-/* Нижняя линия выше прежних 79%: воздух над датой был вдвое меньше, чем под
-   подзаголовком. Теперь промежутки вокруг обеих линий близки по величине,
-   и блок целиком читается как один вертикальный ритм. */
-.r2 { top: 77.7%; }
+/* Нижняя линия: промежуток сверху и снизу от самой линии равны (по 4% высоты
+   кадра). Прежние 79% давали перекос в 0,3% — на глаз это незаметно, но на
+   стене читается как «дата прилипла к линии», поэтому ставим точное значение. */
+.r2 { top: 78.7%; }
 #caption .cap-sub {
   left: calc(50% + var(--subtitle-offset-x, 0%)); top: calc(72% + var(--subtitle-offset-y, 0%)); font-weight: 400;
   font-size: calc(var(--u) * 2.6 * var(--subtitle-scale, 1) * var(--subtitle-fit, 1)); letter-spacing: var(--subtitle-tracking, 0.22em); padding-left: var(--subtitle-tracking, 0.22em);

@@ -24,7 +24,7 @@ import {
 } from "postprocessing";
 import { createStudioEnvironment } from "./studio-environment.js";
 import { masterSize, masterId } from "./output-profile.js";
-import { applyQualityPreset, qualityPostOverrides, suggestedQuality, DEFAULT_QUALITY, isQualityPreset } from "./quality-presets.js";
+import { applyQualityPreset, qualityPostOverrides, suggestedQuality, parallaxAmount, DEFAULT_QUALITY, isQualityPreset } from "./quality-presets.js";
 
 /**
  * MSAA выбранного пресета: пресет может только выключать сэмплы, но не
@@ -51,7 +51,7 @@ import { Plotter } from "./plotter.js";
 import { SolarBokeh } from "./bokeh.js";
 import { captionState, finaleCaptionState, captionAccent, glyphReveal } from "./caption.js";
 import { captionDrift, introTitleLanding } from "./caption-layout.js";
-import { computePhase, compositionFocus, heroGlint, seamCurtainOpacity, logoDrawFinish } from "./timeline.js";
+import { computePhase, compositionFocus, heroGlint, seamCurtainOpacity, layerParallax, logoDrawFinish } from "./timeline.js";
 import { introCues, introSequence, introOutro, introCornerEnvelopes, finaleCues } from "./scenes/cues.js";
 
 const FOV = 30;
@@ -415,7 +415,15 @@ export class LogoScene {
     if (cinematic) for (const points of [this.particles.left, this.particles.right, this.particles.dust]) {
       if (points) points.material.uniforms.uBright.value *= 0.42;
     }
+    // Параллакс слоёв: фон, кольца и пыль сдвигаются на 1–3 px относительно
+    // знака. Знак и титр стоят на месте — глубина появляется без DOF.
+    // Смещение периодично по циклу, поэтому шов не меняется.
+    const par = layerParallax(t, cfg.timeline, parallaxAmount(cfg.camera?.parallax ?? 0, masterSize()));
     this.background.update(t, cfg);
+    this.background.mesh.position.x = -par.x;
+    this.background.mesh.position.y = -par.y;
+    this.corners.group.position.set(par.x * 0.7, par.y * 0.7, 0);
+    this.particles.group.position.set(par.x * 1.5, par.y * 1.5, 0);
     this.background.uniforms.uEnvL.value = cornerEnv * (cinematic ? 0.42 : 1) * (ringSideVisible(cfg.rings, "left") ? 1 : 0);
     this.background.uniforms.uEnvR.value = sideEnv.right * (1 - 0.44 * focus) * (cinematic ? 0.42 : 1) * (ringSideVisible(cfg.rings, "right") ? 1 : 0);
     updateUpperRays(this.background, ph, cfg, this.introStyle, opening.beams, t);

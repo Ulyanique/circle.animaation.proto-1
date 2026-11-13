@@ -1,4 +1,5 @@
 // Чистая модель фаз цикла; используется и в сцене, и в тестах.
+const TAU = Math.PI * 2;
 const clamp01 = (x) => Math.min(1, Math.max(0, x));
 const smooth = (a, b, x) => {
   const t = clamp01((x - a) / (b - a));
@@ -184,6 +185,31 @@ export function compositionFocus(phase, tl, captionStart) {
 /** Дуги колец начинают движение по очереди и мягко останавливаются замкнутыми. */
 export function ringSweep(env, layer) {
   return smooth(0.04 + 0.055 * layer, 0.83 + 0.03 * layer, env);
+}
+
+/**
+ * Параллакс слоёв: очень медленный сдвиг фона, колец и пыли относительно знака.
+ * Считается по круговой фазе цикла, поэтому значение совпадает на первой и
+ * последней секунде круга (шов остаётся побитово прежним), а `renderAt(t)`
+ * по-прежнему детерминирован.
+ * @param {number} t абсолютное время
+ * @param {{drawDuration:number, emergeDuration:number, holdDuration:number, fadeDuration:number, restDuration:number}} tl
+ * @param {number} amount амплитуда в мировых единицах (1 — примерно 0.01 кадра)
+ * @param {number} [period] длина волны в секундах
+ */
+export function layerParallax(t, tl, amount = 0, period = 26) {
+  if (!(amount > 0)) return { x: 0, y: 0 };
+  const cycle = tl.drawDuration + tl.emergeDuration + tl.holdDuration + tl.fadeDuration + tl.restDuration;
+  if (!(cycle > 0)) return { x: 0, y: 0 };
+  // Кратность периоду цикла: на шве смещение возвращается в ту же точку.
+  const span = Math.max(1e-3, cycle);
+  const whole = Math.max(1, Math.round((period || span) / span));
+  const w = TAU * whole / span;
+  const k = amount * 0.01;
+  return {
+    x: k * Math.sin(w * t),
+    y: k * 0.55 * Math.sin(2 * w * t + Math.PI / 3),
+  };
 }
 
 /** Финальный и первый кадры цикла закрыты одним и тем же чёрным кадром. */

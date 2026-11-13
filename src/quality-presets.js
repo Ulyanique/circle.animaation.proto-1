@@ -48,6 +48,18 @@ export function qualityPostOverrides(id) {
 }
 
 /**
+ * Амплитуда параллакса с учётом разрешения: 2 px при 1080p масштабируются в
+ * 4 px на 4K, иначе на большом экране глубина «пропадает».
+ * @param {number} amount настройка пользователя
+ * @param {{width:number}} master
+ */
+export function parallaxAmount(amount, master) {
+  const base = Number(amount) || 0;
+  if (base <= 0) return 0;
+  return base * Math.max(1, (master?.width ?? 1920) / 1920);
+}
+
+/**
  * Применяет пресет к копии постобработки. Не мутирует вход: возвращает новый
  * объект, иначе переключение «Мастер → Превью» теряло бы исходные значения.
  * @param {any} post

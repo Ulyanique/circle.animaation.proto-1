@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { QUALITY_PRESETS, qualityPostOverrides, applyQualityPreset, suggestedQuality, isQualityPreset } from '../src/quality-presets.js';
+import { QUALITY_PRESETS, qualityPostOverrides, applyQualityPreset, suggestedQuality, parallaxAmount, isQualityPreset } from '../src/quality-presets.js';
 import { WAITING_DEFAULTS } from '../src/scenes/waiting.js';
 
 test('пресеты качества меняют только стоимость кадра', () => {
@@ -44,4 +44,14 @@ test('пресет качества запоминается и не ломае�
   const broken = { getItem() { throw new Error('nope'); }, setItem() { throw new Error('nope'); } };
   assert.equal(loadQuality(broken), 'preview');
   assert.doesNotThrow(() => saveQuality('master', broken));
+});
+
+
+test('параллакс масштабируется с мастер-разрешением и выключается нулём', () => {
+  assert.equal(parallaxAmount(0, { width: 3840 }), 0);
+  assert.equal(parallaxAmount(1, { width: 1920 }), 1);
+  assert.equal(parallaxAmount(1, { width: 3840 }), 2);
+  // Неизвестное разрешение не должно обнулять эффект.
+  assert.equal(parallaxAmount(1.5, undefined), 1.5);
+  assert.equal(parallaxAmount(NaN, { width: 1920 }), 0);
 });

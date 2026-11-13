@@ -186,6 +186,7 @@ export const SCHEMA = [
   {
     id: "camera", title: "Камера", fields: [
       { key: "holdDolly", label: "Подъезд на удержании (доля кадра)", type: "range", min: 0, max: 0.06, step: 0.001 },
+      { key: "parallax", label: "Параллакс слоёв", type: "range", min: 0, max: 3, step: 0.01 },
     ]
   },
   {
