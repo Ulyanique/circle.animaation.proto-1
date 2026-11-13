@@ -37,6 +37,7 @@
     "verify:transitions": "node scripts/verify-transitions.cjs",
     "verify:caption:fit": "node scripts/verify-caption-fit.cjs",
     "verify:typography": "node scripts/verify-typography.cjs",
+    "verify:gradients": "node scripts/verify-gradients.cjs",
     "verify:custom-fonts": "node scripts/verify-custom-fonts.cjs",
     "verify:custom-opacity": "node scripts/verify-custom-opacity.cjs",
     "verify:custom-reveal": "node scripts/verify-custom-reveal.cjs",
