@@ -1,6 +1,7 @@
 import { OUTPUT } from "./scenes/catalog.js";
 import { MASTER_PRESETS } from "./output-profile.js";
 import { QUALITY_PRESETS } from "./quality-presets.js";
+import { DELIVERY_OPTIONS } from "./delivery.js";
 import { beatDuration, beatInBar, beatEvents, nearestBeat } from "./beat-grid.js";
 
 /** Не реагировать на обычную перемотку; автопереход только при пересечении шва воспроизведением. */
@@ -10,7 +11,8 @@ export function crossedBoundary(before, after, delay, cycle) {
 }
 
 /** Единый пульт для всех готовых видов. В кадр и MP4 не входит. */
-export function createOperatorControls({ getState, seek, setDuration, togglePause, switchScene, setMaster, setQuality, record, recordChain }) {
+export function createOperatorControls({ getState, seek, setDuration, togglePause, switchScene, setMaster, setQuality,
+  setDelivery, record, recordChain }) {
   const panel = document.createElement("section");
   panel.className = "operator-panel";
   panel.setAttribute("aria-label", "Пульт заставок");
@@ -46,6 +48,11 @@ export function createOperatorControls({ getState, seek, setDuration, togglePaus
           ${Object.values(QUALITY_PRESETS).map((preset) => `<option value="${preset.id}" title="${preset.description}">${preset.label}</option>`).join("")}
         </select>
       </label>
+      <label class="operator-master">Файл
+        <select data-action="delivery" aria-label="Кодек и глубина цвета записи">
+          ${Object.values(DELIVERY_OPTIONS).map((option) => `<option value="${option.id}" title="${option.description}">${option.label}</option>`).join("")}
+        </select>
+      </label>
       <button type="button" data-action="record" title="Записать один цикл текущей заставки">● Цикл</button>
       <button type="button" data-action="record-chain" title="Записать 01 → 02 → 08 → 09 с переходами одним MP4">● Вся цепочка</button>
     </div>`;
@@ -54,6 +61,7 @@ export function createOperatorControls({ getState, seek, setDuration, togglePaus
   const duration = panel.querySelector('[data-action="duration"]');
   const masterSelect = panel.querySelector('[data-action="master"]');
   const qualitySelect = panel.querySelector('[data-action="quality"]');
+  const deliverySelect = panel.querySelector('[data-action="delivery"]');
   const autoButton = panel.querySelector('[data-action="auto"]');
   const pinButton = panel.querySelector('[data-action="pin"]');
   let auto = false, pinned = false, dragging = false, editing = false;
@@ -112,6 +120,8 @@ export function createOperatorControls({ getState, seek, setDuration, togglePaus
     masterSelect.disabled = state.recording;
     qualitySelect.value = state.quality;
     qualitySelect.disabled = state.recording;
+    deliverySelect.value = state.delivery;
+    deliverySelect.disabled = state.recording;
     panel.querySelector('[data-action="play"]').textContent = state.config.playback.paused ? "▶" : "Ⅱ";
     for (const button of panel.querySelectorAll("[data-scene]")) {
       if (button.dataset.scene === state.id) button.setAttribute("aria-current", "page");
@@ -133,6 +143,7 @@ export function createOperatorControls({ getState, seek, setDuration, togglePaus
   range.addEventListener("input", () => jump(Number(range.value)));
   masterSelect.addEventListener("change", () => { if (!setMaster(masterSelect.value)) refresh(); });
   qualitySelect.addEventListener("change", () => { if (!setQuality(qualitySelect.value)) refresh(); });
+  deliverySelect.addEventListener("change", () => { if (!setDelivery(deliverySelect.value)) refresh(); });
   duration.addEventListener("focus", () => { editing = true; });
   duration.addEventListener("blur", () => { editing = false; refresh(); });
   duration.addEventListener("change", () => {

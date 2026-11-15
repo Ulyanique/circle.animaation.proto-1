@@ -24,6 +24,7 @@ import { transitionDuration, drawOutgoingFrame } from "./scene-transition.js";
 import { OUTPUT, RECORDING_CHAIN, sceneById } from "./scenes/catalog.js";
 import { createOperatorControls, crossedBoundary } from "./operator.js";
 import { loadQuality, saveQuality } from "./quality-presets.js";
+import { loadDelivery, saveDelivery, deliveryOption, deliveryBitrate, deliveryFilename } from "./delivery.js";
 import { createFrameEditor } from "./editor.js";
 import { layoutEditorPreview } from "./editor-layout.js";
 
@@ -130,6 +131,9 @@ let scene = new adapters[sceneId](canvas, cfg);
 // Пресет качества запоминаем между запусками: на площадке важно не искать его
 // заново. Значение по умолчанию — полный кадр превью.
 scene.setQuality(loadQuality());
+// Вариант доставки (кодек и глубина) — решение человека, не браузера: он
+// влияет на то, что площадка сможет открыть. По умолчанию H.264.
+let delivery = loadDelivery();
 let runtime = new AnimationRuntime(scene, cfg, OUTPUT.fps);
 scene.setCaptionSource(captionSourceFor(sceneId));
 layoutEditorPreview(canvas, document.getElementById("caption"));
@@ -183,7 +187,8 @@ document.addEventListener("visibilitychange", () => {
 let recording = null; // один цикл текущей сцены, переключение на время записи заблокировано
 const operator = createOperatorControls({
   getState: () => ({ id: sceneId, time: runtime.time, config: cfg, cycle: runtime.cycle,
-    recording: !!recording, recordingKind: recording?.kind, master: masterId(), quality: scene.quality }),
+    recording: !!recording, recordingKind: recording?.kind, master: masterId(), quality: scene.quality,
+    delivery }),
   seek: (value) => { cfg.playback.paused = true; runtime.renderAt(value, 1 / OUTPUT.fps); },
   setDuration: (value) => {
     const tl = cfg.timeline;
@@ -209,6 +214,14 @@ const operator = createOperatorControls({
     scene.setQuality(id);
     saveQuality(scene.quality);
     runtime.renderAt(runtime.time, 1 / OUTPUT.fps);
+    operator.refresh();
+    return true;
+  },
+  setDelivery: (id) => {
+    if (recording || transition) { toast("Во время записи или перехода вариант файла менять нельзя", true); return false; }
+    if (delivery === id) return true;
+    if (!saveDelivery(id)) return false;
+    delivery = id;
     operator.refresh();
     return true;
   },
@@ -411,7 +424,8 @@ function startOfflineRecording(kind, download) {
       const timeline = configFor(id).timeline;
       return sum + frameCount(cycleDuration(timeline), timeline.speed, OUTPUT.fps);
     }, 0);
-    estimatedMiB = Math.ceil(estimateVideoBytes(frames, OUTPUT.fps, videoBitrateFor(REC_W, REC_H)) / 1024 ** 2);
+    const bitrate = deliveryBitrate(delivery, videoBitrateFor(REC_W, REC_H));
+    estimatedMiB = Math.ceil(estimateVideoBytes(frames, OUTPUT.fps, bitrate) / 1024 ** 2);
   } catch (error) { toast(`Ошибка экспорта: ${error.message}`, true); return false; }
   if (download && estimatedMiB >= 256 && !confirm(`Ориентировочный размер MP4 — ${estimatedMiB} МиБ. Видео собирается в памяти браузера; потребуется больше памяти, а итоговый размер может отличаться. Продолжить?`)) return false;
   editor?.disable();
@@ -426,8 +440,10 @@ async function runOfflineRecording(job, overlay, download) {
   const initialTime = runtime.time;
   const initialScene = sceneId;
   let completed = false;
+  const option = deliveryOption(delivery);
   const stats = { scenes: [], transitions: [], frames: 0, blendedFrames: 0,
-    resolution: [REC_W, REC_H], mime: "video/mp4" };
+    resolution: [REC_W, REC_H], delivery: option.id, bitDepth: option.bitDepth,
+    mime: option.container === "webm" ? "video/webm" : "video/mp4" };
   if (job.kind === "sequence") { window.__sequenceStats = stats; window.__lastSequenceBlob = null; }
   else { window.__recStats = stats; window.__lastVideoBlob = null; }
   try {
@@ -442,11 +458,13 @@ async function runOfflineRecording(job, overlay, download) {
     const total = segments.reduce((sum, segment) => sum + segment.count, 0);
     const videoCanvas = document.createElement("canvas");
     videoCanvas.width = REC_W; videoCanvas.height = REC_H;
-    const ctx = videoCanvas.getContext("2d");
+    // 10 бит требуют чтения пикселей в JS: без willReadFrequently каждый кадр
+    // заставляет браузер выгружать полотно с GPU, и запись идёт в разы дольше.
+    const ctx = videoCanvas.getContext("2d", option.bitDepth === 10 ? { willReadFrequently: true } : undefined);
     if (!ctx) throw new Error("Не удалось создать кадр для экспорта");
     let segmentIndex = -1, segmentStart = 0;
     const result = await encodeOfflineVideo({canvas:videoCanvas, fps:OUTPUT.fps, total,
-      bitrate:videoBitrateFor(REC_W, REC_H),
+      bitrate:videoBitrateFor(REC_W, REC_H), delivery:option.id,
       cancelled:() => job.cancelled,
       progress:(done, count) => overlay.progress(done, count),
       draw(index) {
@@ -479,10 +497,13 @@ async function runOfflineRecording(job, overlay, download) {
     else window.__lastVideoBlob = result.blob;
     // Имя файла берёт фактический размер записи: 4K-мастер не должен
     // сохраняться как «1920x1080».
-    const suffix = `${REC_W}x${REC_H}`;
-    if (download) saveVideo(result.blob, job.kind === "sequence" ? `circle-01-02-08-09-${suffix}.mp4` : `${initialScene === "waiting" ? "intro" : initialScene}-${suffix}.mp4`);
+    if (download) saveVideo(result.blob, deliveryFilename(
+      job.kind === "sequence" ? "circle-01-02-08-09" : initialScene === "waiting" ? "intro" : initialScene,
+      option, REC_W, REC_H));
     completed = true;
-    toast(job.kind === "sequence" ? "Вся цепочка сохранена одним MP4" : "Видео сохранено (MP4)");
+    // Формат называем честно: WebM не откроется там, где ждут MP4.
+    const name = option.container === "webm" ? `${option.bitDepth}-битный WebM` : `${option.bitDepth}-битный MP4`;
+    toast(job.kind === "sequence" ? `Вся цепочка сохранена (${name})` : `Видео сохранено (${name})`);
   } catch (error) {
     stats.error = error.message;
     toast(error.name === "AbortError" ? "Экспорт отменён" : `Ошибка экспорта: ${error.message}`, error.name !== "AbortError");
