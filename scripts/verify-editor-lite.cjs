@@ -1001,22 +1001,32 @@ const { launchBrowser } = require('./browser.cjs');
     assert.equal(await page.evaluate(() => window.editorFixture.state.config.captionTiming.titleTimingMode), 'custom');
     assert.equal(await page.$eval('[data-track=title] .editor-track-range', el => el.hidden), false);
     const initialTiming = await page.evaluate(() => ({...window.editorFixture.state.config.captionTiming}));
-    assert.equal(initialTiming.titleStart, 63); assert.equal(initialTiming.titleEnd, 79);
+    // Границы берутся из реальной маски титра, а не из зашитых процентов:
+    // с нахлёстом (0,12 с до конца подъёма) старт сдвинулся с 63% на 62%.
+    const expectedMask = await page.evaluate(async () => {
+      const mod = await import('/src/editor-caption-range.js');
+      const cfg = window.editorFixture.state.config, m = mod.captionMaskRange('waiting', 'title', cfg);
+      return [Math.round(m.start / m.cycle * 100), Math.round(m.end / m.cycle * 100)];
+    });
+    assert.deepEqual([initialTiming.titleStart, initialTiming.titleEnd], expectedMask);
+    const S = initialTiming.titleStart, E = initialTiming.titleEnd;
+    const timing = () => page.evaluate(() => {const t=window.editorFixture.state.config.captionTiming;return [t.titleStart,t.titleEnd];});
+    // Ручка старта двигает границу на процент и отменяется точечно.
     await page.focus('[data-track=title] [data-edge=start]'); await page.keyboard.press('ArrowRight');
-    assert.equal(await page.evaluate(() => window.editorFixture.state.config.captionTiming.titleStart), 64);
+    assert.deepEqual(await timing(), [S + 1, E]);
     await page.click('[data-history=undo]');
-    assert.equal(await page.evaluate(() => window.editorFixture.state.config.captionTiming.titleStart), 63);
+    assert.deepEqual(await timing(), [S, E]);
     await page.click('[data-history=undo]');
     assert.equal(await page.evaluate(() => window.editorFixture.state.config.captionTiming.titleTimingMode), 'scene');
     assert.equal(await page.$eval('[data-track=title] .editor-track-range', el => el.hidden), true);
     await page.click('[data-history=redo]');
     assert.equal(await page.evaluate(() => window.editorFixture.state.config.captionTiming.titleTimingMode), 'custom');
     await page.focus('[data-track=title] [data-edge=start]'); await page.keyboard.press('ArrowRight');
-    assert.equal(await page.evaluate(() => window.editorFixture.state.config.captionTiming.titleStart), 64);
+    assert.deepEqual(await timing(), [S + 1, E]);
     await page.select('[data-timing-mode]', 'scene');
     assert.equal(await page.$eval('[data-track=title] .editor-track-range', el => el.hidden), true);
     await page.select('[data-timing-mode]', 'custom');
-    assert.equal(await page.evaluate(() => window.editorFixture.state.config.captionTiming.titleStart), 64, 'повторное включение должно сохранять собственный интервал');
+    assert.deepEqual(await timing(), [S + 1, E], 'повторное включение должно сохранять собственный интервал');
     // Перемещение всей полосы не растягивает её; отмена и история остаются точечными.
     const rangeDrag = async (percent, cancel = false) => {
       const bar = await page.$eval('[data-track=title] .editor-track-range', el => { const r=el.getBoundingClientRect(); return {x:r.left+r.width/2,y:r.top+r.height/2}; });
@@ -1026,14 +1036,18 @@ const { launchBrowser } = require('./browser.cjs');
       await page.mouse.up();
     };
     await rangeDrag(-5);
-    assert.deepEqual(await page.evaluate(() => {const t=window.editorFixture.state.config.captionTiming;return [t.titleStart,t.titleEnd];}),[59,74]);
+    const dragged = await timing();
+    assert.equal(dragged[0], S - 4, `начало сдвинулось на 5%: ${dragged}`);
+    assert.equal(dragged[1] - dragged[0], E - (S + 1), 'перетаскивание не должно растягивать полосу');
     await page.click('[data-history=undo]');
-    assert.deepEqual(await page.evaluate(() => {const t=window.editorFixture.state.config.captionTiming;return [t.titleStart,t.titleEnd];}),[64,79]);
-    await rangeDrag(-8,true);
-    assert.deepEqual(await page.evaluate(() => {const t=window.editorFixture.state.config.captionTiming;return [t.titleStart,t.titleEnd];}),[64,79]);
+    assert.deepEqual(await timing(), [S + 1, E]);
+    await rangeDrag(-8, true);
+    assert.deepEqual(await timing(), [S + 1, E]);
     assert.equal(await page.evaluate(() => document.body.classList.contains('editor-on')), true);
     await page.focus('[data-track=title] .editor-track-range'); await page.keyboard.press('ArrowLeft');
-    assert.deepEqual(await page.evaluate(() => {const t=window.editorFixture.state.config.captionTiming;return [t.titleStart,t.titleEnd];}),[63,78]);
+    const nudged = await timing();
+    assert.equal(nudged[0], S, 'клавиша сдвигает полосу на процент');
+    assert.equal(nudged[1] - nudged[0], E - (S + 1));
     await page.click('[data-history=undo]');
     await page.select('[data-timing-mode]', 'scene');
     await page.evaluate(() => window.editorFixture.editor.clearHistory('waiting'));
