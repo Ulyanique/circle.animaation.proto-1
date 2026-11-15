@@ -25,6 +25,7 @@ import { OUTPUT, RECORDING_CHAIN, sceneById } from "./scenes/catalog.js";
 import { createOperatorControls, crossedBoundary } from "./operator.js";
 import { loadQuality, saveQuality } from "./quality-presets.js";
 import { loadDelivery, saveDelivery, deliveryOption, deliveryBitrate, deliveryFilename } from "./delivery.js";
+import { photoShutterSamples, shutterTimes } from "./photo-shutter.js";
 import { createFrameEditor } from "./editor.js";
 import { layoutEditorPreview } from "./editor-layout.js";
 
@@ -481,8 +482,29 @@ async function runOfflineRecording(job, overlay, download) {
         }
         const segment = segments[segmentIndex];
         const localIndex = index - segmentStart;
-        runtime.renderAt(segment.start + localIndex * segment.speed / OUTPUT.fps, 1 / OUTPUT.fps);
-        drawCompositeFrame(ctx);
+        const frameTime = segment.start + localIndex * segment.speed / OUTPUT.fps;
+        // Затвор: только вращение кольцевой надписи в «Фотопаузе». Один кадр —
+        // один рендер в остальных сценах, поэтому стоимость не меняется.
+        const shutter = photoShutterSamples(configFor(segment.id), { id: segment.id, fps: OUTPUT.fps, speed: segment.speed });
+        if (shutter <= 1) {
+          runtime.renderAt(frameTime, 1 / OUTPUT.fps);
+          drawCompositeFrame(ctx);
+        } else {
+          const times = shutterTimes(frameTime, segment.speed / OUTPUT.fps, shutter);
+          const blur = document.createElement("canvas");
+          blur.width = REC_W; blur.height = REC_H;
+          const blurCtx = blur.getContext("2d");
+          for (const sampleTime of times) {
+            runtime.renderAt(sampleTime, 1 / OUTPUT.fps);
+            blurCtx.drawImage(canvas, 0, 0, REC_W, REC_H);
+          }
+          // Возвращаем время кадра: дальше по циклу время считается заново, но
+          // пауза/переходы не должны увидеть последнюю выборку затвора.
+          runtime.renderAt(frameTime, 1 / OUTPUT.fps);
+          ctx.globalAlpha = 1 / times.length;
+          ctx.drawImage(blur, 0, 0);
+          ctx.globalAlpha = 1;
+        }
         if (job.outgoing) {
           if (!drawOutgoingFrame(ctx, job.outgoing, localIndex, OUTPUT.fps, segment.transition, REC_W, REC_H)) job.outgoing = null;
           else {
