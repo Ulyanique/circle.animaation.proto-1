@@ -40,7 +40,10 @@ export function introSequence(phase, timeline, config) {
   const cornerStart = timeline.drawDuration + timeline.emergeDuration;
   const cornerEnd = cornerStart + Math.max(0.05, config.cornerDuration);
   const liftEnd = cornerEnd + Math.max(0.05, config.liftDuration);
-  const captionStart = liftEnd + Math.max(0, config.titleDelay);
+  // Нахлёст: титр начинает появляться за `titleDelay` до окончания подъёма
+  // знака. Фазы не стыкуются «встык» — движение знака и первая буква идут
+  // одновременно, и кадр перестаёт выглядеть склейкой двух клипов.
+  const captionStart = liftEnd - Math.max(0, config.titleDelay);
   if (phase.beforeStart) return { corners: 0, lift: 0, settled: 0, captionStart, cornerStart, cornerEnd, liftEnd };
   const exitStart = timeline.drawDuration + timeline.emergeDuration + timeline.holdDuration;
   if (phase.local >= exitStart) {

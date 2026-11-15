@@ -32,7 +32,7 @@ export const SCHEMA = [
   { id: "intro", title: "Последовательность интро", fields: [
     { key: "cornerDuration", label: "Прорисовка боковых кругов", type: "range", min: 0.2, max: 4, step: 0.05 },
     { key: "liftDuration", label: "Подъём логотипа", type: "range", min: 0.2, max: 3, step: 0.05 },
-    { key: "titleDelay", label: "Пауза до надписей", type: "range", min: 0, max: 3, step: 0.05 },
+    { key: "titleDelay", label: "Нахлёст надписей (сек)", type: "range", min: 0, max: 1.5, step: 0.01 },
   ] },
   ...DECOR_SLOTS.map(({section}, index) => ({ id: section, title: `Построительная окружность ${index + 1}`, fields: [
     { key: "present", label: "Добавить окружность в сцену", type: "bool" },

@@ -15,7 +15,9 @@ export function captionMaskRange(scene, id, cfg) {
   if (scene === 'waiting' || scene === 'finale') {
     const intro = cfg.intro;
     if (!intro || ![intro.cornerDuration, intro.liftDuration, intro.titleDelay].every(Number.isFinite)) return null;
-    on = D + E + Math.max(.05, intro.cornerDuration) + Math.max(.05, intro.liftDuration) + Math.max(0, intro.titleDelay);
+    // Нахлёст: титр стартует за titleDelay ДО конца подъёма знака — та же
+    // формула, что в introSequence. Рамка в таймлайне должна совпадать с кадром.
+    on = D + E + Math.max(.05, intro.cornerDuration) + Math.max(.05, intro.liftDuration) - Math.max(0, intro.titleDelay);
   }
   const threshold = {title:0, subtitle:1.04, date:2.04}[id];
   const start = on + threshold;

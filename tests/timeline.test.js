@@ -37,7 +37,13 @@ test("интро: центральная орбита, знак, боковые 
   assert.equal(cue(cornerEnd).lift, 0);
   assert.ok(cue((cornerEnd + liftEnd) / 2).lift > 0);
   assert.equal(cue(liftEnd).lift, 1);
-  assert.equal(captionState(tl.startDelay + liftEnd, tl, captionStart).lines.title.outline, 0);
+  // Титр стартует с нахлёстом ДО конца подъёма знака: в момент liftEnd первая
+  // буква уже чуть прорисована, но не залита.
+  assert.ok(captionStart < liftEnd, "нахлёст должен начинаться до конца подъёма");
+  assert.ok(liftEnd - captionStart <= 0.2, "нахлёст не больше 0,2 с");
+  const atLiftEnd = captionState(tl.startDelay + liftEnd, tl, captionStart).lines.title.outline;
+  assert.ok(atLiftEnd > 0 && atLiftEnd < 0.35, `в конце подъёма название едва начато: ${atLiftEnd}`);
+  assert.equal(captionState(tl.startDelay + captionStart, tl, captionStart).lines.title.outline, 0);
   assert.ok(captionState(tl.startDelay + captionStart + 0.5, tl, captionStart).lines.title.outline > 0);
   const fadeStart = tl.drawDuration + tl.emergeDuration + tl.holdDuration;
   assert.ok(fadeStart - (captionStart + 2.9) >= 5);
@@ -314,4 +320,19 @@ test("подъём логотипа разгоняется, затем заме�
   assert.ok(delta(12) > delta(16) && delta(16) > delta(19), 'плавное торможение');
   assert.equal(cue(end).settled, 0);
   assert.equal(cue(end + 0.8).settled, 1);
+});
+
+test("титр стартует с нахлёстом на подъём знака, а не после него", () => {
+  const intro = DEFAULTS.intro;
+  const seq = introSequence(at(0), tl, intro);
+  const overlap = seq.liftEnd - seq.captionStart;
+  assert.ok(Math.abs(overlap - intro.titleDelay) < 1e-9, "нахлёст равен titleDelay");
+  assert.ok(overlap > 0.08 && overlap <= 0.2, `нахлёст в разумных пределах: ${overlap}`);
+  // В момент подъёма титр уже начат, но заливки ещё нет.
+  const atLift = captionState(tl.startDelay + seq.liftEnd, tl, seq.captionStart).lines.title;
+  assert.ok(atLift.outline > 0 && atLift.outline < .35);
+  assert.ok(atLift.fill < .01);
+  // Нулевой нахлёст возвращает прежнее поведение «встык».
+  const flush = introSequence(at(0), tl, { ...intro, titleDelay: 0 });
+  assert.ok(Math.abs(flush.captionStart - flush.liftEnd) < 1e-9);
 });

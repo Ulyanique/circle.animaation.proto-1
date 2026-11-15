@@ -32,7 +32,8 @@ export const WAITING_DEFAULTS = {
   ...particleCloudDefaults(),
   ...backgroundGlowDefaults(),
   transition: { duration: 0.9 }, // вход в эту сцену при переключении
-  intro: { cornerDuration: 1.1, liftDuration: 1.4, titleDelay: 0.15 },
+  // titleDelay — нахлёст: титр стартует за 0,12 с до конца подъёма знака.
+  intro: { cornerDuration: 1.1, liftDuration: 1.4, titleDelay: 0.12 },
   timeline: {
     // длительности фаз в секундах; цикл повторяется бесконечно
     drawDuration: 2.6,     // прорисовка контура
