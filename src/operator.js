@@ -1,7 +1,7 @@
 import { OUTPUT } from "./scenes/catalog.js";
 import { MASTER_PRESETS } from "./output-profile.js";
 import { QUALITY_PRESETS } from "./quality-presets.js";
-import { beatDuration, beatInBar, nearestBeat } from "./beat-grid.js";
+import { beatDuration, beatInBar, beatEvents, nearestBeat } from "./beat-grid.js";
 
 /** Не реагировать на обычную перемотку; автопереход только при пересечении шва воспроизведением. */
 export function crossedBoundary(before, after, delay, cycle) {
@@ -91,7 +91,17 @@ export function createOperatorControls({ getState, seek, setDuration, togglePaus
     const beat = beatDuration(state.config.timeline);
     if (beat > 0) {
       const index = nearestBeat(local, state.config.timeline) + 1;
-      beatEl.textContent = `такт ${Math.floor((index - 1) / 4) + 1} · доля ${beatInBar(local, state.config.timeline)}`;
+      // Ближайшее событие: по нему видно, что показ идёт «в долю», а не мимо.
+      const events = beatEvents(state.config.timeline, state.config.timeline);
+      const next = Object.entries(events.snapped)
+        .map(([key, value]) => ({ key, value, delta: value - local }))
+        .filter(({ delta }) => delta >= -1e-9)
+        .sort((a, b) => a.delta - b.delta)[0];
+      const labels = { emerge: "знак", caption: "титр", exit: "уход" };
+      const tail = next && next.delta < 3
+        ? ` → ${labels[next.key] || next.key} через ${next.delta.toFixed(2)} с`
+        : "";
+      beatEl.textContent = `такт ${Math.floor((index - 1) / 4) + 1} · доля ${beatInBar(local, state.config.timeline)}${tail}`;
       beatEl.hidden = false;
     } else {
       beatEl.textContent = "";

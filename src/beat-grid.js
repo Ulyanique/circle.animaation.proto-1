@@ -97,3 +97,34 @@ export function beatMarkers(duration, grid, limit = 64) {
   }
   return marks;
 }
+
+/**
+ * Подгонка ключевых событий под сетку. Длительности фаз остаются прежними
+ * (инвариант экспорта), меняется только точка, к которой привязано событие:
+ * «проявление знака», «посадка титра», «начало ухода». Событие сдвигается к
+ * ближайшей доле, но не дальше половины доли — иначе тайминг «уезжает» от
+ * режиссуры.
+ * @param {{drawDuration:number, emergeDuration:number, holdDuration:number, fadeDuration:number, restDuration:number}} tl
+ * @param {BeatGrid} grid
+ */
+export function beatEvents(tl, grid) {
+  const beat = beatDuration(grid);
+  const D = tl.drawDuration, E = tl.emergeDuration, H = tl.holdDuration;
+  const exit = D + E + H;
+  const raw = {
+    emerge: D + E / 2,      // середина появления знака
+    caption: D + E,         // посадка титра
+    exit,                   // начало ухода
+  };
+  if (!beat) return { enabled: false, raw, snapped: { ...raw }, shifts: { emerge: 0, caption: 0, exit: 0 } };
+  const snapped = {}, shifts = {};
+  for (const [key, value] of Object.entries(raw)) {
+    const target = snapToBeat(value, grid);
+    const delta = target - value;
+    // Полдоли — предел: лучше оставить событие на месте, чем ломать ритм.
+    const applied = Math.abs(delta) <= beat / 2 + 1e-9 ? target : value;
+    snapped[key] = +applied.toFixed(6);
+    shifts[key] = +(applied - value).toFixed(6);
+  }
+  return { enabled: true, raw, snapped, shifts };
+}

@@ -71,3 +71,27 @@ test('сетка понимает и таймлайн сцены, и «чист�
   assert.equal(beatDuration({ bpm: 120, offset: 0.25 }), 0.5);
   assert.equal(snapToBeat(3.2, { bpm: 120, offset: 0.25 }), 3.25);
 });
+
+test('события подтягиваются к долям, но не дальше половины доли', async () => {
+  const { beatEvents } = await import('../src/beat-grid.js');
+  const tl = { drawDuration: 2.6, emergeDuration: 2.4, holdDuration: 10.6, fadeDuration: 2.3, restDuration: 1.2 };
+  const off = beatEvents(tl, { beatBpm: 0 });
+  assert.equal(off.enabled, false);
+  for (const key of ['emerge', 'caption', 'exit']) assert.equal(off.snapped[key], off.raw[key]);
+  const on = beatEvents(tl, { beatBpm: 120 });
+  assert.equal(on.enabled, true);
+  const beat = 0.5;
+  for (const key of Object.keys(on.raw)) {
+    const shift = Math.abs(on.shifts[key]);
+    assert.ok(shift <= beat / 2 + 1e-9, `${key}: сдвиг ${shift} больше полудоли`);
+    // Событие либо на доле, либо осталось на месте.
+    const onGrid = Math.abs(on.snapped[key] / beat - Math.round(on.snapped[key] / beat)) < 1e-9;
+    assert.ok(onGrid || on.snapped[key] === on.raw[key], `${key} не на доле и не исходное`);
+  }
+  // 3.8 с при 120 BPM — это 0.2 с от доли 4.0, сдвиг применяется; 5.0 уже на доле.
+  assert.equal(on.snapped.emerge, 4);
+  assert.equal(on.shifts.caption, 0);
+  // Сетка не меняет длительности фаз цикла.
+  const cycle = (t) => t.drawDuration + t.emergeDuration + t.holdDuration + t.fadeDuration + t.restDuration;
+  assert.ok(Math.abs(cycle(tl) - 19.1) < 1e-9);
+});

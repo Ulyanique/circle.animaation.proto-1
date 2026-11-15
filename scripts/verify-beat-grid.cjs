@@ -39,11 +39,15 @@ const URL_ = process.env.URL || "http://localhost:5173/";
         L.operator.refresh();
         samples.push({ t, ...read(), time: document.querySelector('[data-role="time"]').textContent });
       }
-      // 3. Выключили обратно — индикатор снова скрыт.
+      // 3. Ближайшее событие показывается в подписи (знак/титр/уход).
+      L.runtime.renderAt(3.2, 1 / 60);
+      L.operator.refresh();
+      const nearEvent = { ...read() };
+      // 4. Выключили обратно — индикатор снова скрыт.
       L.cfg.timeline.beatBpm = 0;
       L.operator.refresh();
       const offAgain = read();
-      return { off, untouched, samples, offAgain, cycleBefore, holdBefore,
+      return { off, untouched, samples, nearEvent, offAgain, cycleBefore, holdBefore,
         paused: L.cfg.playback.paused };
     });
 
@@ -56,6 +60,7 @@ const URL_ = process.env.URL || "http://localhost:5173/";
       "подпись содержит такт и долю": result.samples.every((s) => /такт \d+ · доля [1-4]/.test(s.text)),
       "доля меняется на границе 0.5 с": result.samples[0].text !== result.samples[1].text,
       "счётчик тактов растёт": result.samples[3].text !== result.samples[0].text,
+      "подпись подсказывает ближайшее событие": /→ (знак|титр|уход) через \d/.test(result.nearEvent.text),
       "после выключения индикатор скрыт": result.offAgain.hidden,
     };
     const failed = Object.entries(checks).filter(([, ok]) => !ok).map(([name]) => name);
