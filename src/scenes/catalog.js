@@ -4,8 +4,14 @@ import { PHOTO_PAUSE_DEFAULTS } from "./photo-pause.js";
 import { PARTNERS_DEFAULTS } from "./partners.js";
 import { FINALE_DEFAULTS } from "./finale.js";
 
+// Базовый формат кадра. Это единственный источник числа 1920×1080: остальные
+// модули (битрейт, масштаб макета, профили мастера) считают от него, чтобы
+// константы не разъезжались при смене базы.
+export const BASE_FRAME = Object.freeze({ width: 1920, height: 1080 });
+/** Площадь базового кадра в пикселях — база для битрейта и масштабов. */
+export const BASE_PIXELS = BASE_FRAME.width * BASE_FRAME.height;
 // Единственный технический формат цикла. Других разрешений и пресетов нет.
-export const OUTPUT = Object.freeze({ width: 1920, height: 1080, fps: 60 });
+export const OUTPUT = Object.freeze({ ...BASE_FRAME, fps: 60 });
 // Порядок одной полной программы для предпросмотра и записи единым MP4.
 export const RECORDING_CHAIN = Object.freeze(["waiting", "brand", "photo-pause", "finale"]);
 

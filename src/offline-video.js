@@ -1,4 +1,5 @@
 import { Output, Mp4OutputFormat, BufferTarget, CanvasSource, canEncodeVideo, Input, BufferSource, ALL_FORMATS, EncodedPacketSink } from 'mediabunny';
+import { BASE_PIXELS } from "./scenes/catalog.js";
 
 /** A frame samples one cycle at an exact output index. Playback speed changes video duration, not sampling accuracy.
  * @param {number} cycle @param {number} speed @param {number} fps */
@@ -12,7 +13,6 @@ export function frameTimestamp(index, fps) { return Math.round(index * 1000000 /
 
 export const DEFAULT_VIDEO_BITRATE = 40000000;
 export const MAX_VIDEO_BITRATE = 120000000;
-const BASE_PIXELS = 1920 * 1080;
 
 /** Битрейт растёт вместе с площадью кадра: 4K требует вчетверо больше данных.
  * @param {number} width @param {number} height */

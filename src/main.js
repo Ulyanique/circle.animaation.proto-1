@@ -477,7 +477,10 @@ async function runOfflineRecording(job, overlay, download) {
     stats.bytes = result.blob.size; stats.codec = result.codec; stats.expectedFrames = total;
     if (job.kind === "sequence") window.__lastSequenceBlob = result.blob;
     else window.__lastVideoBlob = result.blob;
-    if (download) saveVideo(result.blob, job.kind === "sequence" ? "circle-01-02-08-09-1920x1080.mp4" : `${initialScene === "waiting" ? "intro" : initialScene}-1920x1080.mp4`);
+    // Имя файла берёт фактический размер записи: 4K-мастер не должен
+    // сохраняться как «1920x1080».
+    const suffix = `${REC_W}x${REC_H}`;
+    if (download) saveVideo(result.blob, job.kind === "sequence" ? `circle-01-02-08-09-${suffix}.mp4` : `${initialScene === "waiting" ? "intro" : initialScene}-${suffix}.mp4`);
     completed = true;
     toast(job.kind === "sequence" ? "Вся цепочка сохранена одним MP4" : "Видео сохранено (MP4)");
   } catch (error) {

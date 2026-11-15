@@ -1,3 +1,5 @@
+import { BASE_FRAME } from "./scenes/catalog.js";
+
 /**
  * Пресеты качества постобработки (P2-9). Кадр 4K на software-WebGL стоит
  * дорого: на черновике важна скорость, на мастере — края и отсутствие полос.
@@ -56,7 +58,7 @@ export function qualityPostOverrides(id) {
 export function parallaxAmount(amount, master) {
   const base = Number(amount) || 0;
   if (base <= 0) return 0;
-  return base * Math.max(1, (master?.width ?? 1920) / 1920);
+  return base * Math.max(1, (master?.width ?? BASE_FRAME.width) / BASE_FRAME.width);
 }
 
 /**

@@ -1,4 +1,4 @@
-import { OUTPUT } from "./scenes/catalog.js";
+import { BASE_FRAME, OUTPUT } from "./scenes/catalog.js";
 
 /**
  * Профиль мастер-кадра. Композиция сцен задана в долях кадра, поэтому смена
@@ -6,7 +6,8 @@ import { OUTPUT } from "./scenes/catalog.js";
  * Умолчание — прежние 1920×1080, чтобы старые настройки и проверки не менялись.
  */
 export const MASTER_PRESETS = Object.freeze({
-  "1080p": Object.freeze({ id: "1080p", width: 1920, height: 1080, label: "1920×1080" }),
+  "1080p": Object.freeze({ id: "1080p", width: BASE_FRAME.width, height: BASE_FRAME.height,
+    label: `${BASE_FRAME.width}×${BASE_FRAME.height}` }),
   "2160p": Object.freeze({ id: "2160p", width: 3840, height: 2160, label: "3840×2160 · 4K UHD" }),
 });
 
@@ -42,7 +43,7 @@ export function masterSize() {
 
 /** Во сколько раз мастер шире базовых 1920 px. */
 export function masterScale() {
-  return masterPreset().width / OUTPUT.width;
+  return masterPreset().width / BASE_FRAME.width;
 }
 
 /** @param {string} id */
