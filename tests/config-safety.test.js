@@ -96,3 +96,29 @@ test("сверхглубокое слияние не теряет обычные
   assert.equal(merged.editorOpen, true);
   assert.ok(merged.timeline);
 });
+
+// Ограничение на картинки раньше опиралось на ключ, заканчивающийся на "Logo",
+// и на текущее значение в конфиге. В умолчаниях сцен таких ключей нет, поэтому
+// ссылка #cfg=... проносила data:image любого размера.
+test("гигантский data:image не попадает в настройки", async () => {
+  const { IMAGE_KEYS, MAX_IMAGE_DATA_URL_LENGTH } = await import("../src/config.js");
+  const { PARTNERS_DEFAULTS } = await import("../src/scenes/partners.js");
+  const huge = "data:image/png;base64," + "A".repeat(MAX_IMAGE_DATA_URL_LENGTH);
+  const ok = "data:image/png;base64," + "A".repeat(1024);
+  for (const key of IMAGE_KEYS) {
+    assert.equal(mergeConfig(PARTNERS_DEFAULTS, { [key]: huge })[key], undefined, `${key}: перебор отклонён`);
+    assert.equal(mergeConfig(PARTNERS_DEFAULTS, { [key]: ok })[key], ok, `${key}: обычный логотип принят`);
+    assert.equal(mergeConfig(PARTNERS_DEFAULTS, { [key]: "" })[key], "", `${key}: сброс принят`);
+  }
+  // Не data:image — тоже мимо: значение уходит в <img src> и canvas.
+  assert.equal(mergeConfig(PARTNERS_DEFAULTS, { partner1Logo: "javascript:alert(1)" }).partner1Logo, undefined);
+});
+
+test("гигантский data:image не проходит и через ссылку #cfg", async () => {
+  const { MAX_IMAGE_DATA_URL_LENGTH } = await import("../src/config.js");
+  const { PARTNERS_DEFAULTS } = await import("../src/scenes/partners.js");
+  const huge = "data:image/svg+xml;base64," + "A".repeat(MAX_IMAGE_DATA_URL_LENGTH);
+  const encoded = Buffer.from(JSON.stringify({ partner2Logo: huge }), "utf8").toString("base64url");
+  const merged = mergeConfig(PARTNERS_DEFAULTS, decodeConfigShareHash(encoded));
+  assert.equal(merged.partner2Logo, undefined);
+});

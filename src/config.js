@@ -343,12 +343,22 @@ const PHOTO_SIZE_MIGRATION = "circle-anim-photo-size-v1";
 const BRAND_CENTER_MIGRATION = "circle-anim-brand-center-v1";
 export const PROJECT_VERSION = 2;
 
+// Ключи, которые могут нести картинку. Раньше проверка опиралась на суффикс
+// "Logo" и на текущее значение строки — но в умолчаниях сцен таких ключей нет,
+// поэтому ссылка #cfg=... проносила data:image любого размера (и SVG, который
+// декодируется в гигабайты растра из пары сотен байт).
+export const IMAGE_KEYS = Object.freeze(["organizer1Logo", "organizer2Logo", "partner1Logo", "partner2Logo"]);
+const IMAGE_KEY_SET = new Set(IMAGE_KEYS);
+export const MAX_IMAGE_DATA_URL_LENGTH = 4 * 1024 * 1024;
+
 export function sceneStorageKey(sceneId) {
   return `${STORAGE_PREFIX}:${sceneId}`;
 }
 
 function isSafeDataImageUrl(value) {
-  return typeof value === "string" && (value === "" || (value.startsWith("data:image/") && value.length <= 4 * 1024 * 1024));
+  if (typeof value === "string" && value === "") return true;
+  if (typeof value !== "string" || !value.startsWith("data:image/")) return false;
+  return value.length <= MAX_IMAGE_DATA_URL_LENGTH;
 }
 
 // Ключи, через которые JSON может дотянуться до прототипа. JSON.parse создаёт
@@ -377,7 +387,7 @@ function mergeObject(target, source, depth) {
       if (!Object.hasOwn(target, k) || !target[k] || typeof target[k] !== "object") target[k] = {};
       mergeObject(target[k], v, depth + 1);
     } else if (v !== undefined) {
-      if (k.endsWith("Logo") && typeof target[k] === "string") {
+      if (IMAGE_KEY_SET.has(k)) {
         if (isSafeDataImageUrl(v)) target[k] = v;
       } else {
         target[k] = v;

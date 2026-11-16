@@ -107,8 +107,12 @@ export const loadPartnersBackground = () => imageReady;
 const customLogoCache = new Map();
 const customLogoPending = new Set();
 
+// Та же граница, что и при разборе настроек (config.js): гигантский data:image
+// из ссылки #cfg не должен попадать ни в кэш, ни в отрисовку.
+const MAX_LOGO_DATA_URL = 4 * 1024 * 1024;
+
 function resolveCustomLogo(dataUrl, style, onReady) {
-  if (typeof dataUrl !== 'string' || !dataUrl.startsWith('data:image/')) return null;
+  if (typeof dataUrl !== 'string' || !dataUrl.startsWith('data:image/') || dataUrl.length > MAX_LOGO_DATA_URL) return null;
   const cacheKey = `${style}:${dataUrl}`;
   if (customLogoCache.has(cacheKey)) return customLogoCache.get(cacheKey);
   if (!customLogoPending.has(cacheKey)) {
@@ -131,7 +135,7 @@ export async function preloadPartnerCustomLogos(partnersCfg) {
   const style = partnersCfg.logoStyle === 'original' ? 'original' : 'gold';
   const tasks = ['organizer1', 'organizer2', 'partner1', 'partner2'].map(async key => {
     const url = partnersCfg[`${key}Logo`];
-    if (typeof url !== 'string' || !url.startsWith('data:image/')) return;
+    if (typeof url !== 'string' || !url.startsWith('data:image/') || url.length > MAX_LOGO_DATA_URL) return;
     const cacheKey = `${style}:${url}`;
     if (customLogoCache.has(cacheKey)) return;
     const img = await loadImage(url);
