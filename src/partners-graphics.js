@@ -16,11 +16,25 @@ export function partnersCues(phase, timeline, motion = 1) {
   return {
     visible, frame:entry(.08,.9), curtain:entry(.02,.65), foliage:entry(.18,1.0),
     compass:entry(.28,1.1), title:entry(.10,.65),
-    organizerLabel:entry(.35,.9), organizer:entry(.65,1.55), organizerSecond:entry(.9,1.8),
-    partnerLabel:entry(1.12,1.6), partner:entry(1.4,2.3), partnerSecond:entry(1.65,2.55),
-    separator:entry(.9,1.55),
+    organizerLabel:entry(.35,.9),
+    // Знаки приходят решительно: окно входа ~1 с вместо прежних 2,3 с. Долгое
+    // «выползание» читалось как вялость, а блик включался до того, как знак
+    // успевал появиться. Теперь сначала знак садится, потом по нему идёт блик.
+    organizer:entry(.65,1.03), organizerSecond:entry(.85,1.23),
+    partnerLabel:entry(1.12,1.45), partner:entry(1.3,1.68), partnerSecond:entry(1.5,1.88),
+    separator:entry(.9,1.25),
     light: smooth(.45,1.2,local)*(1-smooth(3.8,5.2,local))*m,
     glint: (.5 + .5*Math.sin(local*.39-1.2))*idle,
+    // Яркость блика по знакам: заметен, но не «мигает» — гаснет к уходу сцены.
+    glintStrength: .85*m*fade,
+    // Тень под знаками появляется вместе с ними и держится ровно: она даёт
+    // глубину, но не должна «дышать» вместе с частицами.
+    shadow: smooth(.5,1.6,local)*(1-smooth(exitStart+.2,exitStart+1.0,local)),
+    // Дыхание удержания: 10 секунд статичных знаков читаются как «картинка», а
+    // не как анимация. Амплитуда намеренно мала (2 px), чтобы не было качки.
+    idle: idle,
+    // Второй, медленный проход блика на удержании: дорогой акцент, не мигание.
+    holdGlint: smooth(2.2,3.4,local)*fade, 
     leafMotion: idle*Math.sin(local*.48+.7),
     curtainSway: idle * Math.sin(local*.42)*8,
     foliageSway: idle * Math.sin(local*.35+1)*.012,

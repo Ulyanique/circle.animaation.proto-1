@@ -6,6 +6,7 @@ import proelectroschitUrl from './assets/partners/proelectroschit.svg';
 import promrukavUrl from './assets/partners/promrukav.svg';
 import keazUrl from './assets/partners/keaz.svg';
 import { partnersCues, drawPartnersDecor, drawAmberAtmosphere } from './partners-graphics.js';
+import { glintSpan, reveal, easeOutBack } from './partners-motion.js';
 import { computePhase } from './timeline.js';
 import { BASE_FRAME } from './scenes/catalog.js';
 import { masterSize, masterId } from './output-profile.js';
@@ -54,29 +55,116 @@ export function setPartnersLogoStyle(style) {
 // На экране логотип не шире MARK_MAX_WIDTH и не выше MARK_MAX_HEIGHT (см. company()).
 // Готовить его в 1200 px значило держать 14× лишних пикселей и вчетверо больше
 // памяти; масштаб 2× оставляем на смену мастер-профиля и чёткость.
-const MARK_MAX_WIDTH = 440;
+// Буфер для блика по золоту: пересобирается в размер знака, поэтому создаётся
+// один раз, а не на каждый кадр (в кадре до четырёх знаков).
+let glintBuffer = null;
+function glintCanvas() {
+  if (!glintBuffer) glintBuffer = document.createElement('canvas');
+  return glintBuffer;
+}
+
+/**
+ * Блик, проходящий по золоту знака. Рисуется на копии знака: маска из
+ * источника оставляет блеск только на самом рисунке, поэтому полоса не
+ * вылезает на фон и не требует знания контура.
+ * @param {CanvasRenderingContext2D} ctx @param {HTMLCanvasElement} logo
+ * @param {number} x @param {number} y @param {number} w @param {number} h
+ * @param {number|null} span доля ширины, где сейчас полоса (см. glintSpan)
+ * @param {number} alpha
+ */
+function drawMarkGlint(ctx, logo, x, y, w, h, span, alpha) {
+  if (span == null || alpha <= 0.002) return;
+  const buffer = glintCanvas();
+  if (buffer.width !== logo.width || buffer.height !== logo.height) {
+    buffer.width = logo.width; buffer.height = logo.height;
+  }
+  const bctx = buffer.getContext('2d');
+  bctx.setTransform(1, 0, 0, 1, 0, 0);
+  bctx.globalCompositeOperation = 'source-over';
+  bctx.clearRect(0, 0, buffer.width, buffer.height);
+  bctx.drawImage(logo, 0, 0);
+  bctx.globalCompositeOperation = 'source-in';
+  // Узкая тёплая полоса с мягкими краями: ширина ~ 18 % знака, наклон 12°.
+  const bandWidth = buffer.width * 0.18;
+  const center = span * buffer.width;
+  const grad = bctx.createLinearGradient(center - bandWidth, 0, center + bandWidth, 0);
+  grad.addColorStop(0, 'rgba(255,246,219,0)');
+  grad.addColorStop(.42, 'rgba(255,250,232,.85)');
+  grad.addColorStop(.5, 'rgba(255,255,246,1)');
+  grad.addColorStop(.58, 'rgba(255,250,232,.85)');
+  grad.addColorStop(1, 'rgba(255,246,219,0)');
+  bctx.fillStyle = grad;
+  bctx.fillRect(0, 0, buffer.width, buffer.height);
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.globalCompositeOperation = 'lighter';
+  ctx.drawImage(buffer, x, y, w, h);
+  ctx.restore();
+}
+
+// Ширина поднята с 440: у ПРОэлектрощит и КЭАЗ соотношение сторон 4,8:1 и 5,3:1,
+// поэтому прежний потолок ширины срезал им ВЫСОТУ (92 и 83 px против 105 у
+// соседей) — в одном ярусе знаки выглядели разного веса. Столбцы разнесены на
+// 540 px, так что 500 px по ширине не сближает группы.
+const MARK_MAX_WIDTH = 500;
 const MARK_MAX_HEIGHT = 105;
 const MARK_SUPERSAMPLE = 2;
 
 // Золотая заливка использует альфу SVG/PNG, а не прямоугольную белую плашку.
+/**
+ * Готовит знак к отрисовке: подгоняет под экранный размер и заливает золотом.
+ *
+ * Прозрачные поля вокруг рисунка срезаются: исходные SVG приходят с разным
+ * запасом (у одного 6 % сверху, у другого 20 %), и знаки на экране получались
+ * разного веса при одинаковой высоте блока. По срезанным границам вызывающая
+ * сторона может выровнять их по оптической массе, а не по пустому полю.
+ */
 export function renderPartnerMark(image, style = 'gold') {
   const w = Math.max(1, image.naturalWidth || image.width || 600);
   const h = Math.max(1, image.naturalHeight || image.height || 200);
   // Целевой размер считается тем же правилом, что и при отрисовке кадра.
   const fit = Math.min(MARK_MAX_WIDTH / w, MARK_MAX_HEIGHT / h);
-  const canvas = document.createElement('canvas');
-  canvas.width = Math.max(1, Math.round(w * fit * MARK_SUPERSAMPLE));
-  canvas.height = Math.max(1, Math.round(h * fit * MARK_SUPERSAMPLE));
-  const ctx = canvas.getContext('2d');
-  ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
+  const full = document.createElement('canvas');
+  full.width = Math.max(1, Math.round(w * fit * MARK_SUPERSAMPLE));
+  full.height = Math.max(1, Math.round(h * fit * MARK_SUPERSAMPLE));
+  const fullCtx = full.getContext('2d');
+  fullCtx.drawImage(image, 0, 0, full.width, full.height);
   if (style !== 'original') {
-    ctx.globalCompositeOperation = 'source-in';
-    const gold = ctx.createLinearGradient(0, 0, 0, canvas.height);
+    fullCtx.globalCompositeOperation = 'source-in';
+    const gold = fullCtx.createLinearGradient(0, 0, 0, full.height);
     gold.addColorStop(0, '#f8e6bd'); gold.addColorStop(.42, '#e5c48b');
     gold.addColorStop(.72, '#b88b4f'); gold.addColorStop(1, '#ebd19b');
-    ctx.fillStyle = gold; ctx.fillRect(0, 0, canvas.width, canvas.height);
+    fullCtx.fillStyle = gold; fullCtx.fillRect(0, 0, full.width, full.height);
   }
-  return canvas;
+  return full;
+}
+
+/**
+ * Плотные границы непрозрачного рисунка в пределах канваса. Нужны, чтобы
+ * выровнять знаки по видимому размеру и не считать блик по пустому полю.
+ * Возвращает доли 0..1; при неудаче — весь канвас.
+ */
+export function markBounds(canvas) {
+  const whole = { x: 0, y: 0, width: canvas.width, height: canvas.height };
+  let ctx;
+  try { ctx = canvas.getContext('2d', { willReadFrequently: true }); } catch (e) { return whole; }
+  if (!ctx) return whole;
+  const { width, height } = canvas;
+  let data;
+  try { data = ctx.getImageData(0, 0, width, height).data; } catch (e) { return whole; }
+  let minX = width, minY = height, maxX = -1, maxY = -1;
+  for (let y = 0; y < height; y++) {
+    const row = y * width * 4;
+    for (let x = 0; x < width; x++) {
+      // Порог 24 из 255 отсекает почти прозрачную кромку сглаживания.
+      if (data[row + x * 4 + 3] > 24) {
+        if (x < minX) minX = x; if (x > maxX) maxX = x;
+        if (y < minY) minY = y; if (y > maxY) maxY = y;
+      }
+    }
+  }
+  if (maxX < minX || maxY < minY) return whole;
+  return { x: minX / width, y: minY / height, width: (maxX - minX + 1) / width, height: (maxY - minY + 1) / height };
 }
 
 const imageReady = Promise.all([backgroundUrl, curtainUrl, proelectroUrl, proelectroschitUrl, promrukavUrl, keazUrl].map(loadImage)).then(images => {
@@ -307,14 +395,36 @@ export class PartnersScene {
       ctx.translate(center, y); ctx.rotate(Math.PI / 4); ctx.strokeRect(-4, -4, 8, 8); ctx.restore();
     };
     ornament(330, title * .7, 280 * cue.title, 900);
+    // Разрядка у мелких капсов — типографский приём, который сразу отделяет
+    // «дорогую» вёрстку от обычной. letterSpacing поддерживается Chromium;
+    // если его нет, подпись просто останется без разрядки.
+    const trackedLabel = (value, x, y, alpha, entry) => {
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.font = '600 24px Manrope, sans-serif';
+      ctx.fillStyle = warm;
+      ctx.shadowColor = 'rgba(0,0,0,.5)'; ctx.shadowBlur = 9; ctx.shadowOffsetY = 3;
+      const supportsTracking = 'letterSpacing' in ctx;
+      if (supportsTracking) ctx.letterSpacing = '5px';
+      // Компенсация: разрядка добавляет хвостовой пробел справа, поэтому
+      // центрированный текст уезжает — сдвигаем на половину разрядки.
+      const shift = supportsTracking ? 2.5 : 0;
+      ctx.fillText(String(value ?? ''), x + shift, y + 22 * (1 - entry), 460);
+      if (supportsTracking) ctx.letterSpacing = '0px';
+      ctx.restore();
+    };
     const label = (value, x, y, alpha, entry) => {
-      text(value, x, y, '600 24px Manrope, sans-serif', warm, alpha, 460, entry);
+      trackedLabel(value, x, y, alpha, entry);
     };
     const defaults = { organizer1: 'ПРОэлектро', organizer2: 'ПРОэлектрощит', partner1: 'Промрукав', partner2: 'КЭАЗ' };
     const style = data.logoStyle === 'original' ? 'original' : 'gold';
     // Смена стиля в настройках доготовит нужный вариант один раз, а не каждый кадр.
     if (style !== partnersLogoStyle) setPartnersLogoStyle(style);
-    const company = (key, x, y, entry) => {
+    // Знак входит не «проявлением», а движением: поднимается на 26 px, чуть
+    // увеличиваясь, и садится с мягким перелётом. Текст рядом идёт следом,
+    // чтобы группа читалась как единое целое, а не как два независимых слоя.
+    const company = (key, x, y, entry, glintAt, phaseIdx) => {
       const value = data[key];
       const customLogo = resolveCustomLogo(data[`${key}Logo`], style, () => {
         if (window.__logo?.activeScene?.id === 'partners' && window.__logo?.cfg?.playback?.paused) {
@@ -323,24 +433,80 @@ export class PartnersScene {
       });
       const isDefaultName = String(value ?? '').trim().toLocaleLowerCase('ru') === defaults[key].toLocaleLowerCase('ru');
       const logo = customLogo || (isDefaultName ? builtinMark(key, style) : null);
+      // Мягкий подъём с перелётом: p идёт 0→1, overshoot даёт «доезд».
+      const p = entry <= 0 ? 0 : Math.min(1.06, easeOutBack(entry));
+      const rise = (1 - Math.min(1, p)) * 26;
       if (!logo) {
-        text(value, x, y, '600 52px Manrope, sans-serif', ivory, visible * entry, 440, entry);
+        text(value, x, y, '600 52px Manrope, sans-serif', ivory, visible * Math.max(0, Math.min(1, p)), 440, Math.min(1, p));
         return;
       }
-      const scale = Math.min(440 / logo.width, 105 / logo.height);
+      const scale = Math.min(MARK_MAX_WIDTH / logo.width, MARK_MAX_HEIGHT / logo.height);
       const lw = logo.width * scale, lh = logo.height * scale;
-      ctx.save(); ctx.globalAlpha = visible * entry;
-      ctx.beginPath(); ctx.rect(x - 250 * entry, y - 80, 500 * entry, 160); ctx.clip();
-      ctx.drawImage(logo, x - lw / 2, y - lh / 2 + 22 * (1 - entry), lw, lh); ctx.restore();
+      // Масштаб группы: 0.955 → 1, на перелёте — до 1.008.
+      // На удержании знак медленно «дышит» (±0.4 % размера и ±2 px по высоте):
+      // у каждого своя фаза, поэтому группа не качается синхронно.
+      const breathe = cue.idle * 0.004 * Math.sin(phase.local * 0.62 + phaseIdx * 1.7);
+      const floatY = cue.idle * 2.1 * Math.sin(phase.local * 0.5 + phaseIdx * 2.1);
+      const grow = 0.955 + 0.045 * p + breathe;
+      const cx = x, cy = y + rise + floatY;
+      ctx.save();
+      ctx.globalAlpha = visible * Math.max(0, Math.min(1, p * 1.15));
+      // Мягкая тень под знаком отделяет золото от винного фона и даёт глубину.
+      if (cue.shadow > 0.01) {
+        ctx.save();
+        ctx.globalAlpha = visible * Math.min(1, p) * cue.shadow * 0.5;
+        ctx.translate(cx, cy + lh * 0.52);
+        ctx.scale(1, 0.22);
+        const shadow = ctx.createRadialGradient(0, 0, 0, 0, 0, lw * 0.52);
+        shadow.addColorStop(0, 'rgba(0,0,0,.55)');
+        shadow.addColorStop(.6, 'rgba(0,0,0,.22)');
+        shadow.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = shadow;
+        ctx.beginPath(); ctx.arc(0, 0, lw * 0.52, 0, Math.PI * 2); ctx.fill();
+        ctx.restore();
+      }
+      ctx.translate(cx, cy);
+      ctx.scale(grow, grow);
+      // Клип по кадру при входе остаётся: он не даёт знаку «вылезать» за блок.
+      ctx.beginPath(); ctx.rect(-268, -80, 536, 160); ctx.clip();
+      ctx.drawImage(logo, -lw / 2, -lh / 2, lw, lh);
+      // Блик проходит уже по проявленному знаку — иначе он светит в пустоту.
+      drawMarkGlint(ctx, logo, -lw / 2, -lh / 2, lw, lh,
+        glintSpan(phase.local, { start: glintAt, span: 0.62, from: -0.35, to: 1.35 }),
+        visible * Math.min(1, p) * cue.glintStrength);
+      // Второй проход на удержании — медленнее и тише. Разнесён по знакам,
+      // чтобы свет «гулял» по группе, а не вспыхивал весь сразу.
+      drawMarkGlint(ctx, logo, -lw / 2, -lh / 2, lw, lh,
+        glintSpan(phase.local, { start: 7.4 + phaseIdx * 0.35, span: 1.15, from: -0.3, to: 1.3 }),
+        visible * Math.min(1, p) * cue.holdGlint * 0.55);
+      ctx.restore();
     };
+    // Тёплая «подушка» под каждым ярусом: отделяет группу от фона и добавляет
+    // глубины. Рисуется до знаков, поэтому знаки остаются резкими поверх света.
+    const tierGlow = (cx, cy, rx, ry, alpha) => {
+      if (alpha <= 0.01) return;
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      ctx.translate(cx, cy); ctx.scale(1, ry / rx);
+      const glow = ctx.createRadialGradient(0, 0, 0, 0, 0, rx);
+      glow.addColorStop(0, 'rgba(255,186,110,.16)');
+      glow.addColorStop(.55, 'rgba(232,138,72,.07)');
+      glow.addColorStop(1, 'rgba(200,100,50,0)');
+      ctx.fillStyle = glow;
+      ctx.beginPath(); ctx.arc(0, 0, rx, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
+    };
+    tierGlow(960, 495, 620, 190, visible * cue.shadow * .85);
+    tierGlow(960, 785, 620, 190, visible * cue.shadow * .7);
     label(data.organizerLabel, 690, 401, visible * cue.organizerLabel, cue.organizerLabel);
     label(data.coorganizerLabel, 1230, 401, visible * cue.organizerLabel, cue.organizerLabel);
-    company('organizer1', 690, 495, cue.organizer);
-    company('organizer2', 1230, 495, cue.organizerSecond);
+    // Блик идёт очередью уже по «севшему» знаку: 1.69+1.0 с — конец входа.
+    company('organizer1', 690, 495, cue.organizer, 2.75, 0);
+    company('organizer2', 1230, 495, cue.organizerSecond, 3.25, 1);
     ornament(613, visible * cue.separator * .55, 420 * cue.separator);
     label(data.partnerLabel, 960, 690, visible * cue.partnerLabel, cue.partnerLabel);
-    company('partner1', 690, 785, cue.partner);
-    company('partner2', 1230, 785, cue.partnerSecond);
+    company('partner1', 690, 785, cue.partner, 4.45, 2);
+    company('partner2', 1230, 785, cue.partnerSecond, 4.95, 3);
     this.cardTexture.needsUpdate = true;
   }
 
