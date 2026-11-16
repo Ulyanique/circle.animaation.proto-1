@@ -146,9 +146,11 @@ test("каждая сцена получает полный независимы
     assert.deepEqual(cfg[key], key === "background" ? {...WAITING_DEFAULTS[key], fabricTexture: 0} : WAITING_DEFAULTS[key], key);
     assert.notEqual(cfg[key], WAITING_DEFAULTS[key], key);
   }
-  // Фирменная сцена сохраняет размер и теперь центрирована.
+  // Фирменная сцена сохраняет размер; композиция целиком поднята выше центра.
   assert.equal(cfg.logo.scale, 0.58);
-  assert.equal(cfg.logo.offsetY, 0);
+  assert.equal(cfg.logo.offsetY, 0.5);
+  assert.equal(cfg.caption.titleScale, 1.3);
+  assert.equal(cfg.decor.radius, 1.34);
   assert.equal(WAITING_DEFAULTS.logo.scale, 0.47);
   cfg.rings.radius = 123;
   assert.notEqual(WAITING_DEFAULTS.rings.radius, 123);

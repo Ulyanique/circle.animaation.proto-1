@@ -43,7 +43,7 @@ body.scene-finale #caption .cap-rule,
 body.scene-finale #caption .cap-date { display: none; }
 /* Фоновые сцены: титр опущен в нижнюю треть, знак крупнее. */
 body.scene-brand #caption .cap-title {
-  left: calc(50% + var(--title-offset-x, 0%)); top: calc(84% + var(--title-offset-y, 0%));
+  left: calc(50% + var(--title-offset-x, 0%)); top: calc(76% + var(--title-offset-y, 0%));
   font-size: calc(var(--u) * 4.6 * var(--title-scale, 1) * var(--title-fit, 1));
   letter-spacing: var(--title-tracking, .16em); padding-left: var(--title-tracking, .16em);
 }

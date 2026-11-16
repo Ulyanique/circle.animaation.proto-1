@@ -95,17 +95,27 @@ test('фирменный шаблон переносится в центр од�
   const data = new Map(), previous = globalThis.localStorage;
   globalThis.localStorage = {getItem: key => data.get(key) ?? null, setItem: (key, value) => data.set(key, String(value)), removeItem: key => data.delete(key)};
   try {
+    // Прежний стандарт: знак в 0.86 и штатная подпись. После переноса он должен
+    // получить новую композицию (выше центра), а не остаться ниже.
     data.set(sceneStorageKey('brand'), JSON.stringify({logo: {offsetY: .86}, caption: {titleText: 'Янтарный циркуль', titleVisible: true}}));
     let cfg = loadSceneConfig('brand', BRAND_DEFAULTS);
-    assert.equal(cfg.logo.offsetY, 0); assert.equal(cfg.caption.titleVisible, false);
+    assert.equal(cfg.logo.offsetY, BRAND_DEFAULTS.logo.offsetY);
+    assert.equal(cfg.caption.titleVisible, false);
+    assert.equal(cfg.caption.titleScale, BRAND_DEFAULTS.caption.titleScale);
     assert.equal(cfg.photo.text, 'ЯНТАРНЫЙ ЦИРКУЛЬ');
+    // Своя правка положения сохраняется: миграция однократная.
     cfg.logo.offsetY = .86; cfg.caption.titleVisible = true; saveSceneConfig('brand', cfg);
     cfg = loadSceneConfig('brand', BRAND_DEFAULTS);
     assert.equal(cfg.logo.offsetY, .86); assert.equal(cfg.caption.titleVisible, true);
     data.clear();
-    data.set(sceneStorageKey('brand'), JSON.stringify({logo: {offsetY: -.3}, caption: {titleText: 'Моя надпись'}}));
+    data.set(sceneStorageKey('brand'), JSON.stringify({logo: {offsetY: -.3}, caption: {titleText: 'Моя надпись', titleScale: 1}}));
     cfg = loadSceneConfig('brand', BRAND_DEFAULTS);
     assert.equal(cfg.logo.offsetY, -.3); assert.equal(cfg.caption.titleText, 'Моя надпись'); assert.equal(cfg.caption.titleVisible, true);
+    // Кегль подписи переносится и при своём положении знака — и сразу ложится в
+    // хранилище, иначе флаг миграции съел бы перенос.
+    assert.equal(cfg.caption.titleScale, BRAND_DEFAULTS.caption.titleScale);
+    assert.equal(JSON.parse(data.get(sceneStorageKey('brand'))).caption.titleScale, BRAND_DEFAULTS.caption.titleScale);
+    assert.equal(JSON.parse(data.get(sceneStorageKey('brand'))).logo.offsetY, -.3);
     const imported = parseConfigJSON('{"logo":{"offsetY":0.86},"caption":{"titleVisible":true}}', BRAND_DEFAULTS);
     assert.equal(imported.logo.offsetY, .86); assert.equal(imported.caption.titleVisible, true);
   } finally { globalThis.localStorage = previous; }

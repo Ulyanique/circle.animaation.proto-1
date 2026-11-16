@@ -362,6 +362,9 @@ const GUIDES_PLACEMENT_MIGRATION = "circle-anim-guides-placement-v1";
 const FINALE_GUIDES_MIGRATION = "circle-anim-finale-guides-v1";
 const PHOTO_SIZE_MIGRATION = "circle-anim-photo-size-v1";
 const BRAND_CENTER_MIGRATION = "circle-anim-brand-center-v1";
+// Композиция фона переехала выше (знак + подпись по центру кадра). Пользователю,
+// у которого сохранён ровно прежний стандарт, переносим его один раз.
+const BRAND_LIFT_MIGRATION = "circle-anim-brand-lift-v1";
 export const PROJECT_VERSION = 2;
 
 // Ключи, которые могут нести картинку. Раньше проверка опиралась на суффикс
@@ -447,7 +450,7 @@ export function mergeConfig(defaults, patch) {
 export function loadSceneConfig(sceneId, defaults, onReadError) {
   const cfg = cloneDefaults(defaults);
   let raw = null;
-  let migratePhotoCenter = false, migratePhotoSize = false, migrateBrandCenter = false, migrateGuides = false, migrateFinaleGuides = false;
+  let migratePhotoCenter = false, migratePhotoSize = false, migrateBrandCenter = false, migrateGuides = false, migrateFinaleGuides = false, migrateBrandLift = false;
   try {
     raw = localStorage.getItem(sceneStorageKey(sceneId));
     if (!raw && sceneId === "waiting") raw = localStorage.getItem(LEGACY_KEY);
@@ -456,7 +459,10 @@ export function loadSceneConfig(sceneId, defaults, onReadError) {
       migratePhotoSize = !localStorage.getItem(PHOTO_SIZE_MIGRATION);
     }
     if (sceneId === "finale") migrateFinaleGuides = !localStorage.getItem(FINALE_GUIDES_MIGRATION);
-    if (sceneId === "brand") migrateBrandCenter = !localStorage.getItem(BRAND_CENTER_MIGRATION);
+    if (sceneId === "brand") {
+      migrateBrandCenter = !localStorage.getItem(BRAND_CENTER_MIGRATION);
+      migrateBrandLift = !localStorage.getItem(BRAND_LIFT_MIGRATION);
+    }
     if (sceneId === "waiting" || sceneId === "brand") migrateGuides = !localStorage.getItem(`${GUIDES_PLACEMENT_MIGRATION}:${sceneId}`);
   } catch (e) {
     console.warn("Не удалось прочитать настройки", e);
@@ -464,6 +470,9 @@ export function loadSceneConfig(sceneId, defaults, onReadError) {
     return cfg;
   }
   if (!raw) {
+    if (migrateBrandLift) {
+      try { localStorage.setItem(BRAND_LIFT_MIGRATION, "1"); } catch (e) { /* noop */ }
+    }
     if (migratePhotoCenter) {
       try { localStorage.setItem(PHOTO_CENTER_MIGRATION, "1"); } catch (e) { /* noop */ }
     }
@@ -513,6 +522,26 @@ export function loadSceneConfig(sceneId, defaults, onReadError) {
         try { localStorage.setItem(sceneStorageKey(sceneId), JSON.stringify(saved)); } catch (e) { /* noop */ }
       }
       try { localStorage.setItem(BRAND_CENTER_MIGRATION, "1"); } catch (e) { /* noop */ }
+    }
+    // Фон поднят: композиция «знак + подпись» должна читаться по центру кадра.
+    // Переносим только нетронутый прежний стандарт, свои положения не трогаем.
+    if (migrateBrandLift) {
+      let lifted = false;
+      if ((saved?.logo?.offsetY ?? 0) === 0) {
+        saved.logo = { ...saved.logo, offsetY: defaults.logo.offsetY };
+        lifted = true;
+      }
+      // Подпись была мельче: поднимаем только прежний стандартный кегль.
+      if ((saved?.caption?.titleScale ?? 1) === 1) {
+        saved.caption = { ...saved.caption, titleScale: defaults.caption.titleScale };
+        lifted = true;
+      }
+      // Перенос пишем сразу: флаг миграции ставится один раз, и неприменённая
+      // правка иначе потерялась бы при следующей загрузке.
+      if (lifted) {
+        try { localStorage.setItem(sceneStorageKey(sceneId), JSON.stringify(saved)); } catch (e) { /* noop */ }
+      }
+      try { localStorage.setItem(BRAND_LIFT_MIGRATION, "1"); } catch (e) { /* noop */ }
     }
     // Предыдущее размещение линий переносится однократно; остальные их настройки остаются.
     if (migrateGuides) {
