@@ -1,0 +1,9 @@
+<!doctype html>
+<html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="icon" href="data:,"><title>Архив · 3D-прототип</title></head>
+<body><div id="archive-app">
+  <header class="top"><a class="back" href="./">← Заставки</a><div class="title"><span>ОТДЕЛЬНАЯ КОМПОЗИЦИЯ / ПРОТОТИП</span><h1>Архив · 3D</h1></div><div class="badge">ПРЕДПРОСМОТР</div></header>
+  <main><section class="viewer" aria-label="Предпросмотр 3D-сцены"><div class="stage-frame"><canvas id="archive-stage" aria-label="Трёхмерный архив: предпросмотр"></canvas><canvas id="archive-finale" aria-label="Финал: Янтарный циркуль"></canvas></div></section>
+  <aside class="sidebar"><div class="side-heading"><div><span>МЕДИА</span><h2>Медиаграни</h2></div><span>10</span></div><p class="description">Выберите фото или видео, настройте длительность и порядок эпизодов. Медиа и раскладка сохраняются в этом браузере.</p><div id="slots"></div><div class="notice"><strong>Экспорт и сессия</strong><p>Видео экспортируется покадрово в 1920×1080 30 fps (без звука). Кнопка «Скачать MP4» внизу формирует готовый файл.</p></div></aside></main>
+  <footer class="transport"><button type="button" data-play aria-label="Пауза">Ⅱ</button><label class="scrub"><span class="sr-only">Время сцены</span><input type="range" data-seek min="0" max="89" step="0.01" value="0"></label><output data-time>00:00 / 01:29</output><button type="button" data-restart title="Вернуться к началу" aria-label="Вернуться к началу">↺</button><button type="button" class="export-btn" data-export title="Покадровый рендер 1920×1080 MP4">Скачать MP4</button></footer>
+  <div class="status" role="status" aria-live="polite"></div>
+</div><script type="module" src="/src/archive/main.js"></script></body></html>
