@@ -13,6 +13,7 @@ import { masterSize, masterId } from './output-profile.js';
 import { fontName } from './fonts.js';
 import { DEFAULT_QUALITY, isQualityPreset, suggestedQuality } from './quality-presets.js';
 import { PARTNERS_DEFAULTS } from './scenes/partners.js';
+import { textSafeLeft, fitFontSize } from './text-safe-area.js';
 
 const loadImage = url => new Promise(resolve => {
   if (!url) { resolve(null); return; }
@@ -109,10 +110,6 @@ export function drawMarkGlint(ctx, logo, x, y, w, h, span, alpha) {
 const CONTENT_CENTER = BASE_FRAME.width / 2;
 const COLUMN_LEFT = 690;
 const COLUMN_RIGHT = 1230;
-// Заголовок центрирован, поэтому предел ширины оставляет равные поля с обеих
-// сторон. Листва заходит в кадр справа примерно до x=1560: при пределе 1100
-// строка занимает 410..1510 и с листвой не соприкасается.
-const TITLE_MAX_WIDTH = 1100;
 
 // Ширина поднята с 440: у ПРОэлектрощит и КЭАЗ соотношение сторон 4,8:1 и 5,3:1,
 // поэтому прежний потолок ширины срезал им ВЫСОТУ (92 и 83 px против 105 у
@@ -422,7 +419,11 @@ export class PartnersScene {
     ctx.save(); ctx.globalAlpha = visible;
     ctx.drawImage(staticLayer, 0, 0, w, h);
     ctx.restore();
-    drawAmberAtmosphere(ctx, phase.local, (data.motion ?? 1) * visible, phase.cycle);
+    // Зоны защиты: заголовок с подзаголовком сверху и оба яруса знаков.
+    drawAmberAtmosphere(ctx, phase.local, (data.motion ?? 1) * visible, phase.cycle, [
+      { x: 380, y: 80, w: 1160, h: 290 },
+      { x: 400, y: 380, w: 1120, h: 500 },
+    ]);
     // Занавес рисуется внутри декора, после рамки: ткань — передний план и
     // должна перекрывать позолоту, а не лежать под ней.
     drawPartnersDecor(ctx, cue, data, curtainImage);
@@ -438,7 +439,6 @@ export class PartnersScene {
     // Заголовок из золотой фольги: вертикальный металлический градиент делает
     // буквы похожими на тиснение, а по нему раз в цикл проходит свет.
     // Раньше заголовок был залит ровным цветом и читался как обычный текст.
-    const titleFont = `600 96px "${displayFont}", serif`;
     const foilGradient = (top, bottom) => {
       const foil = ctx.createLinearGradient(0, top, 0, bottom);
       foil.addColorStop(0, '#fff9ea');
@@ -449,22 +449,28 @@ export class PartnersScene {
       foil.addColorStop(1, '#e6cd9c');
       return foil;
     };
-    const drawFoilTitle = (value, x, y, alpha, maxWidth) => {
+    /**
+     * Заголовок из золотой фольги. Кегль приходит из безопасной зоны, поэтому
+     * строка не может уйти под занавес; blur-радиус и градиент считаются от
+     * него же, иначе металл «разъезжается» при смене размера.
+     */
+    const drawFoilTitle = (value, x, y, alpha, size) => {
       if (alpha <= 0.003) return;
       const drop = 22 * (1 - cue.title);
       ctx.save();
       ctx.globalAlpha = alpha;
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.font = titleFont;
+      ctx.font = `600 ${size}px "${displayFont}", serif`;
+      const half = size * 0.5;
       ctx.shadowColor = 'rgba(0,0,0,.5)'; ctx.shadowBlur = 9; ctx.shadowOffsetY = 3;
       // Базовый слой: металл по высоте буквы (от светлого верха к тёмному низу).
-      ctx.fillStyle = foilGradient(y - 48, y + 48);
-      ctx.fillText(value, x, y + drop, maxWidth);
+      ctx.fillStyle = foilGradient(y - half, y + half);
+      ctx.fillText(value, x, y + drop);
       // Второй слой — сам блик. Аддитивно, поэтому металл не «выцветает»,
       // а именно вспыхивает на проходе полосы.
       const sweep = glintSpan(phase.local, { start: 5.6, span: 1.9, from: -0.12, to: 1.12 });
       if (sweep != null) {
-        const width = Math.min(maxWidth, ctx.measureText(value).width);
+        const width = ctx.measureText(value).width;
         const left = x - width / 2, band = width * 0.13;
         const at = left + width * sweep;
         const shine = ctx.createLinearGradient(at - band * 2.4, 0, at + band * 2.4, 0);
@@ -476,14 +482,26 @@ export class PartnersScene {
         ctx.shadowColor = 'transparent';
         ctx.globalCompositeOperation = 'lighter';
         ctx.fillStyle = shine;
-        ctx.fillText(value, x, y + drop, maxWidth);
+        ctx.fillText(value, x, y + drop);
       }
       ctx.restore();
     };
     // Блок заголовка стоит строго на оси кадра: смещение «оптически влево»
     // читалось как небрежность, а не как замысел.
-    drawFoilTitle(heading, CONTENT_CENTER, 160, title, TITLE_MAX_WIDTH);
-    text(data.subtitle, CONTENT_CENTER, 270, `400 49px "${displayFont}", serif`, gold, title, 1080, cue.title);
+    // Безопасная зона: занавес висит поверх кадра, его ширина задаётся в
+    // настройках. Раньше предел ширины был числом 1100, и при широкой шторе
+    // первая буква заголовка оказывалась под тканью.
+    const safe = textSafeLeft(data);
+    const titleFit = fitFontSize({
+      size: 96, min: 44,
+      measure: (size) => {
+        ctx.font = `600 ${size}px "${displayFont}", serif`;
+        return ctx.measureText(heading).width;
+      },
+    }, safe);
+    drawFoilTitle(heading, CONTENT_CENTER, 160, title, titleFit.size);
+    text(data.subtitle, CONTENT_CENTER, 270, `400 49px "${displayFont}", serif`, gold, title,
+      Math.min(1080, 2 * (960 - safe)), cue.title);
     // Линия расходится от центра, а ромб появляется последним и чуть крупнее:
     // взгляд успевает пройти по кадру сверху вниз, а не схватить всё сразу.
     const ornament = (y, alpha, width, center = 960, diamond = 1) => {

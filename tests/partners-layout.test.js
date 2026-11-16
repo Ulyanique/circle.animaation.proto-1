@@ -38,13 +38,23 @@ test("колонки ярусов симметричны относительн�
   assert.equal(960 - Number(left[1]), Number(right[1]) - 960);
 });
 
-test("предел ширины заголовка оставляет равные поля и не лезет в листву", () => {
-  const match = source.match(/const TITLE_MAX_WIDTH = (\d+);/);
-  assert.ok(match, "предел ширины заголовка должен быть явной константой");
-  const maxWidth = Number(match[1]);
-  // При оси 960 строка займёт (960 - w/2)..(960 + w/2); правое поле должно
-  // оставаться заметно больше нуля, иначе текст подойдёт к рамке и листве.
-  const rightEdge = 960 + maxWidth / 2;
-  assert.ok(rightEdge <= 1560, `правый край ${rightEdge} заходит в листву`);
-  assert.ok(rightEdge <= 1866, "правый край выходит за рамку кадра");
+test("заголовок и подпись не заходят под занавес и в листву", async () => {
+  // Предел ширины больше не константа: он считается из ширины занавеса,
+  // который лежит поверх кадра. Проверяем само правило.
+  const { textSafeLeft, fitFontSize } = await import("../src/text-safe-area.js");
+  const safe = textSafeLeft({ curtainVisible: true, curtainWidth: 476 });
+  // Плотная ткань заканчивается раньше, чем весь PNG: берём её долю и качание.
+  assert.ok(safe > 350 && safe < 460, `зона начинается в подозрительном месте: ${safe}`);
+  // Самая длинная строка программы: «ЯНТАРНЫЙ ЦИРКУЛЬ» при 96 px ≈ 998 px.
+  const measure = (size) => size * 10.4;
+  const fit = fitFontSize({ size: 96, min: 44, measure }, safe);
+  const left = 960 - fit.width / 2, right = 960 + fit.width / 2;
+  assert.ok(left >= safe + 24, `левый край ${left} заходит под занавес`);
+  assert.ok(right <= 1560, `правый край ${right} заходит в листву`);
+  assert.ok(fit.size >= 44, "кегль не должен схлопываться");
+  // Широкий занавес ужимает строку сильнее, выключенный — не мешает вовсе.
+  assert.equal(textSafeLeft({ curtainVisible: false }), 0);
+  assert.ok(fitFontSize({ size: 96, min: 44, measure }, 0).size === 96);
+  assert.ok(fitFontSize({ size: 96, min: 44, measure },
+    textSafeLeft({ curtainVisible: true, curtainWidth: 760 })).size < fit.size);
 });

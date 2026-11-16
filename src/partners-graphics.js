@@ -217,95 +217,222 @@ function drawFrameGlint(ctx, glint, alpha) {
   ctx.restore();
 }
 
-// Fixed seed and fixed coordinates make the ambient glints reproducible for
-// frame-accurate seeks and offline renders.
+// ── Частицы ────────────────────────────────────────────────────────────────
+// Раньше каждая частица рисовалась мягким спрайтом 32×32, растянутым в 6 раз:
+// на экране это давало размытые пятна — «блямбы». Блёстка читается иначе:
+// крошечное яркое ядро и короткие лучи, а не широкий ореол. Поэтому рисуем
+// звезду с четырьмя лучами по готовому спрайту и очень редко — с восемью
+// (поворот на 45°). Детерминизм сохраняется: спрайты строятся один раз.
+const STAR_SIZE = 64;
+/** @type {HTMLCanvasElement|null} */
+let starSprite = null;
+/** Четырёхлучевая звезда: ядро + тонкие лучи, без широкого размытия. */
+function getStarSprite() {
+  if (starSprite) return starSprite;
+  const canvas = document.createElement('canvas');
+  canvas.width = canvas.height = STAR_SIZE;
+  const ctx = canvas.getContext('2d');
+  const c = STAR_SIZE / 2;
+  // Ядро маленькое и яркое: именно оно читается как блеск.
+  const core = ctx.createRadialGradient(c, c, 0, c, c, c * 0.24);
+  core.addColorStop(0, 'rgba(255,252,238,1)');
+  core.addColorStop(.45, 'rgba(255,228,170,.85)');
+  core.addColorStop(1, 'rgba(255,206,132,0)');
+  ctx.fillStyle = core;
+  ctx.fillRect(0, 0, STAR_SIZE, STAR_SIZE);
+  // Лучи: длинные по горизонтали и вертикали, короткие по диагонали.
+  const ray = (length, width, alpha) => {
+    const g = ctx.createLinearGradient(c, c, c, c - length);
+    g.addColorStop(0, `rgba(255,246,222,${alpha})`);
+    g.addColorStop(.45, `rgba(255,224,163,${alpha * .5})`);
+    g.addColorStop(1, 'rgba(255,206,132,0)');
+    ctx.save();
+    ctx.translate(c, c);
+    ctx.fillStyle = g;
+    for (let i = 0; i < 4; i++) {
+      ctx.rotate(Math.PI / 2);
+      ctx.beginPath();
+      ctx.moveTo(-width, 0); ctx.lineTo(0, -length); ctx.lineTo(width, 0); ctx.closePath();
+      ctx.fill();
+    }
+    ctx.restore();
+  };
+  // Лучи заметно толще прежних: при отрисовке спрайт сжимается в 3–4 раза, и
+  // тонкая линия в 1 px превращалась в едва различимую точку.
+  ray(c * 0.98, STAR_SIZE * 0.075, 1);
+  ray(c * 0.46, STAR_SIZE * 0.085, .55);
+  starSprite = canvas;
+  return canvas;
+}
+
+
+/**
+ * Лучи блёстки. Спрайт даёт ядро, но его лучи при сжатии превращаются в точку,
+ * поэтому «звёздность» рисуется отдельно: четыре тонких клина с затуханием.
+ * Каждый клин — один fillRect с линейным градиентом, поэтому слой остаётся
+ * дешёвым и детерминированным (без blur и без накопления альфы).
+ */
+function drawSparkleRays(ctx, x, y, length, width, alpha, diagonal = false) {
+  if (alpha <= 0.01 || length <= 1) return;
+  for (let i = 0; i < (diagonal ? 8 : 4); i++) {
+    const angle = Math.PI / 2 * i + (diagonal ? Math.PI / 4 : 0);
+    const len = diagonal ? length * 0.55 : length;
+    const half = Math.max(0.6, width * 0.5);
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(angle);
+    const g = ctx.createLinearGradient(0, 0, len, 0);
+    g.addColorStop(0, `rgba(255,248,226,${alpha})`);
+    g.addColorStop(0.35, `rgba(255,224,166,${alpha * 0.42})`);
+    g.addColorStop(1, 'rgba(255,200,120,0)');
+    ctx.fillStyle = g;
+    // Треугольник вместо прямоугольника: к концу луч сходится в точку.
+    ctx.beginPath();
+    ctx.moveTo(0, -half);
+    ctx.lineTo(len, 0);
+    ctx.lineTo(0, half);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+  }
+}
+
+// Координаты и фазы фиксированы сидом: кадр воспроизводится побитово на любом
+// перемотке и в экспорте.
 let seed = 0xA17B3;
-const AMBER_PARTICLES = Array.from({ length: 74 }, (_, i) => {
+const AMBER_PARTICLES = Array.from({ length: 96 }, (_, i) => {
   seed = (seed * 1664525 + 1013904223) >>> 0;
   const x = 54 + (seed / 0x100000000) * 1812;
   seed = (seed * 1664525 + 1013904223) >>> 0;
   const y = 55 + (seed / 0x100000000) * 970;
   seed = (seed * 1664525 + 1013904223) >>> 0;
-  return { x, y, radius: 0.7 + (seed / 0x100000000) * 1.8, phase: i * 2.3999632297, cycles: 1 + (i % 4) };
+  const r = seed / 0x100000000;
+  return {
+    x, y,
+    // Разброс размера: мелкая пыль и несколько крупных блёсток — так слой
+    // читается как глубина, а не как ровное поле точек.
+    size: 0.35 + r * r * 1.9,
+    phase: i * 2.3999632297,
+    // Разная частота мерцания: звёзды не должны вспыхивать в такт.
+    cycles: 0.6 + (i % 5) * 0.45,
+    // Часть частиц «в фокусе» — у них есть лучи, остальные мельче и мягче.
+    star: r > 0.62,
+  };
 });
 
-// Частица рисуется спрайтом, а не через shadowBlur: размытие тени в canvas2D
-// дорого и линейно растёт с числом частиц (здесь их 74 и до 8 кадров на секунду
-// экран не жалеет). Спрайт даёт тот же мягкий ореол одним drawImage.
-const SPRITE_SIZE = 32;
-let amberSprite = null;
-function getAmberSprite() {
-  if (amberSprite) return amberSprite;
-  const canvas = document.createElement('canvas');
-  canvas.width = canvas.height = SPRITE_SIZE;
-  const ctx = canvas.getContext('2d');
-  const r = SPRITE_SIZE / 2;
-  const glow = ctx.createRadialGradient(r, r, 0, r, r, r);
-  // Те же стопы, что были в shadowColor '#ffbe66' + shadowBlur: ядро, ореол, ноль.
-  glow.addColorStop(0, 'rgba(255,217,149,1)');
-  glow.addColorStop(.34, 'rgba(255,200,120,.62)');
-  glow.addColorStop(.62, 'rgba(255,190,102,.22)');
-  glow.addColorStop(1, 'rgba(255,190,102,0)');
-  ctx.fillStyle = glow;
-  ctx.fillRect(0, 0, SPRITE_SIZE, SPRITE_SIZE);
-  amberSprite = canvas;
-  return canvas;
-}
-
-/** Warm moving light and subtle amber dust, deterministic at any seek time.
+/**
+ * Тёплый свет и янтарная пыль. Свет больше не плоское пятно: он собран из
+ * трёх слоёв — мягкое свечение фона, широкий объёмный конус луча и яркое
+ * ядро блика, которое медленно гуляет по кадру.
  * @param {CanvasRenderingContext2D} ctx
  * @param {number} time
  * @param {number} [motion]
  * @param {number} [period]
+ * @param {Array<{x:number,y:number,w:number,h:number}>} [protect] зоны, где
+ *   блёстки гасятся: текст и знак должны оставаться читаемыми
  */
-export function drawAmberAtmosphere(ctx, time, motion = 1, period = 20) {
+export function drawAmberAtmosphere(ctx, time, motion = 1, period = 20, protect = []) {
   const power = clamp(Number.isFinite(motion) ? motion : 1);
   if (power <= 0) return;
+  const W = BASE_FRAME.width, H = BASE_FRAME.height;
   const cycle = Math.max(0, time);
   const duration = Math.max(0.1, period);
   const angle = Math.PI * 2 * cycle / duration;
-  const x = 960 - 760 * Math.cos(angle);
-  const y = 325 + Math.sin(angle + Math.PI / 3) * 150;
+  // Источник света медленно ходит по верхней трети кадра.
+  const x = 960 - 700 * Math.cos(angle);
+  const y = 250 + Math.sin(angle + Math.PI / 3) * 120;
+
+  // 1. Общее тёплое свечение вокруг источника.
   ctx.save();
-  const glow = ctx.createRadialGradient(x, y, 12, x, y, 650);
-  glow.addColorStop(0, `rgba(255,190,105,${0.105 * power})`);
-  glow.addColorStop(0.28, `rgba(248,148,75,${0.055 * power})`);
+  const glow = ctx.createRadialGradient(x, y, 10, x, y, 720);
+  glow.addColorStop(0, `rgba(255,196,116,${0.115 * power})`);
+  glow.addColorStop(0.22, `rgba(250,152,80,${0.062 * power})`);
+  glow.addColorStop(0.62, `rgba(214,104,62,${0.022 * power})`);
   glow.addColorStop(1, 'rgba(255,150,70,0)');
   ctx.fillStyle = glow;
-  ctx.fillRect(0, 0, BASE_FRAME.width, BASE_FRAME.height);
+  ctx.fillRect(0, 0, W, H);
 
-  // A soft narrow ray shifts with the hotspot; low contrast preserves title/logo legibility.
+  // 2. Луч: узкий у источника, расширяется книзу. Рисуется радиальным
+  //    градиентом в сжатой системе координат — так он мягкий по ВСЕМ краям.
+  //    Раньше это был многоугольник с линейным градиентом только по высоте:
+  //    боковые грани читались как плоские полосы.
+  ctx.save();
   ctx.translate(x, y);
-  ctx.rotate(-0.22);
-  const ray = ctx.createLinearGradient(-430, 0, 430, 0);
-  ray.addColorStop(0, 'rgba(255,190,105,0)');
-  ray.addColorStop(0.5, `rgba(255,205,135,${0.025 * power})`);
-  ray.addColorStop(1, 'rgba(255,190,105,0)');
-  ctx.fillStyle = ray;
-  ctx.fillRect(-430, -155, 860, 310);
+  ctx.rotate(-0.16);
+  ctx.scale(0.30, 1);
+  const beam = ctx.createRadialGradient(0, 0, 30, 0, 0, 900);
+  beam.addColorStop(0, `rgba(255,214,150,${0.20 * power})`);
+  beam.addColorStop(0.25, `rgba(255,196,124,${0.10 * power})`);
+  beam.addColorStop(0.6, `rgba(240,158,92,${0.035 * power})`);
+  beam.addColorStop(1, 'rgba(220,130,70,0)');
+  ctx.fillStyle = beam;
+  ctx.fillRect(-900, -900, 1800, 1800);
   ctx.restore();
 
+  // 2б. Узкий плотный шлейф у самого источника: он и даёт ощущение объёма.
   ctx.save();
-  ctx.globalCompositeOperation = 'screen';
-  const sprite = getAmberSprite();
-  // Спрайт заменяет радиус ~1.4 px плюс shadowBlur 5–12: ореол той же ширины,
-  // но одним drawImage без размытия. Множитель подобран по площади: тень
-  // покрывала ~30 тыс. px на кадр, спрайт — столько же, иначе выигрыш съедается.
-  const spriteScale = 6;
+  ctx.globalCompositeOperation = 'lighter';
+  ctx.translate(x, y);
+  ctx.rotate(-0.16);
+  ctx.scale(0.10, 1);
+  const shaft = ctx.createRadialGradient(0, 0, 10, 0, 0, 520);
+  shaft.addColorStop(0, `rgba(255,240,208,${0.26 * power})`);
+  shaft.addColorStop(0.4, `rgba(255,214,150,${0.10 * power})`);
+  shaft.addColorStop(1, 'rgba(255,190,110,0)');
+  ctx.fillStyle = shaft;
+  ctx.fillRect(-520, -520, 1040, 1040);
+  ctx.restore();
+
+  // 3. Ядро блика — маленькое, но плотное: именно оно даёт «стекло» и объём.
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  const core = ctx.createRadialGradient(x, y, 0, x, y, 120);
+  core.addColorStop(0, `rgba(255,246,224,${0.30 * power})`);
+  core.addColorStop(0.3, `rgba(255,214,150,${0.12 * power})`);
+  core.addColorStop(1, 'rgba(255,190,110,0)');
+  ctx.fillStyle = core;
+  ctx.fillRect(x - 130, y - 130, 260, 260);
+
+  // 4. Пыль: звёздочки вместо размытых пятен.
+  ctx.globalCompositeOperation = 'lighter';
+  const star = getStarSprite();
   for (const particle of AMBER_PARTICLES) {
-    const twinkle = 0.18 + 0.82 * (0.5 + 0.5 * Math.sin(angle * particle.cycles + particle.phase));
-    const dx = (particle.x - x) / 470, dy = (particle.y - y) / 330;
+    // Мерцание — по синусу, но с резким «вспыхиванием» на пике: звёзды
+    // вспыхивают, а не плавно качаются.
+    const wave = 0.5 + 0.5 * Math.sin(angle * particle.cycles + particle.phase);
+    const twinkle = Math.pow(wave, 2.2);
+    const dx = (particle.x - x) / 520, dy = (particle.y - y) / 380;
     const beamCatch = Math.exp(-0.5 * (dx * dx + dy * dy));
-    const alpha = power * twinkle * (0.26 + beamCatch * 0.48);
-    const radius = particle.radius * (0.65 + twinkle * 0.65 + beamCatch * 0.35);
-    const size = radius * spriteScale;
-    ctx.globalAlpha = alpha;
-    ctx.drawImage(sprite, particle.x - size / 2, particle.y - size / 2, size, size);
-    if (twinkle > 0.84) {
-      ctx.globalAlpha = (twinkle - 0.84) * power * 1.45;
-      ctx.fillStyle = '#ffd995';
-      ctx.fillRect(particle.x - 3.5, particle.y - 0.45, 7, 0.9);
-      ctx.fillRect(particle.x - 0.45, particle.y - 3.5, 0.9, 7);
+    // Блёстка поверх буквы читается как дефект, а не как эффект: в зонах
+    // текста и знака свет гасится, но не исчезает совсем.
+    let guard = 1;
+    for (const zone of protect) {
+      if (particle.x > zone.x - 40 && particle.x < zone.x + zone.w + 40 &&
+          particle.y > zone.y - 30 && particle.y < zone.y + zone.h + 30) { guard = 0.18; break; }
+    }
+    const alpha = power * (0.22 + twinkle * 0.95) * (0.45 + beamCatch * 0.75) * guard;
+    // Размер подобран по экрану: блёстка должна читаться как точка света, а не
+    // как пылинка. Внутри луча — крупнее, на периферии мельче.
+    // Размер в пикселях кадра 1920: блёстка читается как искра, а не как
+    // прожектор. Ядро 6–22 px, лучи добавляют ещё полторы-две ширины.
+    const size = particle.size * (6 + twinkle * 8 + beamCatch * 7);
+    if (alpha <= 0.012) continue;
+    ctx.globalAlpha = Math.min(1, alpha);
+    ctx.drawImage(star, particle.x - size / 2, particle.y - size / 2, size, size);
+    if (particle.star) {
+      // Длина лучей зависит от мерцания: звезда «раскрывается» на пике и
+      // остаётся точкой в паузе. Диагональные лучи только у самых крупных.
+      const glow = Math.min(1, ctx.globalAlpha);
+      const length = size * (0.9 + twinkle * 1.2);
+      ctx.save();
+      ctx.globalAlpha = 1;
+      drawSparkleRays(ctx, particle.x, particle.y, length, Math.max(0.9, size * 0.13),
+        glow * (0.22 + twinkle * 0.5));
+      if (particle.size > 1.7 && twinkle > 0.72) {
+        drawSparkleRays(ctx, particle.x, particle.y, length * 0.62, Math.max(0.8, size * 0.09),
+          glow * (twinkle - 0.72) * 1.1, true);
+      }
+      ctx.restore();
     }
   }
   ctx.restore();

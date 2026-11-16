@@ -1,6 +1,7 @@
 import { BASE_FRAME } from "./scenes/catalog.js";
 import { computePhase } from "./timeline.js";
 import { sponsorCues, markBox, markGlintAt, markScaleFor, MARK_CENTER_Y, MARK_KEYS } from "./sponsor-motion.js";
+import { textSafeLeft, fitFontSize } from "./text-safe-area.js";
 import { easeOutBack, glintSpan } from "./partners-motion.js";
 import { drawPartnersDecor, drawAmberAtmosphere } from "./partners-graphics.js";
 import { partnersMark, partnersAssets, partnerDefaults, drawMarkGlint, loadPartnersBackground } from "./partners-scene.js";
@@ -149,7 +150,14 @@ export class SponsorScene {
     ctx.save(); ctx.globalAlpha = cue.visible;
     ctx.drawImage(staticLayer, 0, 0, w, h);
     ctx.restore();
-    drawAmberAtmosphere(ctx, phase.local, (data.motion ?? 1) * cue.visible, phase.cycle);
+    // Свет живёт по своей огибающей: входит вместе с кадром, но уходит
+    // последним, поэтому выход читается как истончение, а не как выключение.
+    // Блёстки не выводятся поверх текста и знака: искры должны жить в воздухе,
+    // а не на буквах.
+    drawAmberAtmosphere(ctx, phase.local, (data.motion ?? 1) * cue.visible * cue.light, phase.cycle, [
+      { x: 400, y: 80, w: 1120, h: 280 },
+      { x: 320, y: MARK_CENTER_Y - 190, w: 1280, h: 370 },
+    ]);
 
     const displayFont = fontName(cfg.typography?.font || "cormorant-garamond");
     const gold = "#e9ca91", warm = "#d2ac70";
@@ -163,40 +171,62 @@ export class SponsorScene {
     foil.addColorStop(.74, "#d5ae74");
     foil.addColorStop(.9, "#b98f56");
     foil.addColorStop(1, "#e6cd9c");
+    // Безопасная зона текста считается по ширине занавеса: ткань лежит поверх
+    // кадра, и подойти к ней вплотную нельзя. Кегль подбирается так, чтобы
+    // строка гарантированно оставалась правее ткани, а не «на глаз».
+    const safe = textSafeLeft(data);
     if (cue.title > 0.003) {
       ctx.save();
       ctx.globalAlpha = cue.visible * cue.title;
       ctx.textAlign = "center"; ctx.textBaseline = "middle";
-      // 88 px и предел 900: строка заканчивается за занавесом, а не под ним.
-      // При 96 px «ЯНТАРНЫЙ ЦИРКУЛЬ» занимает 998 px и первая буква уходила
-      // под ткань, которая теперь лежит поверх рамки.
-      ctx.font = `600 88px "${displayFont}", serif`;
+      // Кегль 74 px вместо 96: заголовок стал легче и наконец расходится
+      // с подзаголовком по весу — раньше они спорили.
+      const font = fitFontSize({
+        size: 74, min: 40,
+        measure: (size) => {
+          ctx.font = `600 ${size}px "${displayFont}", serif`;
+          return ctx.measureText(heading).width;
+        },
+      }, safe);
+      ctx.font = `600 ${font.size}px "${displayFont}", serif`;
       ctx.shadowColor = "rgba(0,0,0,.5)"; ctx.shadowBlur = 9; ctx.shadowOffsetY = 3;
       ctx.fillStyle = foil;
-      ctx.fillText(heading, w / 2, 160 + 22 * (1 - cue.title), 900);
+      // Вход: строка приходит снизу и из лёгкого разгона, а не «выцветает».
+      const rise = 26 * (1 - cue.title) + 6 * (1 - cue.subtitle);
+      ctx.fillText(heading, w / 2, 158 + rise);
       ctx.restore();
     }
     if (cue.subtitle > 0.003) {
+      const text = String(data.subtitle ?? partnerDefaults().subtitle);
       ctx.save();
       ctx.globalAlpha = cue.visible * cue.subtitle;
       ctx.textAlign = "center"; ctx.textBaseline = "middle";
-      ctx.font = `400 49px "${displayFont}", serif`;
+      const font = fitFontSize({
+        size: 44, min: 28,
+        measure: (size) => {
+          ctx.font = `400 ${size}px "${displayFont}", serif`;
+          return ctx.measureText(text).width;
+        },
+      }, safe);
+      ctx.font = `400 ${font.size}px "${displayFont}", serif`;
       ctx.fillStyle = gold;
       ctx.shadowColor = "rgba(0,0,0,.5)"; ctx.shadowBlur = 9; ctx.shadowOffsetY = 3;
-      ctx.fillText(String(data.subtitle ?? partnerDefaults().subtitle), w / 2, 270, 1080);
+      ctx.fillText(text, w / 2, 258 + 18 * (1 - cue.subtitle));
       ctx.restore();
     }
     // Разделитель растёт от центра: сначала линия, потом ромб.
     if (cue.rule > 0.004) {
-      const width = 300 * cue.rule;
+      // Ширина линии тоже упирается в безопасную зону: кончик не должен
+      // уходить в ткань даже на самом широком кадре.
+      const width = Math.min(300, Math.max(120, 960 - safe - 40)) * cue.rule;
       ctx.save();
       ctx.globalAlpha = cue.title * cue.visible;
       ctx.strokeStyle = warm; ctx.lineWidth = 1;
       ctx.beginPath();
-      ctx.moveTo(w / 2 - width, 330); ctx.lineTo(w / 2 - 16, 330);
-      ctx.moveTo(w / 2 + 16, 330); ctx.lineTo(w / 2 + width, 330);
+      ctx.moveTo(w / 2 - width, 318); ctx.lineTo(w / 2 - 16, 318);
+      ctx.moveTo(w / 2 + 16, 318); ctx.lineTo(w / 2 + width, 318);
       ctx.stroke();
-      ctx.translate(w / 2, 330); ctx.rotate(Math.PI / 4);
+      ctx.translate(w / 2, 318); ctx.rotate(Math.PI / 4);
       const size = 4 * (0.55 + 0.45 * cue.rule);
       ctx.globalAlpha = cue.title * cue.visible * cue.rule;
       ctx.strokeRect(-size, -size, size * 2, size * 2);
