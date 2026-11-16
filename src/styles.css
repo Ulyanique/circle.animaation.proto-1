@@ -1175,7 +1175,6 @@ body.editor-on.operator-idle:not(.ui-on) .operator-panel { opacity: 1; pointer-e
 .editor-track-ruler { border-left: 1px solid transparent; border-right: 1px solid transparent; }
 /* В редакторе перемотка и шаги находятся на таймлайне; остальные функции пульта остаются. */
 body.editor-on .operator-transport [data-action="prev"],
-body.editor-on .operator-transport [data-action="seek"],
 body.editor-on .operator-transport [data-action="next"],
 body.editor-on .operator-transport [data-role="time"] { display: none; }
 /* В широком редакторе пульт занимает одну строку, освобождая место дорожкам. */
@@ -1184,6 +1183,9 @@ body.editor-on .operator-transport [data-role="time"] { display: none; }
   body.editor-on .operator-panel .operator-row { flex-wrap: nowrap; min-width: 0; }
   body.editor-on .operator-panel .operator-row:first-child { flex: 1 1 auto; }
   body.editor-on .operator-panel .operator-row + .operator-row { flex: 0 0 auto; margin: 0; padding: 0; border: 0; }
+  /* Транспорт идёт третьим ребёнком после таймлайна, поэтому сброс выше его не
+     берёт: без этого остаток margin-top роняет строку ниже общей оси. */
+  body.editor-on .operator-panel .operator-transport { margin-top: 0; }
   body.editor-on .editor-track-panel { bottom: 80px; }
 }
 .editor-track-scenario[hidden] { display: none; }

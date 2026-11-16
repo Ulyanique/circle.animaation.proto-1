@@ -97,7 +97,11 @@ const { launchBrowser } = require('./browser.cjs');
     const visible = selector => operatorPage.$eval(selector, el => getComputedStyle(el).display !== 'none');
     for (const id of ['prev','seek','next']) assert.equal(await visible(`.operator-panel [data-action="${id}"]`), true);
     await operatorPage.click('.editor-toggle');
-    for (const id of ['prev','seek','next']) assert.equal(await visible(`.operator-panel [data-action="${id}"]`), false);
+    // Перемотка переехала на таймлайн пульта: в редакторе там же тянутся
+    // границы фаз, поэтому seek остаётся видимым, а покадровые кнопки и
+    // счётчик времени дублируют таймлайн редактора и скрываются.
+    for (const id of ['prev', 'next']) assert.equal(await visible(`.operator-panel [data-action="${id}"]`), false);
+    assert.equal(await visible('.operator-panel [data-action="seek"]'), true);
     assert.equal(await visible('.operator-panel [data-role="time"]'), false);
     for (const id of ['play','duration','record','record-chain']) assert.equal(await visible(`.operator-panel [data-action="${id}"]`), true);
     assert.equal(await visible('.operator-panel [data-scene="finale"]'), true);
