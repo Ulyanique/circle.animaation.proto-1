@@ -390,12 +390,9 @@ export class PartnersScene {
     ctx.drawImage(staticLayer, 0, 0, w, h);
     ctx.restore();
     drawAmberAtmosphere(ctx, phase.local, (data.motion ?? 1) * visible, phase.cycle);
-    if (data.curtainVisible !== false && curtainImage) {
-      ctx.save(); ctx.globalAlpha = visible * cue.curtain;
-      ctx.drawImage(curtainImage, -80 * (1 - cue.curtain) + cue.curtainSway, 0, 476, h);
-      ctx.restore();
-    }
-    drawPartnersDecor(ctx, cue, data);
+    // Занавес рисуется внутри декора, после рамки: ткань — передний план и
+    // должна перекрывать позолоту, а не лежать под ней.
+    drawPartnersDecor(ctx, cue, data, curtainImage);
     const displayFont = fontName(cfg.typography?.font || 'cormorant-garamond');
     const text = (value, x, y, font, color, alpha, maxWidth, entry = 1) => {
       ctx.save(); ctx.globalAlpha = alpha; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.font = font; ctx.fillStyle = color;

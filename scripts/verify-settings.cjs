@@ -42,7 +42,7 @@ if (OUT) fs.mkdirSync(OUT, { recursive: true });
     // 2. Вкладка 02 переключает и сцену, и набор настроек; панель остаётся открытой.
     await page.evaluate(() => document.querySelector('.cfg-tab[data-cfg-scene="brand"]').click());
     await page.waitForFunction(() => window.__logo.activeScene.id === "brand", { timeout: 120000 });
-    await page.waitForFunction(() => !document.querySelector(".transition-frame"), { timeout: 60000 });
+    await page.waitForFunction(() => !document.querySelector(".transition-overlay:not([hidden])") && (() => { const o = document.querySelector(".transition-overlay"); return !o || o.style.display === "none"; })(), { timeout: 60000 });
     const brandPanel = await page.evaluate(() => ({
       open: document.querySelector(".cfg-panel").classList.contains("open"),
       active: document.querySelector(".cfg-tab.active")?.dataset.cfgScene,
@@ -64,7 +64,7 @@ if (OUT) fs.mkdirSync(OUT, { recursive: true });
     // 4. Настройки интро не пострадали от правки фоновой сцены.
     await page.evaluate(() => document.querySelector('.cfg-tab[data-cfg-scene="waiting"]').click());
     await page.waitForFunction(() => window.__logo.activeScene.id === "waiting", { timeout: 120000 });
-    await page.waitForFunction(() => !document.querySelector(".transition-frame"), { timeout: 60000 });
+    await page.waitForFunction(() => !document.querySelector(".transition-overlay:not([hidden])") && (() => { const o = document.querySelector(".transition-overlay"); return !o || o.style.display === "none"; })(), { timeout: 60000 });
     const isolation = await page.evaluate(() => ({
       introScale: window.__logo.cfg.logo.scale,
       introStored: JSON.parse(localStorage.getItem("circle-anim-settings-v2:waiting") || "null"),
@@ -109,7 +109,7 @@ if (OUT) fs.mkdirSync(OUT, { recursive: true });
     // 8. Сброс возвращает умолчания сцены, а не чужой сцены.
     await page.evaluate(() => document.querySelector('.cfg-tab[data-cfg-scene="brand"]').click());
     await page.waitForFunction(() => window.__logo.activeScene.id === "brand", { timeout: 120000 });
-    await page.waitForFunction(() => !document.querySelector(".transition-frame"), { timeout: 60000 });
+    await page.waitForFunction(() => !document.querySelector(".transition-overlay:not([hidden])") && (() => { const o = document.querySelector(".transition-overlay"); return !o || o.style.display === "none"; })(), { timeout: 60000 });
     await page.evaluate(() => document.querySelector('[data-act="reset"]').click());
     const reset = await page.evaluate(() => ({
       scale: window.__logo.cfg.logo.scale,

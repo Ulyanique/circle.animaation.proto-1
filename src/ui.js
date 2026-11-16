@@ -4,6 +4,7 @@ import {
 import {
   saveSceneSnapshot, loadSceneSnapshot, hasSceneSnapshot, encodeConfigShareHash,
 } from "./scene-snapshots.js";
+import { FRAME_SECTIONS, frameSummary, probeDeliveries } from "./output-settings.js";
 
 /** Игнорировать глобальные хоткеи, когда фокус в интерактивном поле или кнопке. */
 export function isInteractiveTarget(target) {
@@ -38,6 +39,8 @@ export function createSettingsUI({
   onPauseToggle,
   onToast,
   onExportVideo,
+  getFrameSettings,
+  onFrameSetting,
 }) {
   // ─── кнопка ───
   const btn = document.createElement("button");
@@ -86,6 +89,21 @@ export function createSettingsUI({
       </div>
     </div>
     <div class="cfg-body"></div>
+    <section class="cfg-frame" aria-label="Кадр и запись">
+      <h3 class="cfg-frame-head">Кадр и запись<span class="cfg-frame-summary" data-role="frame-summary"></span></h3>
+      <p class="cfg-io-hint">Общие для всех сцен: разрешение мастер-кадра, качество просмотра и кодек файла. Нижний пульт отвечает только за ролики и время.</p>
+      <div class="cfg-frame-rows">
+        ${FRAME_SECTIONS.map((section) => `
+        <label class="cfg-row">
+          <span class="cfg-name">${section.label}</span>
+          <span class="cfg-ctl">
+            <select data-frame="${section.id}" aria-label="${section.label}">
+              ${section.options.map((option) => `<option value="${option.value}">${option.label}</option>`).join("")}
+            </select>
+          </span>
+        </label>`).join("")}
+      </div>
+    </section>
   `;
   document.body.appendChild(panel);
 
@@ -96,6 +114,9 @@ export function createSettingsUI({
   const ta = panel.querySelector(".cfg-textarea");
   const pauseBtn = panel.querySelector('[data-act="pause"]');
   const sceneName = panel.querySelector(".cfg-scene-name");
+  const frameSummaryEl = panel.querySelector('[data-role="frame-summary"]');
+  const frameSelects = [...panel.querySelectorAll("[data-frame]")];
+  let probeKey = "", probeToken = 0;
   const inputs = []; // { set } для синхронизации значений
   let editing = getSceneId();
   let ioMode = "export";
@@ -315,12 +336,55 @@ export function createSettingsUI({
       tab.setAttribute("aria-pressed", String(active));
     }
     inputs.forEach((i) => i.set());
+    syncFrame();
     pauseBtn.classList.toggle("on", !!cfg().playback.paused);
     for (const slot of ["A", "B"]) {
       const btnLoad = panel.querySelector(`[data-slot-load="${slot}"]`);
       if (btnLoad) btnLoad.disabled = !hasSceneSnapshot(editing, slot);
     }
   }
+
+
+  /**
+   * Кадр и запись: значения приходят снаружи (они не часть сцены), поэтому
+   * селекты не пишут в конфиг, а просят применить значение и показывают
+   * фактическое состояние — если браузер откажет, подпись не соврёт.
+   */
+  function syncFrame() {
+    const frame = getFrameSettings?.();
+    if (!frame) return;
+    for (const select of frameSelects) {
+      select.value = frame[select.dataset.frame] ?? "";
+    }
+    frameSummaryEl.textContent = frameSummary(frame);
+    // Проверку кодеков делаем один раз на разрешение: она тянет кодировщик.
+    if (frame.master !== probeKey) {
+      const key = frame.master;
+      probeKey = key;
+      const token = ++probeToken;
+      probeDeliveries(key).then((results) => {
+        if (!results || token !== probeToken) return;
+        for (const option of panel.querySelector(`[data-frame="delivery"]`).options) {
+          const row = results[option.value];
+          if (!row) continue;
+          // Подпись кодека не должна «перескакивать»: восстанавливаем из каталога
+          // исходный текст и добавляем пометку только когда кодек недоступен.
+          const base = FRAME_SECTIONS.find((s) => s.id === "delivery")
+            ?.options.find((o) => o.value === option.value)?.label ?? option.textContent;
+          option.textContent = row.ok ? base : `${base} · недоступно`;
+          option.title = row.ok ? "" : (row.reason || "кодировщик недоступен в этом браузере");
+        }
+      });
+    }
+  }
+  panel.addEventListener("change", (event) => {
+    if (!(event.target instanceof HTMLSelectElement) || !event.target.dataset.frame) return;
+    const applied = onFrameSetting?.(event.target.dataset.frame, event.target.value);
+    if (applied === false) {
+      onToast?.("Во время записи или перехода этот параметр менять нельзя", true);
+    }
+    syncFrame();
+  });
 
   /** Полная перестройка: смена сцены или применённый JSON. */
   function rebuild() {

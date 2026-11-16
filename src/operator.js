@@ -1,11 +1,8 @@
 import { OUTPUT, RECORDING_CHAIN } from "./scenes/catalog.js";
-import { MASTER_PRESETS, masterPreset } from "./output-profile.js";
-import { QUALITY_PRESETS } from "./quality-presets.js";
 import { CHAIN_CANDIDATES } from "./recording-chain.js";
-import { videoBitrateFor } from "./video-math.js";
-import { DELIVERY_CHOICES } from "./delivery-catalog.js";
 import { beatDuration, beatInBar, beatEvents, nearestBeat } from "./beat-grid.js";
 import { isInteractiveTarget } from "./ui.js";
+import { timelinePhases, timelineCursorPct, phaseTimeLabel, phaseTicks } from "./operator-timeline.js";
 
 /** Не реагировать на обычную перемотку; автопереход только при пересечении шва воспроизведением. */
 export function crossedBoundary(before, after, delay, cycle) {
@@ -13,14 +10,21 @@ export function crossedBoundary(before, after, delay, cycle) {
     Math.floor((after - delay) / cycle) > Math.floor((Math.max(before, delay) - delay) / cycle);
 }
 
-/** Единый пульт для всех готовых видов. В кадр и MP4 не входит. */
-export function createOperatorControls({ getState, seek, setDuration, togglePause, switchScene, setMaster, setQuality,
-  setDelivery, setChain, record, recordChain }) {
+/**
+ * Единый пульт для всех готовых видов. В кадр и MP4 не входит.
+ *
+ * Пульт отвечает только за ролики и время: выбор сцены, перемотка, границы
+ * входа и выхода, запись. Разрешение, качество превью и кодек переехали в
+ * общие настройки (кнопка ⚙) — это технические параметры кадра, а не часть
+ * монтажа, и в пульте они занимали всю вторую строку.
+ */
+export function createOperatorControls({ getState, seek, setDuration, setBoundary, togglePause, switchScene,
+  record, recordChain, setChain }) {
   const panel = document.createElement("section");
   panel.className = "operator-panel";
   panel.setAttribute("aria-label", "Пульт заставок");
   panel.innerHTML = `
-    <div class="operator-row">
+    <div class="operator-row operator-head">
       <span class="operator-label">РОЛИКИ</span>
       <nav class="operator-scenes" aria-label="Выбор ролика">
         <button type="button" data-scene="waiting" title="Интро — открытие вечера">01 <small>Интро</small></button>
@@ -33,31 +37,28 @@ export function createOperatorControls({ getState, seek, setDuration, togglePaus
       <button type="button" data-action="auto" aria-pressed="false" title="Автоматическая цепочка 01 → 02 → 08 → 09">Авто: выкл.</button>
       <button type="button" data-action="pin" aria-pressed="false" title="Не скрывать пульт">◇</button>
     </div>
+    <div class="operator-timeline">
+      <div class="operator-phases" data-role="phases" aria-hidden="true"></div>
+      <div class="operator-track">
+        <div class="operator-phase-band" data-role="band" aria-hidden="true"></div>
+        <div class="operator-cursor" data-role="cursor" aria-hidden="true"></div>
+        <input type="range" data-action="seek" min="0" step="0.0166666667" aria-label="Перемотка текущего ролика">
+        <button type="button" class="operator-grip operator-grip-entry" data-edge="entry"
+          role="slider" aria-label="Граница входа" title="Потяните, чтобы сдвинуть конец входа"></button>
+        <button type="button" class="operator-grip operator-grip-exit" data-edge="exit"
+          role="slider" aria-label="Граница выхода" title="Потяните, чтобы сдвинуть начало выхода"></button>
+      </div>
+      <div class="operator-marks" data-role="marks"></div>
+    </div>
     <div class="operator-row operator-transport">
       <button type="button" data-action="play" title="Пауза или воспроизведение">Ⅱ</button>
       <button type="button" data-action="prev" title="Назад на кадр">−1</button>
-      <input type="range" data-action="seek" min="0" step="0.0166666667" aria-label="Перемотка текущего ролика">
       <button type="button" data-action="next" title="Вперёд на кадр">+1</button>
       <output data-role="time" aria-live="off"></output>
       <output data-role="beat" class="operator-beat" aria-live="off" title="Сетка такта: доля и такт"></output>
-      <label class="operator-duration">Цикл <input type="number" data-action="duration" min="1" max="300" step="0.1" aria-label="Длительность цикла в секундах"> с</label>
-      <label class="operator-master">Мастер
-        <select data-action="master" aria-label="Разрешение мастер-кадра">
-          ${Object.values(MASTER_PRESETS).map((preset) => `<option value="${preset.id}">${preset.label}</option>`).join("")}
-        </select>
-      </label>
-      <label class="operator-master">Качество
-        <select data-action="quality" aria-label="Пресет качества кадра">
-          ${Object.values(QUALITY_PRESETS).map((preset) => `<option value="${preset.id}" title="${preset.description}">${preset.label}</option>`).join("")}
-        </select>
-      </label>
-      <label class="operator-master">Файл
-        <select data-action="delivery" aria-label="Кодек и глубина цвета записи">
-          ${DELIVERY_CHOICES.map((option) => `<option value="${option.id}" title="${option.description}">${option.label}</option>`).join("")}
-        </select>
-      </label>
-      <button type="button" data-action="record" title="Записать один цикл текущей заставки">● Цикл</button>
-      <button type="button" data-action="record-chain" title="Записать выбранную цепочку сцен с переходами одним файлом">● Вся цепочка</button>
+      <label class="operator-duration" title="Длительность полного цикла ролика">Цикл <input type="number" data-action="duration" min="1" max="300" step="0.1" aria-label="Длительность цикла в секундах"> с</label>
+      <button type="button" data-action="record" title="Записать один цикл текущего ролика">● Ролик</button>
+      <button type="button" data-action="record-chain" title="Записать выбранную цепочку сцен с переходами одним файлом">● Все ролики</button>
       <details class="operator-chain-picker">
         <summary title="Выбрать состав сцен для автопоказа и записи цепочки">Состав</summary>
         <div class="operator-chain-menu" role="group" aria-label="Сцены в цепочке">
@@ -67,49 +68,20 @@ export function createOperatorControls({ getState, seek, setDuration, togglePaus
     </div>`;
   document.body.appendChild(panel);
   const range = panel.querySelector('[data-action="seek"]');
+  const phasesEl = panel.querySelector('[data-role="phases"]');
+  const bandEl = panel.querySelector('[data-role="band"]');
+  const cursorEl = panel.querySelector('[data-role="cursor"]');
+  const marksEl = panel.querySelector('[data-role="marks"]');
+  const trackEl = panel.querySelector(".operator-track");
+  const grips = [...panel.querySelectorAll(".operator-grip")];
   const duration = panel.querySelector('[data-action="duration"]');
-  const masterSelect = panel.querySelector('[data-action="master"]');
-  const qualitySelect = panel.querySelector('[data-action="quality"]');
-  const deliverySelect = panel.querySelector('[data-action="delivery"]');
   const autoButton = panel.querySelector('[data-action="auto"]');
   const pinButton = panel.querySelector('[data-action="pin"]');
+  const beatEl = panel.querySelector('[data-role="beat"]');
+  const timeEl = panel.querySelector('[data-role="time"]');
   let auto = false, pinned = false, dragging = false, editing = false;
-  let probeToken = 0, lastProbedMaster = null;
+  let grabbing = null; // { edge, pointerId } — тянем границу фазы
 
-  let probeScheduled = 0;
-  /** Запуск проверки кодеков в простое; повторный вызов перезаписывает задачу. */
-  function scheduleDeliveryProbe(masterKey) {
-    if (masterKey === lastProbedMaster) return;
-    lastProbedMaster = masterKey;   // фиксируем сразу, чтобы не планировать дважды
-    clearTimeout(probeScheduled);
-    const idle = window.requestIdleCallback || ((fn) => setTimeout(fn, 1200));
-    probeScheduled = idle(() => { refreshDeliveryProbe(masterKey); }, { timeout: 4000 });
-  }
-
-  /**
-   * Подсветить в селекторе «Файл», какие варианты доставки браузер реально
-   * кодирует в текущем разрешении. delivery.js тянет mediabunny, поэтому
-   * подгружается по требованию, когда пульт действительно отрисован.
-   */
-  async function refreshDeliveryProbe(masterKey) {
-    const token = ++probeToken;
-    const size = masterPreset(masterKey);
-    try {
-      const { DELIVERY_OPTIONS, probeAllDeliveries } = await import("./delivery.js");
-      const results = await probeAllDeliveries({
-        width: size.width, height: size.height,
-        bitrate: videoBitrateFor(size.width, size.height), fps: OUTPUT.fps,
-      });
-      if (token !== probeToken) return;
-      for (const optionEl of deliverySelect.options) {
-        const option = DELIVERY_OPTIONS[optionEl.value];
-        const status = results[optionEl.value];
-        if (!option || !status) continue;
-        optionEl.textContent = status.ok ? option.label : `${option.label} · недоступно`;
-        optionEl.title = status.ok ? option.description : `${option.description}\nПричина: ${status.reason}`;
-      }
-    } catch (_) { /* в окружении без WebCodecs оставляем исходные подписи */ }
-  }
   let idleTimer;
   function awaken() {
     document.body.classList.remove("operator-idle");
@@ -128,19 +100,84 @@ export function createOperatorControls({ getState, seek, setDuration, togglePaus
     if (event.target.closest("button, input[type=range]")) event.target.blur();
   });
   awaken();
+
   function localTime(state) {
     const elapsed = state.time - state.config.timeline.startDelay;
     return elapsed < 0 ? 0 : ((elapsed % state.cycle) + state.cycle) % state.cycle;
   }
+
+  // Ключ последней нарисованной полосы: пересобирать разметку фаз каждый кадр
+  // (60 раз в секунду) незачем — она меняется только со сменой ролика или
+  // длительностей цикла.
+  let phasesKey = "";
+  /**
+   * Полоса фаз: вход / удержание / выход с метками времени. Ширины берутся из
+   * конфига таймлайна, то есть полоса всегда совпадает с тем, что играет сцена.
+   */
+  function renderPhases(timeline) {
+    const phases = timelinePhases(timeline);
+    const key = phases.map((p) => `${p.key}:${p.startPct.toFixed(2)}:${p.endPct.toFixed(2)}`).join("|");
+    if (key === phasesKey) return;
+    phasesKey = key;
+    if (!phases.length) {
+      phasesEl.replaceChildren();
+      marksEl.replaceChildren();
+      bandEl.style.background = "none";
+      return;
+    }
+    // Фон полосы: каждая фаза своей заливкой, чтобы границы читались без подписей.
+    const stops = [];
+    for (const phase of phases) {
+      const tint = phase.key === "entry" ? "rgba(217,176,97,.16)"
+        : phase.key === "hold" ? "rgba(217,176,97,.07)" : "rgba(122,86,48,.12)";
+      stops.push(`${tint} ${phase.startPct}%`, `${tint} ${phase.endPct}%`);
+    }
+    bandEl.style.background = `linear-gradient(90deg, ${stops.join(", ")})`;
+    // Метки над полосой: имя фазы и время её начала.
+    phasesEl.replaceChildren(...phases.map((phase) => {
+      const cell = document.createElement("span");
+      cell.className = `operator-phase operator-phase-${phase.key}`;
+      cell.style.left = `${phase.startPct}%`;
+      cell.style.width = `${phase.widthPct}%`;
+      cell.dataset.phase = phase.key;
+      cell.innerHTML = `<b>${phase.label}</b><i>${phaseTimeLabel(phase.start)}</i>`;
+      cell.title = `${phase.label}: ${phaseTimeLabel(phase.start)} — ${phaseTimeLabel(phase.end)}`;
+      return cell;
+    }));
+    // Засечки внутренних стадий: где кончается прорисовка и начинается уход.
+    marksEl.replaceChildren();
+    for (const phase of phases) {
+      for (const tick of phaseTicks(phase)) {
+        const total = phases[phases.length - 1].end;
+        const mark = document.createElement("span");
+        mark.className = "operator-mark";
+        mark.style.left = `${tick / total * 100}%`;
+        mark.title = `${phase.label}: ${phaseTimeLabel(tick)}`;
+        marksEl.appendChild(mark);
+      }
+    }
+    // Ручки границ: конец входа и начало выхода.
+    const entry = phases.find((p) => p.key === "entry");
+    const exit = phases.find((p) => p.key === "exit");
+    for (const grip of grips) {
+      const phase = grip.dataset.edge === "entry" ? entry : exit;
+      if (!phase) continue;
+      grip.style.left = `${grip.dataset.edge === "entry" ? phase.endPct : phase.startPct}%`;
+      grip.title = `${phase.label}: ${grip.dataset.edge === "entry" ? phaseTimeLabel(phase.end) : phaseTimeLabel(phase.start)} — потяните, чтобы сдвинуть границу`;
+    }
+  }
+
   function refresh() {
     const state = getState();
     const max = Math.max(0, state.cycle - 1 / OUTPUT.fps);
     range.max = String(max);
     const local = localTime(state);
     if (!dragging) range.value = String(Math.min(local, max));
-    panel.querySelector('[data-role="time"]').textContent = `${local.toFixed(2)} / ${state.cycle.toFixed(2)} с`;
+    renderPhases(state.config.timeline);
+    // Курсор ставится по той же сумме фаз, что и полоса, поэтому не съезжает.
+    cursorEl.style.left = `${timelineCursorPct(local, state.config.timeline)}%`;
+    timeEl.textContent = `${local.toFixed(2)} / ${state.cycle.toFixed(2)} с`;
     // Сетка такта: при 0 BPM подпись пустая, чтобы не занимать место.
-    const beatEl = panel.querySelector('[data-role="beat"]');
     const beat = beatDuration(state.config.timeline);
     if (beat > 0) {
       const index = nearestBeat(local, state.config.timeline) + 1;
@@ -161,22 +198,14 @@ export function createOperatorControls({ getState, seek, setDuration, togglePaus
       beatEl.hidden = true;
     }
     if (!editing) duration.value = state.cycle.toFixed(1);
-    masterSelect.value = state.master;
-    masterSelect.disabled = state.recording;
-    // Проверка кодеков тянет кодировщик (~527 КБ). Откладываем её до простоя,
-    // чтобы первый кадр заставки не ждал загрузку ради подписи в пульте.
-    scheduleDeliveryProbe(state.master);
-    qualitySelect.value = state.quality;
-    qualitySelect.disabled = state.recording;
-    deliverySelect.value = state.delivery;
-    deliverySelect.disabled = state.recording;
     panel.querySelector('[data-action="play"]').textContent = state.config.playback.paused ? "▶" : "Ⅱ";
     for (const button of panel.querySelectorAll("[data-scene]")) {
       if (button.dataset.scene === state.id) button.setAttribute("aria-current", "page");
       else button.removeAttribute("aria-current");
     }
     panel.classList.toggle("operator-busy", state.recording);
-    panel.querySelector('[data-action="record"]').textContent = state.recordingKind === "single" ? "◉ Запись…" : "● Цикл";
+    for (const grip of grips) grip.disabled = state.recording;
+    panel.querySelector('[data-action="record"]').textContent = state.recordingKind === "single" ? "◉ Ролик…" : "● Ролик";
     const activeChain = state.chain || RECORDING_CHAIN;
     const chainCodes = activeChain.map((id) => CHAIN_CANDIDATES.find((c) => c.id === id)?.code || id).join(" → ");
     for (const cb of panel.querySelectorAll("[data-chain-scene]")) {
@@ -184,10 +213,11 @@ export function createOperatorControls({ getState, seek, setDuration, togglePaus
       cb.disabled = state.recording || (cb.checked && activeChain.length <= 1);
     }
     const chainBtn = panel.querySelector('[data-action="record-chain"]');
-    chainBtn.textContent = state.recordingKind === "sequence" ? "◉ Цепочка…" : "● Вся цепочка";
+    chainBtn.textContent = state.recordingKind === "sequence" ? "◉ Все ролики…" : "● Все ролики";
     chainBtn.title = `Записать ${chainCodes} с переходами одним файлом`;
     autoButton.title = `Автоматическая цепочка ${chainCodes}`;
   }
+
   function jump(value) {
     const state = getState();
     if (state.recording) return;
@@ -195,12 +225,69 @@ export function createOperatorControls({ getState, seek, setDuration, togglePaus
     seek(state.config.timeline.startDelay + Math.min(max, Math.max(0, value)));
     refresh();
   }
-  range.addEventListener("pointerdown", () => { dragging = true; });
+
+  /**
+   * Тянуть границу фазы. Секунды берутся из положения указателя по ширине
+   * дорожки: 100 % — полный цикл. Метка идёт за пальцем, а не «прыгает» к
+   * ближайшему шагу, потому что границы задаются в секундах с точностью до
+   * кадра.
+   */
+  function grab(edge, event) {
+    if (getState().recording) return;
+    const box = trackEl.getBoundingClientRect();
+    if (box.width <= 0) return;
+    const total = Math.max(0.001, getState().cycle);
+    const seconds = Math.min(total, Math.max(0, (event.clientX - box.left) / box.width * total));
+    if (setBoundary?.(edge, seconds) === false) return;
+    refresh();
+  }
+  for (const grip of grips) {
+    grip.addEventListener("pointerdown", (event) => {
+      if (getState().recording) return;
+      event.preventDefault();
+      event.stopPropagation();
+      grabbing = { edge: grip.dataset.edge, pointerId: event.pointerId };
+      grip.classList.add("drag");
+      // Захват указателя — удобство (тянуть за краем ручки), а не условие:
+      // без активного указателя браузер бросает исключение, и это не ошибка.
+      try { grip.setPointerCapture?.(event.pointerId); } catch (_) { /* нет захвата — тянем как есть */ }
+      grab(grabbing.edge, event);
+    });
+    grip.addEventListener("pointermove", (event) => {
+      if (!grabbing || grabbing.pointerId !== event.pointerId) return;
+      event.preventDefault();
+      grab(grabbing.edge, event);
+    });
+    const release = (event) => {
+      if (!grabbing || grabbing.pointerId !== event.pointerId) return;
+      grabbing = null;
+      grip.classList.remove("drag");
+      try { grip.releasePointerCapture?.(event.pointerId); } catch (_) { /* захвата не было */ }
+    };
+    grip.addEventListener("pointerup", release);
+    grip.addEventListener("pointercancel", release);
+    // Клавиатура: шаг одной камерой (1/60 с) и 0.5 с с Shift.
+    grip.addEventListener("keydown", (event) => {
+      const state = getState();
+      if (state.recording) return;
+      const edge = grip.dataset.edge;
+      const current = edge === "entry"
+        ? state.config.timeline.drawDuration + state.config.timeline.emergeDuration
+        : state.cycle - (state.config.timeline.fadeDuration + state.config.timeline.restDuration);
+      const step = event.shiftKey ? 0.5 : 1 / OUTPUT.fps;
+      if (event.code === "ArrowLeft" || event.code === "ArrowRight") {
+        event.preventDefault();
+        const sign = event.code === "ArrowRight" ? 1 : -1;
+        if (setBoundary?.(edge, current + sign * step) !== false) refresh();
+      }
+    });
+  }
+
+  panel.addEventListener("pointerdown", (event) => {
+    if (event.target === range) dragging = true;
+  });
   window.addEventListener("pointerup", () => { dragging = false; });
   range.addEventListener("input", () => jump(Number(range.value)));
-  masterSelect.addEventListener("change", () => { if (!setMaster(masterSelect.value)) refresh(); });
-  qualitySelect.addEventListener("change", () => { if (!setQuality(qualitySelect.value)) refresh(); });
-  deliverySelect.addEventListener("change", () => { if (!setDelivery(deliverySelect.value)) refresh(); });
   panel.addEventListener("change", (event) => {
     if (!(event.target instanceof HTMLInputElement) || !event.target.dataset.chainScene) return;
     if (getState().recording) { refresh(); return; }

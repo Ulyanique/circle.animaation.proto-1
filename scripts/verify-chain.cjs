@@ -13,7 +13,7 @@ const { launchBrowser } = require("./browser.cjs");
     await page.waitForFunction(() => document.body.classList.contains("boot-ready"), { timeout: 240000 });
     console.log('Цепочка: загрузка завершена, проверяем переключение…');
     await page.evaluate(() => window.__logo.switchScene("brand"));
-    await page.waitForFunction(() => !document.querySelector(".transition-frame"), { timeout: 60000 });
+    await page.waitForFunction(() => !document.querySelector(".transition-overlay:not([hidden])") && (() => { const o = document.querySelector(".transition-overlay"); return !o || o.style.display === "none"; })(), { timeout: 60000 });
     console.log('Цепочка: задаём сокращённые тестовые циклы и запускаем MP4…');
     const requested = await page.evaluate(() => {
       const L = window.__logo;

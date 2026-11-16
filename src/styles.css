@@ -61,7 +61,7 @@ body.operator-idle:not(.ui-on) .cfg-toggle { opacity: .55; }
   transform: translateX(-50%); width: min(1220px, calc(100vw - 32px));
   border: 1px solid rgba(217,176,97,.30); border-radius: 14px;
   background: rgba(8,7,6,.91); backdrop-filter: blur(16px);
-  box-shadow: 0 16px 50px rgba(0,0,0,.55); padding: 10px 15px;
+  box-shadow: 0 16px 50px rgba(0,0,0,.55); padding: 9px 14px 10px;
   color: #e9dcc0; font: 12px/1.4 "Inter", system-ui, sans-serif;
   transition: opacity .25s ease;
 }
@@ -79,6 +79,86 @@ body.operator-idle:not(.ui-on) .cfg-toggle { opacity: .55; }
 }
 .operator-scenes small { font-size: 10px; opacity: .7; margin-left: 4px; }
 .operator-transport input[type="range"] { flex: 1; min-width: 60px; accent-color: #d9b061; cursor: pointer; }
+/* Таймлайн снизу: полоса фаз с метками входа, удержания и выхода.
+   Раньше перемотка была одной строкой с кнопками, и по ней нельзя было понять,
+   где кончается вход и сколько длится удержание. */
+.operator-timeline { margin-top: 8px; }
+.operator-phases { position: relative; height: 15px; }
+.operator-phase {
+  position: absolute; top: 0; height: 15px; overflow: hidden;
+  border-left: 1px solid rgba(217,176,97,.5);
+  font: 10px/15px "Inter", system-ui, sans-serif; color: #dcbe8a;
+  letter-spacing: .12em; text-transform: uppercase; white-space: nowrap;
+}
+.operator-phase:first-child { border-left-color: transparent; }
+.operator-phase b { font-weight: 600; padding-left: 6px; }
+/* Время фазы — рядом с именем и глуше: важнее ритм, а не цифра. */
+.operator-phase i { font-style: normal; margin-left: 6px; color: #9d8258; font-variant-numeric: tabular-nums; }
+.operator-phase-entry { color: #ecd3a2; }
+.operator-phase-hold { color: #b79c72; }
+.operator-phase-exit { color: #a98a62; }
+.operator-track { position: relative; height: 20px; }
+/* Транспорт — одна спокойная строка под таймлайном. Крупных селекторов
+   разрешения и кодека здесь больше нет: они переехали в настройки. */
+.operator-transport { gap: 8px; margin-top: 7px; }
+.operator-transport [data-role="time"] { flex: 0 0 auto; }
+.operator-transport .operator-duration { margin-left: auto; }
+.operator-transport > .operator-chain-picker { margin-left: 4px; }
+.operator-phase-band {
+  position: absolute; inset: 6px 0; border-radius: 3px;
+  border: 1px solid rgba(217,176,97,.22); pointer-events: none;
+}
+.operator-track input[type="range"] {
+  position: absolute; inset: 0; width: 100%; margin: 0; background: transparent;
+  -webkit-appearance: none; appearance: none; cursor: pointer; accent-color: #d9b061;
+}
+.operator-track input[type="range"]::-webkit-slider-runnable-track { height: 20px; background: transparent; }
+.operator-track input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none; width: 3px; height: 20px; margin-top: 0;
+  border-radius: 2px; background: #ffe3a1; box-shadow: 0 0 8px rgba(255,214,140,.85);
+}
+.operator-track input[type="range"]::-moz-range-thumb {
+  width: 3px; height: 20px; border: 0; border-radius: 2px;
+  background: #ffe3a1; box-shadow: 0 0 8px rgba(255,214,140,.85);
+}
+.operator-track input[type="range"]::-moz-range-track { height: 20px; background: transparent; }
+/* Курсор — отдельная тонкая линия поверх полосы: она показывает положение
+   точнее, чем бегунок, и не мешает перетаскиванию. */
+.operator-cursor {
+  position: absolute; top: 3px; width: 1px; height: 14px; margin-left: -.5px;
+  background: rgba(255,236,190,.9); box-shadow: 0 0 6px rgba(255,214,140,.6);
+  pointer-events: none;
+}
+/* Ручки границ: вход кончается там, где начинается удержание, выход — где
+   начинается уход. Раньше границу можно было менять только в редакторе, хотя
+   это монтажное решение — ему место на пульте. */
+.operator-grip {
+  position: absolute; top: -3px; width: 11px; height: 26px; margin-left: -5.5px;
+  padding: 0; border: 0; border-radius: 3px; background: transparent; cursor: ew-resize;
+  z-index: 3;
+}
+.operator-grip::before {
+  content: ""; position: absolute; inset: 4px 4px; border-radius: 2px;
+  background: rgba(255,227,161,.55); box-shadow: 0 0 7px rgba(255,214,140,.5);
+  transition: background .15s ease, inset .15s ease;
+}
+.operator-grip:hover::before, .operator-grip:focus-visible::before, .operator-grip.drag::before {
+  inset: 1px 3px; background: #ffe3a1; box-shadow: 0 0 10px rgba(255,214,140,.9);
+}
+.operator-grip:focus-visible { outline: none; }
+.operator-grip:disabled { display: none; }
+/* Линия от ручки к полосе: видно, к какой фазе она относится. */
+.operator-grip::after {
+  content: ""; position: absolute; left: 5px; top: 0; width: 1px; height: 26px;
+  background: rgba(255,227,161,.25);
+}
+
+.operator-marks { position: relative; height: 7px; }
+.operator-mark {
+  position: absolute; top: 0; width: 1px; height: 6px; margin-left: -.5px;
+  background: rgba(217,176,97,.55);
+}
+
 .operator-transport output { min-width: 98px; text-align: center; font-variant-numeric: tabular-nums; color: #ffe3a1; }
 /* Сетка такта: подпись уже и глуше, чтобы не спорить с таймкодом. */
 .operator-beat { min-width: 0 !important; color: #c9a97a !important; font-size: 12px; opacity: .85; }
@@ -91,6 +171,7 @@ body.operator-idle:not(.ui-on) .cfg-toggle { opacity: .55; }
 .operator-duration input { width: 65px; padding: 5px; border: 1px solid rgba(217,176,97,.36); border-radius: 4px;
   background: #110e0a; color: #ffe3a1; font: inherit; font-variant-numeric: tabular-nums; }
 .operator-busy .operator-scenes, .operator-busy .operator-transport input,
+.operator-busy .operator-timeline input,
 .operator-busy .operator-transport .operator-duration,
 .operator-busy [data-action="record"], .operator-busy [data-action="record-chain"] { opacity: .4; pointer-events: none; }
 /* Переход предпросмотра: рисуется тем же кодом, что и в экспорте, и лежит
@@ -105,6 +186,9 @@ body.operator-idle:not(.ui-on) .cfg-toggle { opacity: .55; }
   .operator-scenes { flex-wrap: wrap; }
   .operator-scenes small { display: none; }
   .operator-transport output { min-width: 80px; }
+  /* На узком экране подписи фаз не влезают целиком: оставляем только имя. */
+  .operator-phase i { display: none; }
+  .operator-phase b { padding-left: 4px; }
 }
 
 /* Необязательная режиссёрская панель; не входит в 1920×1080 WebGL-кадр. */
@@ -278,6 +362,27 @@ body.operator-idle:not(.ui-on) .cfg-toggle { opacity: .55; }
   padding: 4px 8px 12px;
   scrollbar-width: thin;
   scrollbar-color: rgba(217, 176, 97, 0.3) transparent;
+}
+
+/* Кадр и запись: общие для всех сцен параметры, вынесенные из пульта вверх
+   в настройки. Блок стоит первым, потому что это первое, что настраивают
+   перед записью. */
+.cfg-frame { padding: 10px 12px 12px; border-bottom: 1px solid rgba(217,176,97,.16); flex: 0 0 auto; }
+.cfg-frame-head {
+  margin: 0 0 4px; font-size: 11px; font-weight: 600; letter-spacing: .15em;
+  text-transform: uppercase; color: var(--gold, #d9b061);
+  display: flex; align-items: baseline; justify-content: space-between; gap: 10px;
+}
+.cfg-frame-summary {
+  font-size: 10px; letter-spacing: .04em; text-transform: none; color: var(--muted, #8d8578);
+  font-variant-numeric: tabular-nums; white-space: nowrap;
+}
+.cfg-frame .cfg-io-hint { margin: 0 0 6px; }
+.cfg-frame-rows { display: grid; gap: 6px; }
+.cfg-frame-rows .cfg-row { padding: 2px 0; }
+.cfg-frame-rows select {
+  padding: 5px 7px; border: 1px solid rgba(217,176,97,.36); border-radius: 5px;
+  background: #110e0a; color: #ffe3a1; font: inherit; cursor: pointer; max-width: 190px;
 }
 
 .cfg-sec { border-bottom: 1px solid rgba(217, 176, 97, 0.08); }
@@ -1134,6 +1239,7 @@ body.editor-on .operator-transport [data-role="time"] { display: none; }
 .editor-timing-fields [data-effect-curve-row][hidden] { display: none; }
 /* Пульт и верхние команды остаются функциональными, но не конкурируют с кадром. */
 body.editor-on .operator-panel { background: rgba(20,20,20,.96); border-color: #444; color: #ddd; }
+body.editor-on .operator-grip { display: none; }
 body.editor-on .operator-panel :is(.operator-label, .operator-duration) { color: #aaa; }
 body.editor-on .operator-panel button, body.editor-on .operator-duration input { background: #292929; border-color: #505050; color: #eee; }
 body.editor-on .operator-panel button:is(:hover, :focus-visible, [aria-current="page"], [aria-pressed="true"]) { background: #454545; border-color: #aaa; color: #fff; }
@@ -1153,6 +1259,12 @@ body.editor-on .operator-panel .operator-row { flex: 0 0 auto; flex-wrap: nowrap
 body.editor-on .operator-panel .operator-row:first-child { flex: 1 0 auto; }
 body.editor-on .operator-panel .operator-row + .operator-row { margin: 0; padding: 0; border: 0; }
 body.editor-on .operator-panel .operator-scenes { flex: 0 0 auto; }
+/* В редакторе пульт — одна строка высотой 44 px: фазы и засечки туда не
+   влезают, поэтому остаётся только сама дорожка перемотки. */
+body.editor-on .operator-panel .operator-timeline { flex: 1 0 160px; min-width: 140px; margin: 0; }
+body.editor-on .operator-panel .operator-phases,
+body.editor-on .operator-panel .operator-marks { display: none; }
+body.editor-on .operator-panel .operator-track { height: 18px; }
 body.editor-on .operator-panel button { padding: 5px 8px; }
 body.editor-on .operator-panel :focus-visible { outline: 2px solid white; outline-offset: -2px; }
 @media (min-width: 781px) {

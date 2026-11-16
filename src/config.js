@@ -34,6 +34,7 @@ export const SCHEMA = [
     ]},
     {key:"frameVisible",label:"Показывать рамку",type:"bool"},
     {key:"curtainVisible",label:"Показывать занавес",type:"bool"},
+    {key:"curtainWidth",label:"Занавес: ширина, px",type:"range",min:320,max:760,step:4},
     {key:"motion",label:"Движение декора при удержании",type:"range",min:0,max:1,step:.01},
   ] },
   { id: "intro", title: "Последовательность интро", fields: [

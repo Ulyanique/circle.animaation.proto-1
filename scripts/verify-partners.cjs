@@ -21,9 +21,10 @@ const {launchBrowser} = require('./browser.cjs');
     return {hash:[...new Uint8Array(await crypto.subtle.digest('SHA-256',data))].join(','),nonBlack,t};}
    const initial=await sample(0),hold=await sample(8);const early=await sample(1);const repeat=await sample(8),end=await sample(L.runtime.cycle-1/60);
    const earlyAgain=await sample(1);const holdOtherBuffer=await sample(8);
-   // Проверяем саму верхнюю часть левого борта: сравнение с выключенной
-   // рамкой ловит незамкнутый dash, даже когда остальная рамка видима.
-   const framePixels=()=>{const c=L.compositeFrameAt(8);return c.getContext('2d').getImageData(49,100,12,100).data;};
+   // Правый борт рамки: сравнение с выключенной рамкой ловит незамкнутый dash,
+   // даже когда остальная рамка видима. Левый борт теперь перекрыт занавесом
+   // (это передний план по замыслу), поэтому мерить надо там, где он не висит.
+   const framePixels=()=>{const c=L.compositeFrameAt(8);return c.getContext('2d').getImageData(1859,100,12,100).data;};
    L.cfg.partners.frameVisible=true;const frameOn=framePixels();
    L.cfg.partners.frameVisible=false;const frameOff=framePixels();L.cfg.partners.frameVisible=true;
    let frameChanged=0;for(let i=0;i<frameOn.length;i+=4)if(Math.abs(frameOn[i]-frameOff[i])+Math.abs(frameOn[i+1]-frameOff[i+1])+Math.abs(frameOn[i+2]-frameOff[i+2])>12)frameChanged++;

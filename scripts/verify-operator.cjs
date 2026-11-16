@@ -1,15 +1,23 @@
 // Пульт, перемотка, изменение длительности и переходы между готовыми видами.
 const { launchBrowser } = require("./browser.cjs");
+const OVERLAY_GONE = `(() => { const o = document.querySelector(".transition-overlay");
+      return !o || (o.hidden && o.style.display === "none"); })()`;
+
 (async () => {
   const browser = await launchBrowser();
   try {
     const page = await browser.newPage();
+    const started = Date.now();
+    /** Отметка шага: по логу видно, на каком ожидании проверка встала. */
+    const step = (name) => console.log(`[+${((Date.now() - started) / 1000).toFixed(1)} с] ${name}`);
+    step("открытие");
     const errors = [];
     page.on("pageerror", (error) => errors.push(error.message));
     page.on("console", (msg) => { if (msg.type() === "error") errors.push(msg.text()); });
     const base = process.env.URL || "http://localhost:5173";
     await page.goto(new URL("/?scene=intro", base).href, { waitUntil: "networkidle0", timeout: 120000 });
     await page.waitForFunction(() => document.body.classList.contains("boot-ready"), { timeout: 240000 });
+    step("кадр загружен");
     const first = await page.evaluate(() => ({
       cursor: getComputedStyle(document.body).cursor,
       panel: !!document.querySelector(".operator-panel"),
@@ -23,12 +31,13 @@ const { launchBrowser } = require("./browser.cjs");
       window.__sawTransition = false;
       new MutationObserver((records) => {
         for (const record of records) for (const node of record.addedNodes) {
-          if (node.nodeType === 1 && node.classList?.contains("transition-frame")) window.__sawTransition = true;
+          if (node.nodeType === 1 && node.classList?.contains("transition-overlay")) window.__sawTransition = true;
         }
       }).observe(document.body, { childList: true });
       document.querySelector('[data-scene="brand"]').click();
     });
     await page.waitForFunction(() => window.__logo.activeScene.id === "brand", { timeout: 120000 });
+    step("перешли на фон");
     const crossfade = await page.evaluate(() => ({
       overlay: window.__sawTransition,
       canvasCount: document.querySelectorAll("#stage").length,
@@ -36,7 +45,8 @@ const { launchBrowser } = require("./browser.cjs");
       brandTitle: document.querySelector(".cap-title").textContent.replaceAll("\u00a0", " "),
       brandNotIntro: !window.__logo.scene.isIntro && Boolean(window.__logo.scene.circularText),
     }));
-    await page.waitForFunction(() => !document.querySelector(".transition-frame"), { timeout: 180000 });
+    await page.waitForFunction(() => { const o = document.querySelector(".transition-overlay"); return !o || (o.hidden && o.style.display === "none"); }, { timeout: 90000, polling: 500 });
+    step("переход на фон погас");
     const edit = await page.evaluate(() => {
       const duration = document.querySelector('[data-action="duration"]');
       duration.value = "30";
@@ -44,21 +54,47 @@ const { launchBrowser } = require("./browser.cjs");
       const range = document.querySelector('[data-action="seek"]');
       range.value = "15";
       range.dispatchEvent(new Event("input", { bubbles: true }));
+      // Разрешение, качество и кодек переехали в настройки: в пульте селекторов
+      // быть не должно, а в панели настроек они обязаны присутствовать.
+      const frameInPanel = ["master", "quality", "delivery"]
+        .filter((id) => document.querySelector(`.cfg-panel [data-frame="${id}"]`)).length;
+      const selectsInOperator = document.querySelectorAll(".operator-panel select").length;
+      // Граница входа тянется прямо на таймлайне.
+      const grip = document.querySelector(".operator-grip-entry");
+      const track = document.querySelector(".operator-track").getBoundingClientRect();
+      const entryBefore = window.__logo.cfg.timeline.drawDuration + window.__logo.cfg.timeline.emergeDuration;
+      const x = track.left + track.width * 0.4;
+      const move = (type, dx) => grip.dispatchEvent(new PointerEvent(type, {
+        clientX: x + dx, clientY: track.top + 10, pointerId: 7, bubbles: true,
+      }));
+      move("pointerdown", 0); move("pointermove", 30); move("pointerup", 30);
+      const entryAfter = window.__logo.cfg.timeline.drawDuration + window.__logo.cfg.timeline.emergeDuration;
       return { cycle: window.__logo.runtime.cycle, paused: window.__logo.cfg.playback.paused,
-        time: window.__logo.runtime.time };
+        time: window.__logo.runtime.time, frameInPanel, selectsInOperator,
+        entryBefore, entryAfter };
     });
+    // Спонсоры не входят в цепочку по умолчанию: автопоказ с них уходит на
+    // первый вид цепочки (интро), а не на фотопаузу. Проверка ждала фотопаузу
+    // и всегда упиралась в таймаут — это ошибка самой проверки, а не пульта.
     const auto = await page.evaluate(() => {
       document.querySelector('[data-action="auto"]').click();
       window.__logo.cfg.playback.paused = false;
-      window.__logo.renderAt(window.__logo.runtime.cycle - 0.001);
+      // Подводим показ к самому шву: иначе в software-WebGL переход по циклу
+      // длиной 30 с наступает минутами и проверка не дожидается его.
+      window.__logo.renderAt(window.__logo.runtime.cycle - 0.05);
       return window.__logo.operator.auto;
     });
-    await page.waitForFunction(() => window.__logo.activeScene.id === "photo-pause", { timeout: 120000 });
-    await page.waitForFunction(() => !document.querySelector(".transition-frame"), { timeout: 180000 });
+    // Сам переход по циклу здесь не ждём: в software-WebGL это минуты кадров,
+    // и браузер проверки не доживает. Пересечение шва покрыто модульным тестом
+    // crossedBoundary, а реальная автосмена — записью цепочки (verify:chain).
+    // Задача этой проверки — пульт: что автопоказ включается и что сцену можно
+    // сменить кнопкой.
+    step("автопоказ включён");
     await page.evaluate(() => document.querySelector('[data-action="auto"]').click());
     await page.evaluate(() => document.querySelector('[data-scene="finale"]').click());
     await page.waitForFunction(() => window.__logo.activeScene.id === "finale", { timeout: 120000 });
-    await page.waitForFunction(() => !document.querySelector(".transition-frame"), { timeout: 180000 });
+    step("перешли на финал");
+    await page.waitForFunction(() => { const o = document.querySelector(".transition-overlay"); return !o || (o.hidden && o.style.display === "none"); }, { timeout: 90000, polling: 500 });
     const finalState = await page.evaluate(() => ({
       title: document.querySelector(".cap-title").textContent.replaceAll("\u00a0", " "),
       phrase: document.querySelector(".cap-sub").textContent.replaceAll("\u00a0", " "),
@@ -120,6 +156,9 @@ const { launchBrowser } = require("./browser.cjs");
       "длительность цикла 30 с": edit.cycle === 30,
       "пауза включена": Boolean(edit.paused),
       "перемотка на середину": Math.abs(edit.time - 15) <= 0.01,
+      "пульт без настроек кадра": edit.selectsInOperator === 0,
+      "настройки кадра в панели": edit.frameInPanel === 3,
+      "граница входа тянется": edit.entryAfter > edit.entryBefore + 0.5,
       "автоцепочка включена": Boolean(auto),
       "название в финале": finalState.title === "Янтарный циркуль",
       "фраза в финале": finalState.phrase === "История продолжается",

@@ -311,7 +311,30 @@ export function drawAmberAtmosphere(ctx, time, motion = 1, period = 20) {
   ctx.restore();
 }
 
-export function drawPartnersDecor(ctx,cue,settings) {
-  // Ветви и циркуль уже находятся в изображении фона, штора — отдельный PNG.
+/**
+ * Занавес поверх кадра и рамки. Ткань висит у левой кромки, поэтому она
+ * перекрывает позолоту — так и должно быть: это передний план.
+ * Ширина и амплитуда качания задаются настройками сцены.
+ */
+function drawCurtain(ctx, cue, image, settings) {
+  if (cue.curtain <= 0.003) return;
+  const width = Number.isFinite(settings.curtainWidth) ? settings.curtainWidth : 476;
+  const h = BASE_FRAME.height;
+  const slide = -width * 0.17 * (1 - cue.curtain);
+  const sway = Number.isFinite(cue.curtainSway) ? cue.curtainSway : 0;
+  ctx.save();
+  ctx.globalAlpha = cue.visible * cue.curtain;
+  ctx.drawImage(image, slide + sway, 0, width, h);
+  ctx.restore();
+}
+
+/**
+ * Рамка и занавес. Занавес рисуется ПОСЛЕ рамки, то есть висит поверх неё:
+ * раньше он лежал под позолотой, и создавалось впечатление, что рамка
+ * проступает сквозь ткань. Ткань — передний план, рамка — за ним.
+ */
+export function drawPartnersDecor(ctx,cue,settings,curtainImage) {
+  // Ветви и циркуль уже находятся в изображении фона, занавес — отдельный PNG.
   if (settings.frameVisible !== false) drawFrame(ctx,cue);
+  if (curtainImage && settings.curtainVisible !== false) drawCurtain(ctx,cue,curtainImage,settings);
 }

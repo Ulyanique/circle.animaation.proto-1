@@ -26,6 +26,7 @@ import { OUTPUT, sceneById } from "./scenes/catalog.js";
 import { loadRecordingChain, saveRecordingChain, chainBaseFilename } from "./recording-chain.js";
 import { decodeConfigShareHash } from "./scene-snapshots.js";
 import { createOperatorControls, crossedBoundary } from "./operator.js";
+import { movePhaseBoundary } from "./editor-timeline.js";
 import { loadQuality, saveQuality } from "./quality-presets.js";
 import { loadDelivery, saveDelivery } from "./delivery-light.js";
 import { photoShutterSamples, shutterTimes } from "./photo-shutter.js";
@@ -215,6 +216,13 @@ const settings = createSettingsUI({
   },
   onToast: toast,
   onExportVideo: () => startRecording(),
+  getFrameSettings: () => ({ master: masterId(), quality: scene.quality, delivery }),
+  onFrameSetting: (id, value) => {
+    if (id === "master") return applyMaster(value);
+    if (id === "quality") return applyQuality(value);
+    if (id === "delivery") return applyDelivery(value);
+    return false;
+  },
 });
 
 window.addEventListener("resize", () => { layoutEditorPreview(canvas, document.getElementById("caption")); applyTypography(true); });
@@ -238,6 +246,17 @@ const operator = createOperatorControls({
     recording: !!recording, recordingKind: recording?.kind, master: masterId(), quality: scene.quality,
     delivery, chain: activeChain }),
   seek: (value) => { cfg.playback.paused = true; runtime.renderAt(value, 1 / OUTPUT.fps); },
+  setBoundary: (edge, seconds) => {
+    const minHold = sceneId === "waiting" ? 1 : 4;
+    const next = movePhaseBoundary(cfg.timeline, edge, seconds, minHold);
+    if (!next) return false;
+    Object.assign(cfg.timeline, next);
+    saveScene();
+    settings.refresh();
+    // Кадр пересобирается сразу: граница — монтажное решение, его надо видеть.
+    runtime.renderAt(runtime.time, 1 / OUTPUT.fps);
+    return true;
+  },
   setDuration: (value) => {
     const tl = cfg.timeline;
     const other = runtime.cycle - tl.holdDuration;
@@ -455,6 +474,27 @@ function switchScene(id, source) {
 }
 
 /**
+ * Качество просмотра. Влияет только на сглаживание и дизеринг кадра, поэтому
+ * запрещено лишь на время записи и перехода — иначе кадр в файле разъедется.
+ */
+function applyQuality(id) {
+  if (recording || transition) return false;
+  scene.setQuality(id);
+  saveQuality(scene.quality);
+  runtime.renderAt(runtime.time, 1 / OUTPUT.fps);
+  return true;
+}
+
+/** Кодек и глубина записи: решение человека, оно влияет на совместимость файла. */
+function applyDelivery(id) {
+  if (recording || transition) return false;
+  if (delivery === id) return true;
+  if (!saveDelivery(id)) return false;
+  delivery = id;
+  return true;
+}
+
+/**
  * Переключение мастер-разрешения. Композиция задана в долях кадра, поэтому
  * меняется только пиксельная сетка: рендерер, композитор, титры и экспорт.
  */
@@ -465,7 +505,6 @@ function applyMaster(id) {
   scene.resize();
   applyTypography(true);
   runtime.renderAt(runtime.time, 1 / OUTPUT.fps);
-  operator.refresh();
   return true;
 }
 
