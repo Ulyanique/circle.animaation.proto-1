@@ -337,9 +337,10 @@ export class LogoScene {
     const sideEnv = introCornerEnvelopes(env, directedMotion);
     const cpos = this.corners.update(t, cfg, this.halfW, this.halfH, env, focus, sideEnv);
     const cinematic = cfg.logo.cinematic === true;
+    const backgroundCinematic = cfg.background.cinematicLight ?? cinematic;
     // Приглушаем только декоративные засветки, не меняя геометрию окружностей,
     // пользовательские настройки или свет, падающий на металл.
-    if (cinematic) for (const sprite of Object.values(this.corners.sprites)) sprite.material.opacity *= 0.38;
+    if (backgroundCinematic) for (const sprite of Object.values(this.corners.sprites)) sprite.material.opacity *= 0.38;
     if (this.introStyle || this.hideCenterRing) this.corners.centerRing.visible = false;
     const effectPhase = computePhase(t, cfg.timeline);
     applyEffectOrder(cfg, this);
@@ -348,19 +349,19 @@ export class LogoScene {
     for (const cloud of Object.values(this.particleClouds)) cloud.update(t, effectPhase, cfg);
     for (const glow of Object.values(this.backgroundGlows)) glow.update(t, effectPhase, cfg);
     this.solarBokeh.update(t, sequence ? { ...ph, rings: env } : ph, cfg, cpos, focus);
-    if (cinematic) for (const disc of this.solarBokeh.discs) disc.uniforms.uOpacity.value *= 0.45;
+    if (backgroundCinematic) for (const disc of this.solarBokeh.discs) disc.uniforms.uOpacity.value *= 0.45;
     this.plotter.update(ph, cfg, (sequence || finale?.active) ? root.position.y : cfg.logo.offsetY, root.position.x);
     const tilt = THREE.MathUtils.degToRad(cfg.rings.tilt);
     this.particles.update(t, cfg, this.halfW, this.halfH, this.pixelRatio, this.viewportH, this.fovRad, cpos, cfg.rings.radius, tilt, cornerEnv);
     if (directedMotion && this.particles.right) {
       this.particles.right.material.uniforms.uBright.value *= env > 1e-6 ? sideEnv.right / env : 0;
     }
-    if (cinematic) for (const points of [this.particles.left, this.particles.right, this.particles.dust]) {
+    if (backgroundCinematic) for (const points of [this.particles.left, this.particles.right, this.particles.dust]) {
       if (points) points.material.uniforms.uBright.value *= 0.42;
     }
     this.background.update(t, cfg);
-    this.background.uniforms.uEnvL.value = cornerEnv * (cinematic ? 0.42 : 1) * (ringSideVisible(cfg.rings, "left") ? 1 : 0);
-    this.background.uniforms.uEnvR.value = sideEnv.right * (1 - 0.44 * focus) * (cinematic ? 0.42 : 1) * (ringSideVisible(cfg.rings, "right") ? 1 : 0);
+    this.background.uniforms.uEnvL.value = cornerEnv * (backgroundCinematic ? 0.42 : 1) * (ringSideVisible(cfg.rings, "left") ? 1 : 0);
+    this.background.uniforms.uEnvR.value = sideEnv.right * (1 - 0.44 * focus) * (backgroundCinematic ? 0.42 : 1) * (ringSideVisible(cfg.rings, "right") ? 1 : 0);
     updateUpperRays(this.background, ph, cfg, this.introStyle, opening.beams, t);
     // На удержании фон остаётся живым, но перестаёт спорить с названием.
     this.background.uniforms.uShimmer.value *= 1 - 0.32 * focus;

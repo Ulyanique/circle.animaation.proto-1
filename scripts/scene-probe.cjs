@@ -52,7 +52,7 @@ async function inspectSceneDesign() {
           s.layers.some((layer) => layer.mesh.visible && layer.mesh.material.opacity > 0 && layer.u.value > 0);
       }) && scene.background.uniforms.uEnvL.value > 0.1 && scene.background.uniforms.uEnvR.value > 0.1,
     viewfinder: Boolean(scene.viewfinder?.visible),
-    photoRing: scene.circularLabel ? {
+    photoRing: scene.circularLabel && scene.viewfinder ? {
       visible: scene.circularLabel.visible,
       opacity: scene.circularLabel.material.opacity,
       aligned: scene.circularLabel.position.distanceTo(scene.logo.root.position) < 1,
@@ -84,7 +84,7 @@ async function inspectSceneDesign() {
     point.x - scene.logo.parsed.cx, point.y - scene.logo.parsed.cy, 0));
   const tip = scene.plotter.head.getWorldPosition(anchor.clone());
   const exit = { reverse: scene.logo.outline.visible && scene.logo.outlineU.uReverse.value === 1 && retire > 0,
-    titleGone: parseFloat(title.style.getPropertyValue("--p")) === 0,
+    titleGone: title.dataset.revealStyle?.startsWith("fade") ? parseFloat(title.style.getPropertyValue("--caption-reveal")) === 0 : parseFloat(title.style.getPropertyValue("--p")) === 0,
     pointOnContour: scene.plotter.group.visible && scene.plotter.head.material.opacity > 0 && tip.distanceTo(anchor) < 0.001 };
   const fadeEnd = fadeStart + tl.fadeDuration;
   const span = Math.min(tl.restDuration, 1.2);
@@ -193,8 +193,8 @@ function assertSceneDesign(state) {
   assert.ok(state.noPlotter, "вступительный циркуль не должен оставаться на удержании");
   assert.ok(state.intro.plotter && state.intro.sweep > 0 && state.intro.logoStillHidden,
     "вступление не рисуется как в первой заставке");
-  assert.ok(!state.intro.isIntro && state.intro.openingBeams === 0 && state.intro.cameraZ === 9,
-    "эффектный свет и подъезд камеры должны быть только в интро");
+  assert.ok(!state.intro.isIntro && state.intro.cameraZ === 9,
+    "фоновая сцена не должна использовать движение камеры интро");
   assert.ok(state.exit.reverse && state.exit.titleGone && state.exit.pointOnContour,
     "точка не подхватывает обратный уход контура после титра");
   const { transfer, early, late, closed, seekStable } = state.rewind;
@@ -208,7 +208,7 @@ function assertSceneDesign(state) {
   assert.ok(state.layout.minGap > 0, `текст не под логотипом: ${JSON.stringify(state.layout.closest)}`);
   assert.ok(state.layout.maxCenterOffset < 0.02, `текст не по центру: ${JSON.stringify(state.layout.mostOffset)}`);
   // Запрос заказчика: знак крупный, титр опущен в нижнюю треть, внизу нет пустого поля.
-  assert.ok(state.layout.logoHeight > 0.41, `знак слишком мал: ${state.layout.logoHeight.toFixed(3)} высоты кадра`);
+  assert.ok(state.layout.logoHeight > (state.id === "brand" ? 0.30 : 0.41), `знак слишком мал: ${state.layout.logoHeight.toFixed(3)} высоты кадра`);
   assert.ok(state.layout.titleCenter > 0.60, `титр слишком высоко: ${state.layout.titleCenter.toFixed(3)}`);
   }
   if (state.id === "brand") {

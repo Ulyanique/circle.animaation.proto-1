@@ -139,12 +139,15 @@ test("описание сцены копируется для настроек, 
 test("каждая сцена получает полный независимый конфиг со своей композицией", () => {
   const cfg = cloneDefaults(BRAND_DEFAULTS);
   for (const key of ["background", "colors", "rings", "particles", "lights", "sparks"]) {
-    assert.deepEqual(cfg[key], key === "background" ? {...WAITING_DEFAULTS[key], fabricTexture: 0} : WAITING_DEFAULTS[key], key);
+    assert.deepEqual(cfg[key], WAITING_DEFAULTS[key], key);
     assert.notEqual(cfg[key], WAITING_DEFAULTS[key], key);
   }
-  // Фирменная сцена сохраняет размер и теперь центрирована.
-  assert.equal(cfg.logo.scale, 0.58);
-  assert.equal(cfg.logo.offsetY, 0);
+  // Сцена 02 использует композицию и материалы интро, сохраняя круг.
+  assert.equal(cfg.logo.scale, 0.47);
+  assert.equal(cfg.logo.offsetY, 0.62);
+  assert.equal(cfg.caption.titleY, 0.10);
+  assert.equal(cfg.caption.titleVisible, true);
+  assert.equal(cfg.decor.present, true);
   assert.equal(WAITING_DEFAULTS.logo.scale, 0.47);
   cfg.rings.radius = 123;
   assert.notEqual(WAITING_DEFAULTS.rings.radius, 123);

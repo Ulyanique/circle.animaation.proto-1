@@ -7,9 +7,10 @@ import { PHOTO_PAUSE_DEFAULTS } from '../src/scenes/photo-pause.js';
 import { FINALE_DEFAULTS } from '../src/scenes/finale.js';
 import { SCHEMA, parseConfigJSON, configToJSON } from '../src/config.js';
 
-test('металлический титр по умолчанию только в интро и доступен в JSON', () => {
+test('металлический титр по умолчанию в интро и фоне и доступен в JSON', () => {
   assert.equal(WAITING_DEFAULTS.caption.titleMetallic, true);
-  for (const cfg of [BRAND_DEFAULTS, PHOTO_PAUSE_DEFAULTS, FINALE_DEFAULTS]) assert.equal(cfg.caption.titleMetallic, false);
+  assert.equal(BRAND_DEFAULTS.caption.titleMetallic, true);
+  for (const cfg of [PHOTO_PAUSE_DEFAULTS, FINALE_DEFAULTS]) assert.equal(cfg.caption.titleMetallic, false);
   assert.ok(SCHEMA.find(s => s.id === 'caption').fields.some(f => f.key === 'titleMetallic' && f.type === 'bool'));
   const cfg = parseConfigJSON('{"caption":{"titleMetallic":false,"titleColor":"#123456"}}', WAITING_DEFAULTS);
   assert.equal(parseConfigJSON(configToJSON(cfg), WAITING_DEFAULTS).caption.titleMetallic, false);
