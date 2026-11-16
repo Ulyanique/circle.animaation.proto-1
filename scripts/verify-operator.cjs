@@ -7,7 +7,8 @@ const { launchBrowser } = require("./browser.cjs");
     const errors = [];
     page.on("pageerror", (error) => errors.push(error.message));
     page.on("console", (msg) => { if (msg.type() === "error") errors.push(msg.text()); });
-    await page.goto("http://localhost:5173/?scene=intro", { waitUntil: "networkidle0", timeout: 120000 });
+    const base = process.env.URL || "http://localhost:5173";
+    await page.goto(new URL("/?scene=intro", base).href, { waitUntil: "networkidle0", timeout: 120000 });
     await page.waitForFunction(() => document.body.classList.contains("boot-ready"), { timeout: 240000 });
     const first = await page.evaluate(() => ({
       cursor: getComputedStyle(document.body).cursor,

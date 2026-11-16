@@ -18,7 +18,8 @@ import { PartnersScene, loadPartnersBackground, preloadPartnerCustomLogos } from
 import { FinaleScene } from "./finale-scene.js";
 import { createSettingsUI } from "./ui.js";
 import { AnimationRuntime, cycleDuration } from "./runtime.js";
-import { encodeOfflineVideo, frameCount, estimateVideoBytes, videoBitrateFor } from "./offline-video.js";
+import { frameCount, estimateVideoBytes, videoBitrateFor } from "./video-math.js";
+import { deliveryOption as deliveryOptionLight } from "./delivery-light.js";
 import { masterSize, masterId, setMasterPreset, loadMasterPreset } from "./output-profile.js";
 import { transitionDuration, drawOutgoingFrame } from "./scene-transition.js";
 import { OUTPUT, sceneById } from "./scenes/catalog.js";
@@ -26,7 +27,7 @@ import { loadRecordingChain, saveRecordingChain, chainBaseFilename } from "./rec
 import { decodeConfigShareHash } from "./scene-snapshots.js";
 import { createOperatorControls, crossedBoundary } from "./operator.js";
 import { loadQuality, saveQuality } from "./quality-presets.js";
-import { loadDelivery, saveDelivery, deliveryOption, deliveryBitrate, deliveryFilename } from "./delivery.js";
+import { loadDelivery, saveDelivery } from "./delivery-light.js";
 import { photoShutterSamples, shutterTimes } from "./photo-shutter.js";
 import { createFrameEditor } from "./editor.js";
 import { layoutEditorPreview } from "./editor-layout.js";
@@ -460,7 +461,7 @@ function startOfflineRecording(kind, download) {
       const timeline = configFor(id).timeline;
       return sum + frameCount(cycleDuration(timeline), timeline.speed, OUTPUT.fps);
     }, 0);
-    const bitrate = deliveryBitrate(delivery, videoBitrateFor(REC_W, REC_H));
+    const bitrate = deliveryOptionLight(delivery).bitrateScale * videoBitrateFor(REC_W, REC_H);
     estimatedMiB = Math.ceil(estimateVideoBytes(frames, OUTPUT.fps, bitrate) / 1024 ** 2);
   } catch (error) { toast(`Ошибка экспорта: ${error.message}`, true); return false; }
   if (download && estimatedMiB >= 256 && !confirm(`Ориентировочный размер MP4 — ${estimatedMiB} МиБ. Видео собирается в памяти браузера; потребуется больше памяти, а итоговый размер может отличаться. Продолжить?`)) return false;
@@ -506,6 +507,7 @@ async function runOfflineRecording(job, overlay, download) {
     if (!ctx) throw new Error("Не удалось создать кадр для экспорта");
     let blurCanvas = null, blurCtx = null;
     let segmentIndex = -1, segmentStart = 0;
+    const { encodeOfflineVideo } = await import("./offline-video.js");
     const result = await encodeOfflineVideo({canvas:videoCanvas, fps:OUTPUT.fps, total,
       bitrate:videoBitrateFor(REC_W, REC_H), delivery:option.id,
       cancelled:() => job.cancelled,

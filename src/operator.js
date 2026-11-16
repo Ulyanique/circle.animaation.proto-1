@@ -1,9 +1,9 @@
 import { OUTPUT, RECORDING_CHAIN } from "./scenes/catalog.js";
 import { MASTER_PRESETS, masterPreset } from "./output-profile.js";
 import { QUALITY_PRESETS } from "./quality-presets.js";
-import { DELIVERY_OPTIONS, probeAllDeliveries } from "./delivery.js";
 import { CHAIN_CANDIDATES } from "./recording-chain.js";
-import { videoBitrateFor } from "./offline-video.js";
+import { videoBitrateFor } from "./video-math.js";
+import { DELIVERY_CHOICES } from "./delivery-catalog.js";
 import { beatDuration, beatInBar, beatEvents, nearestBeat } from "./beat-grid.js";
 import { isInteractiveTarget } from "./ui.js";
 
@@ -53,7 +53,7 @@ export function createOperatorControls({ getState, seek, setDuration, togglePaus
       </label>
       <label class="operator-master">Файл
         <select data-action="delivery" aria-label="Кодек и глубина цвета записи">
-          ${Object.values(DELIVERY_OPTIONS).map((option) => `<option value="${option.id}" title="${option.description}">${option.label}</option>`).join("")}
+          ${DELIVERY_CHOICES.map((option) => `<option value="${option.id}" title="${option.description}">${option.label}</option>`).join("")}
         </select>
       </label>
       <button type="button" data-action="record" title="Записать один цикл текущей заставки">● Цикл</button>
@@ -76,13 +76,26 @@ export function createOperatorControls({ getState, seek, setDuration, togglePaus
   let auto = false, pinned = false, dragging = false, editing = false;
   let probeToken = 0, lastProbedMaster = null;
 
-  /** Подсветить в селекторе «Файл», какие варианты доставки браузер реально кодирует в текущем разрешении. */
-  async function refreshDeliveryProbe(masterKey) {
+  let probeScheduled = 0;
+  /** Запуск проверки кодеков в простое; повторный вызов перезаписывает задачу. */
+  function scheduleDeliveryProbe(masterKey) {
     if (masterKey === lastProbedMaster) return;
-    lastProbedMaster = masterKey;
+    lastProbedMaster = masterKey;   // фиксируем сразу, чтобы не планировать дважды
+    clearTimeout(probeScheduled);
+    const idle = window.requestIdleCallback || ((fn) => setTimeout(fn, 1200));
+    probeScheduled = idle(() => { refreshDeliveryProbe(masterKey); }, { timeout: 4000 });
+  }
+
+  /**
+   * Подсветить в селекторе «Файл», какие варианты доставки браузер реально
+   * кодирует в текущем разрешении. delivery.js тянет mediabunny, поэтому
+   * подгружается по требованию, когда пульт действительно отрисован.
+   */
+  async function refreshDeliveryProbe(masterKey) {
     const token = ++probeToken;
     const size = masterPreset(masterKey);
     try {
+      const { DELIVERY_OPTIONS, probeAllDeliveries } = await import("./delivery.js");
       const results = await probeAllDeliveries({
         width: size.width, height: size.height,
         bitrate: videoBitrateFor(size.width, size.height), fps: OUTPUT.fps,
@@ -150,7 +163,9 @@ export function createOperatorControls({ getState, seek, setDuration, togglePaus
     if (!editing) duration.value = state.cycle.toFixed(1);
     masterSelect.value = state.master;
     masterSelect.disabled = state.recording;
-    refreshDeliveryProbe(state.master);
+    // Проверка кодеков тянет кодировщик (~527 КБ). Откладываем её до простоя,
+    // чтобы первый кадр заставки не ждал загрузку ради подписи в пульте.
+    scheduleDeliveryProbe(state.master);
     qualitySelect.value = state.quality;
     qualitySelect.disabled = state.recording;
     deliverySelect.value = state.delivery;
