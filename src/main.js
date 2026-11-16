@@ -31,7 +31,6 @@ import { movePhaseBoundary } from "./editor-timeline.js";
 import { loadQuality, saveQuality } from "./quality-presets.js";
 import { loadDelivery, saveDelivery } from "./delivery-light.js";
 import { photoShutterSamples, shutterTimes } from "./photo-shutter.js";
-import { createFrameEditor } from "./editor.js";
 import { layoutEditorPreview } from "./editor-layout.js";
 
 // Профиль мастера читаем до создания сцены: рендерер сразу получает нужный размер.
@@ -308,30 +307,43 @@ const operator = createOperatorControls({
   recordChain: () => startSequenceRecording(),
 });
 
-editor = createFrameEditor({
-  getState: () => ({ id: sceneId, time: runtime.time, scene, canvas, config: cfg, defaults: activeScene.defaults }),
-  onEnable: () => {
-    if (sceneId === "partners") { toast("Имена в этой сцене меняются в настройках; визуальный редактор слоёв здесь пока недоступен.", true); return false; }
-    if (recording || transition) { toast("Во время записи или перехода редактирование недоступно", true); return false; }
-    cfg.playback.paused = true;
-    const tl = cfg.timeline;
-    // Показываем собранную композицию, чтобы элементы можно было взять мышью.
-    runtime.renderAt(tl.startDelay + tl.drawDuration + tl.emergeDuration + tl.holdDuration / 2);
-    saveScene(); settings.refresh(); operator.refresh();
-    return true;
-  },
-  onChange: () => { applyTypography(); saveScene(); settings.refresh(); },
-  onSeek: (time) => {
-    if (recording || transition) return;
-    const wasPaused = cfg.playback.paused;
-    cfg.playback.paused = true; runtime.renderAt(time, 1 / OUTPUT.fps);
-    if (!wasPaused) saveScene();
-    settings.refresh(); operator.refresh();
-  },
-  onLayoutChange: (kind) => { layoutEditorPreview(canvas, document.getElementById("caption")); if (kind !== "pan") applyTypography(true); },
-  onSettings: (section) => settings.openSection(section),
-  onHistoryConflict: () => toast("Настройка изменилась вне редактора; история сцены очищена", true),
-});
+// Редактор не нужен первому кадру: его модуль раньше разбирался вместе с
+// main.js и задерживал старт заставки. Теперь чанк editor.js приходит после
+// первого кадра, а все точки обращения до готовности терпят отсутствие
+// редактора через editor?.; editorReady() ждёт чанк явно (технический API).
+let editorPromise = null;
+function editorReady() {
+  if (!editorPromise) {
+    editorPromise = import("./editor.js").then(({ createFrameEditor }) => {
+      editor = createFrameEditor({
+        getState: () => ({ id: sceneId, time: runtime.time, scene, canvas, config: cfg, defaults: activeScene.defaults }),
+        onEnable: () => {
+          if (sceneId === "partners") { toast("Имена в этой сцене меняются в настройках; визуальный редактор слоёв здесь пока недоступен.", true); return false; }
+          if (recording || transition) { toast("Во время записи или перехода редактирование недоступно", true); return false; }
+          cfg.playback.paused = true;
+          const tl = cfg.timeline;
+          // Показываем собранную композицию, чтобы элементы можно было взять мышью.
+          runtime.renderAt(tl.startDelay + tl.drawDuration + tl.emergeDuration + tl.holdDuration / 2);
+          saveScene(); settings.refresh(); operator.refresh();
+          return true;
+        },
+        onChange: () => { applyTypography(); saveScene(); settings.refresh(); },
+        onSeek: (time) => {
+          if (recording || transition) return;
+          const wasPaused = cfg.playback.paused;
+          cfg.playback.paused = true; runtime.renderAt(time, 1 / OUTPUT.fps);
+          if (!wasPaused) saveScene();
+          settings.refresh(); operator.refresh();
+        },
+        onLayoutChange: (kind) => { layoutEditorPreview(canvas, document.getElementById("caption")); if (kind !== "pan") applyTypography(true); },
+        onSettings: (section) => settings.openSection(section),
+      onHistoryConflict: () => toast("Настройка изменилась вне редактора; история сцены очищена", true),
+      });
+      return editor;
+    });
+  }
+  return editorPromise;
+}
 
 // Размер мастер-кадра. Композитор титров и экспорт читают его же, а не OUTPUT.
 let REC_W = masterSize().width, REC_H = masterSize().height;
@@ -719,6 +731,8 @@ function frame(now) {
       applyTypography(true); scene.refreshTextTexture?.();
       if (!recording) runtime.renderAt(runtime.time, 1 / OUTPUT.fps);
       window.__bootReady?.();
+      // Панель редактора догружается после первого кадра, не задерживая старт.
+      editorReady();
       if (!partnersLoaded && sceneId === "partners") toast("Не все изображения спонсоров загрузились; возможны текстовые замены", true);
       if (!fabricLoaded) toast("Текстура камня не загрузилась; используется упрощённый фон", true);
       // Остальные шрифты подгружаем в простое, чтобы переключение в настройках было мгновенным.
@@ -748,7 +762,8 @@ window.__logo = {
   settings, // технический API тестов: изменить тайминги без смены художественных defaults
   switchScene,
   operator,
-  editor,
+  get editor() { return editor; },
+  editorReady,
   get activeScene() { return activeScene; },
   get runtime() { return runtime; },
   get cfg() { return cfg; },

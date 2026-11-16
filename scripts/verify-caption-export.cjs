@@ -101,6 +101,7 @@ const glyphs = (text) => [...segmenter.segment(text)].map(({ segment }) => segme
         const L = window.__logo;
         L.cfg.playback.paused = true;
         window.requestAnimationFrame = () => 0;
+        await L.editorReady();
         document.querySelector(".editor-toggle").click();
         const tl = L.cfg.timeline;
         const time = tl.startDelay + tl.drawDuration + tl.emergeDuration + tl.holdDuration * 0.55;
