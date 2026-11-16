@@ -58,7 +58,7 @@ body.scene-finale #caption .cap-sub {
   letter-spacing: var(--subtitle-tracking, .18em); padding-left: var(--subtitle-tracking, .18em);
 }
 /* Мышь видна всегда. Только элементы пульта исчезают после бездействия. */
-body, body.ui-on, body.review-on { cursor: auto; }
+body, body.ui-on { cursor: auto; }
 /* Настройки есть в каждой сцене. В простое кнопка приглушена, но кликабельна. */
 body.operator-idle:not(.ui-on) .operator-panel { opacity: 0; pointer-events: none; }
 body.operator-idle:not(.ui-on) .cfg-toggle { opacity: .55; }
@@ -198,31 +198,7 @@ body.operator-idle:not(.ui-on) .cfg-toggle { opacity: .55; }
   .operator-phase b { padding-left: 4px; }
 }
 
-/* Необязательная режиссёрская панель; не входит в 1920×1080 WebGL-кадр. */
-.review-panel {
-  position: fixed; z-index: 22; bottom: 18px; left: 50%;
-  transform: translateX(-50%); width: min(740px, calc(100vw - 36px));
-  padding: 13px 18px 11px; border: 1px solid rgba(217,176,97,.35);
-  border-radius: 14px; background: rgba(10,8,6,.92);
-  backdrop-filter: blur(18px); color: #e9dcc0;
-  box-shadow: 0 20px 60px rgba(0,0,0,.7);
-  font: 12px/1.4 "Inter", "Segoe UI", system-ui, sans-serif;
-}
-.review-panel[hidden] { display: none; }
-.review-header, .review-actions, .review-markers { display: flex; align-items: center; gap: 9px; }
-.review-header { justify-content: space-between; color: #d9b061; letter-spacing: .16em; font-size: 10px; }
-.review-panel button { background: transparent; color: #e9dcc0; border: 1px solid rgba(217,176,97,.27); border-radius: 6px; padding: 5px 9px; cursor: pointer; font: inherit; }
-.review-panel button:hover, .review-panel button:focus-visible { border-color: #d9b061; color: #ffe7a6; }
-.review-panel .review-close { font-size: 20px; border: 0; padding: 0 4px; line-height: 1; }
-.review-actions { margin: 10px 0; flex-wrap: wrap; }
-.review-time { margin-left: auto; color: #ffe7a6; font-variant-numeric: tabular-nums; }
-.review-range { width: 100%; accent-color: #d9b061; cursor: pointer; }
-.review-markers { flex-wrap: wrap; justify-content: space-between; margin-top: 7px; }
-.review-markers button { font-size: 11px; }
-.review-hint { margin: 10px 0 0; color: rgba(233,220,192,.55); font-size: 10px; }
-.review-busy .review-actions, .review-busy .review-range, .review-busy .review-markers { opacity: .45; pointer-events: none; }
-
-/* ── кнопка настроек ── */
+/* Необязательная режиссёрская панель; не входит в 1920×1080 WebGL-кадр. *//* ── кнопка настроек ── */
 .cfg-toggle {
   position: fixed;
   top: 18px;
@@ -1328,3 +1304,15 @@ body.editor-focus .editor-workspace-resize { display: none; }
 /* Отдельный макет спонсоров содержит собственные тексты в рендере. */
 body.scene-partners #caption { display: none; }
 body.scene-partners .editor-toggle { display: none; }
+
+/* Интерфейс уважает системный запрос на покой: служебные анимации и переходы
+   гаснут до мгновенной смены состояния. Движение самой сцены — содержательное
+   и управляется настройкой «Движение», поэтому его здесь не трогаем. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

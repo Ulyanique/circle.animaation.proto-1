@@ -595,13 +595,6 @@ export function saveSceneConfig(sceneId, cfg) {
   return saveSceneConfigDetailed(sceneId, cfg).ok;
 }
 
-export function resetSceneConfig(sceneId) {
-  try {
-    localStorage.removeItem(sceneStorageKey(sceneId));
-    if (sceneId === "waiting") localStorage.removeItem(LEGACY_KEY);
-  } catch (e) { /* noop */ }
-}
-
 /** Разбор присланного JSON одной сцены; неизвестные ключи игнорируются. */
 export function parseConfigJSON(text, defaults = DEFAULTS) {
   const data = JSON.parse(text);
