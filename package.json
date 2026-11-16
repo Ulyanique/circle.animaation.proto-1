@@ -41,6 +41,7 @@
     "verify:caption:fit": "node scripts/verify-caption-fit.cjs",
     "verify:typography": "node scripts/verify-typography.cjs",
     "verify:gradients": "node scripts/verify-gradients.cjs",
+    "verify:light-zones": "node scripts/verify-light-zones.cjs",
     "verify:beat": "node scripts/verify-beat-grid.cjs",
     "verify:custom-fonts": "node scripts/verify-custom-fonts.cjs",
     "verify:custom-opacity": "node scripts/verify-custom-opacity.cjs",
