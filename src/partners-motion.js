@@ -127,100 +127,154 @@ export function pairLayout({ center, leftWidth, rightWidth, container, gap }) {
   };
 }
 
-/**
- * Геометрия контура рамки в координатах базового кадра 1920×1080.
- * Лежит здесь, а не в partners-graphics.js, чтобы её можно было проверить
- * тестом: блик по контуру считается по той же длине, что и рисуется рамка.
- * @param {number} inset
- */
-export function framePathMetrics(inset = 0) {
-  const l = 54 + inset, r = 1866 - inset, t = 42 + inset, b = 1038 - inset, c = 38;
-  // Длины сегментов по обходу: верх, право, низ, лево. Дуги углов берём как
-  // четверть окружности радиуса c — ошибка на скруглении меньше полупикселя.
-  const arc = Math.PI * c / 2;
-  const top = (r - c) - (l + c);
-  const right = (b - c) - (t + c);
-  const bottom = (r - c) - (l + c);
-  const left = (b - c) - (t + c);
-  const total = top + right + bottom + left + 4 * arc;
-  return { l, r, t, b, c, arc, top, right, bottom, left, total };
+// --- Контур рамки -----------------------------------------------------------
+// Углы повторяют ИСХОДНУЮ форму кадра: линии и quadraticCurveTo с управляющей
+// точкой в вершине угла. Настоящая дуга радиуса 38 срезает угол заметно
+// сильнее (середина дуги отстоит от вершины на .29c, а квадратичная кривая —
+// на .5c), поэтому рамка «округлялась». Здесь форма сохранена побитово:
+// квадратичные кривые сэмплируются в ломаную, по ней же и рисуется обводка.
+const CORNER = 38;
+const CORNER_SAMPLES = 12;
+
+function cornerQuad(p0, control, p2, out) {
+  for (let i = 1; i <= CORNER_SAMPLES; i++) {
+    const t = i / CORNER_SAMPLES, u = 1 - t;
+    out.push({
+      x: u * u * p0.x + 2 * u * t * control.x + t * t * p2.x,
+      y: u * u * p0.y + 2 * u * t * control.y + t * t * p2.y,
+    });
+  }
 }
 
-/** Точка на контуре рамки по доле обхода 0…1. Обход по часовой стрелке от
- * левого верхнего скругления. Возвращает координаты и направление касательной
- * в градусах: по нему вытягивается блик — на горизонтальных сторонах он
- * горизонтален, на вертикальных вертикален, на дугах повёрнут.
+const contourCache = new Map();
+/** Ломаная по контуру рамки: точки, накопленная длина, периметр. */
+export function frameContour(inset = 0) {
+  const key = String(inset);
+  let cached = contourCache.get(key);
+  if (cached) return cached;
+  const l = 54 + inset, r = 1866 - inset, t = 42 + inset, b = 1038 - inset, c = CORNER;
+  // Обход по часовой стрелке от левого верхнего угла — как в исходном framePath.
+  const points = [];
+  points.push({ x: l + c, y: t });
+  points.push({ x: r - c, y: t });
+  cornerQuad({ x: r - c, y: t }, { x: r - c, y: t + c }, { x: r, y: t + c }, points);
+  points.push({ x: r, y: b - c });
+  cornerQuad({ x: r, y: b - c }, { x: r - c, y: b - c }, { x: r - c, y: b }, points);
+  points.push({ x: l + c, y: b });
+  cornerQuad({ x: l + c, y: b }, { x: l + c, y: b - c }, { x: l, y: b - c }, points);
+  points.push({ x: l, y: t + c });
+  cornerQuad({ x: l, y: t + c }, { x: l + c, y: t + c }, { x: l + c, y: t }, points);
+
+  const cum = [0];
+  for (let i = 1; i < points.length; i++) {
+    cum.push(cum[i - 1] + Math.hypot(points[i].x - points[i - 1].x, points[i].y - points[i - 1].y));
+  }
+  const total = cum[cum.length - 1];
+  cached = { points, cum, total, inset };
+  contourCache.set(key, cached);
+  return cached;
+}
+
+/** Периметр и длины сторон контура. */
+export function framePathMetrics(inset = 0) {
+  const { total, points } = frameContour(inset);
+  const l = 54 + inset, r = 1866 - inset, t = 42 + inset, b = 1038 - inset;
+  return { l, r, t, b, c: CORNER, total, pointCount: points.length };
+}
+
+/** Точка на контуре по доле обхода 0…1 и направление касательной в градусах.
  * @param {number} at @param {number} [inset] */
 export function framePathPoint(at, inset = 0) {
-  const m = framePathMetrics(inset);
-  const { l, r, t, b, c, arc } = m;
-  let d = ((Number.isFinite(at) ? at : 0) % 1 + 1) % 1 * m.total;
-  const step = (length, from, to, run) => {
-    if (d > length) { d -= length; return null; }
-    return run(d / Math.max(1e-6, length));
+  const { points, cum, total } = frameContour(inset);
+  const wrap = ((Number.isFinite(at) ? at : 0) % 1 + 1) % 1;
+  const target = wrap * total;
+  // Двоичный поиск по накопленной длине.
+  let lo = 0, hi = cum.length - 1;
+  while (lo < hi - 1) {
+    const mid = (lo + hi) >> 1;
+    if (cum[mid] <= target) lo = mid; else hi = mid;
+  }
+  const a = points[lo], b = points[Math.min(points.length - 1, lo + 1)];
+  const span = cum[lo + 1] - cum[lo];
+  const u = span > 1e-9 ? (target - cum[lo]) / span : 0;
+  return {
+    x: a.x + (b.x - a.x) * u,
+    y: a.y + (b.y - a.y) * u,
+    angle: Math.atan2(b.y - a.y, b.x - a.x) * 180 / Math.PI,
   };
+}
 
-  // Верхняя дуга: от левого скругления к началу верхней прямой.
-  let p = step(arc, 0, 1, u => {
-    const a = Math.PI + u * Math.PI / 2;
-    return { x: l + c + Math.cos(a) * c, y: t + c + Math.sin(a) * c, angle: -u * 90 };
-  });
-  if (p) return p;
-  p = step(m.top, 0, 1, u => ({ x: l + c + m.top * u, y: t, angle: 0 }));
-  if (p) return p;
-  // Правый верхний угол.
-  p = step(arc, 0, 1, u => {
-    const a = -Math.PI / 2 + u * Math.PI / 2;
-    return { x: r - c + Math.cos(a) * c, y: t + c + Math.sin(a) * c, angle: 90 + u * 90 };
-  });
-  if (p) return p;
-  p = step(m.right, 0, 1, u => ({ x: r, y: t + c + m.right * u, angle: 90 }));
-  if (p) return p;
-  p = step(arc, 0, 1, u => {
-    const a = u * Math.PI / 2;
-    return { x: r - c + Math.cos(a) * c, y: b - c + Math.sin(a) * c, angle: 180 + u * 90 };
-  });
-  if (p) return p;
-  p = step(m.bottom, 0, 1, u => ({ x: r - c - m.bottom * u, y: b, angle: 180 }));
-  if (p) return p;
-  p = step(arc, 0, 1, u => {
-    const a = Math.PI / 2 + u * Math.PI / 2;
-    return { x: l + c + Math.cos(a) * c, y: b - c + Math.sin(a) * c, angle: 270 + u * 90 };
-  });
-  if (p) return p;
-  p = step(m.left, 0, 1, u => ({ x: l, y: b - c - m.left * u, angle: 270 }));
-  if (p) return p;
-  // Последняя дуга: замкнутый контур. Здесь арифметика может дать чуть больше
-  // остатка из-за округления — возвращаем начало обхода, а не NaN.
-  return (() => {
-    const u = Math.min(1, d / arc);
-    const a = 3 * Math.PI / 2 + u * Math.PI / 2;
-    return { x: l + c + Math.cos(a) * c, y: t + c + Math.sin(a) * c, angle: 360 + u * 90 };
-  })();
+/** Участок контура между двумя долями обхода. Если участок переходит через
+ * начало, возвращаются два куска — иначе блик обрывался бы на стыке.
+ * @param {number} from @param {number} to @param {number} [inset] */
+export function framePathSpan(from, to, inset = 0) {
+  const span = (Number.isFinite(to) ? to : 0) - (Number.isFinite(from) ? from : 0);
+  const parts = [];
+  let a = ((Number.isFinite(from) ? from : 0) % 1 + 1) % 1;
+  let rest = Math.max(0, Math.min(1, span));
+  while (rest > 1e-9) {
+    const take = Math.min(rest, 1 - a);
+    if (take > 1e-9) parts.push({ from: a, to: a + take });
+    rest -= take;
+    a = 0;
+  }
+  return parts;
 }
 
 /**
- * Блик, бегущий по контуру рамки. В отличие от прежнего размытого пятна на
- * верхней кромке, здесь строится узкая полоса поперёк пути: она самосветится,
- * имеет резкое ядро и мягкий ореол, а на углах поджимается — как отражение на
- * настоящем металлическом профиле.
+ * Блик по контуру рамки. В отличие от прежнего пятна на верхней кромке, это
+ * участок самой линии: он идёт ПО рамке и повторяет её повороты, поэтому на
+ * угле нет повёрнутой плашки, торчащей наружу.
  *
- * @param {number} at доля обхода контура 0…1
- * @param {{strength?:number, length?:number, width?:number, inset?:number}} [options]
+ * @param {number} at где сейчас середина блика (доля обхода)
+ * @param {{strength?:number, length?:number, inset?:number}} [options]
+ *   length — длина блика в пикселях контура
  */
-export function frameGlint(at, { strength = 1, length = 210, width = 6, inset = 0 } = {}) {
-  const point = framePathPoint(at, inset);
+export function frameGlint(at, { strength = 1, length = 240, inset = 0 } = {}) {
+  const contour = frameContour(inset);
+  const total = contour.total;
   const s = Math.max(0, Math.min(1, Number.isFinite(strength) ? strength : 0));
-  // Ядро: короткая яркая часть. Ореол: втрое длиннее и мягче.
+  const center = Number.isFinite(at) ? at : 0;
+  // Длина блика ЗАВИСИТ от кривизны. На прямом участке отражение вытянуто
+  // вдоль линии и тускнеет, на скруглении оно собирается в короткое яркое
+  // пятно. Без этого блик на угле выглядел как такой же отрезок, что и на
+  // прямой, и читался наклейкой.
+  const curvature = curvatureAt(center, inset);
+  const straight = Math.min(1, curvature / .22);   // 0 — прямая, 1 — скругление
+  const px = length * (.45 + .55 * s) * (1 - .52 * straight);
+  const half = px / 2 / total;
   return {
-    x: point.x, y: point.y, angle: point.angle,
+    at: center,
+    parts: framePathSpan(center - half, center + half, inset),
     core: s,
-    coreLength: length * (.32 + .68 * s),
-    coreWidth: width * (.5 + .5 * s),
-    halo: s * .38,
-    haloLength: length * 2.6,
-    haloWidth: width * 4.2,
+    // На скруглении блик ярче — свет собирается на изгибе.
+    halo: s * .42 * (1 + .35 * straight),
+    curvature: straight,
+    // чем короче блик, тем он концентрированнее
+    sharpness: .9 + .9 * s + .6 * straight,
   };
+}
+
+/** Кривизна контура в точке: 1 минус косинус между хордами до и после.
+ * 0 — прямой участок, ~0.3…0.5 — скругление угла.
+ * @param {number} at @param {number} [inset] */
+export function curvatureAt(at, inset = 0) {
+  const contour = frameContour(inset);
+  const total = contour.total;
+  // Окно ЗАМЕТНО шире самого скругления. Узкое окно внутри дуги даёт почти
+  // нулевую кривизну: три точки на дуге радиуса 19 стоят почти на прямой.
+  // Кривизна проявляется только когда окно перекрывает переход
+  // «дуга → прямая», поэтому здесь ~130 px.
+  const w = 65 / total;
+  const a = framePathPoint(at - w, inset);
+  const b = framePathPoint(at, inset);
+  const c = framePathPoint(at + w, inset);
+  const ax = b.x - a.x, ay = b.y - a.y;
+  const bx = c.x - b.x, by = c.y - b.y;
+  const la = Math.hypot(ax, ay), lb = Math.hypot(bx, by);
+  if (la < 1e-9 || lb < 1e-9) return 0;
+  const cos = Math.max(-1, Math.min(1, (ax * bx + ay * by) / (la * lb)));
+  return 1 - cos;
 }
 
 /**
@@ -250,4 +304,60 @@ export function frameGold(tSec, at, { motion = 1 } = {}) {
     // где сейчас световой удар по длине контура — едет в обратную сторону от блика
     sweep: ((pos * 1.6 - time * .11) % 1 + 1) % 1,
   };
+}
+
+/**
+ * Ступени света вдоль замкнутого контура. На каждый сегмент нужен ОДИН цвет, и
+ * он не должен зависеть от соседних: накопление цвета в 2D-canvas не
+ * детерминировано — повторная отрисовка того же кадра с длинными градиентными
+ * обводками давала другой пиксель (2009 px расхождения). Флэт-заливки
+ * повторяемы, градиенты — нет. Поэтому переливание строится ступенями.
+ *
+ * @param {number} tSec @param {number} segments @param {{motion?:number}} [options]
+ * @returns {{color:[number,number,number], tone:number, light:number}[]}
+ */
+export function frameGoldSteps(tSec, segments = 96, { motion = 1 } = {}) {
+  const steps = [];
+  const count = Math.max(1, Math.round(segments));
+  for (let i = 0; i < count; i++) {
+    const at = i / count;
+    const gold = frameGold(tSec, at, { motion });
+    steps.push({ at, tone: gold.tone, light: gold.light, color: goldColor(gold.tone, gold.light) });
+  }
+  return steps;
+}
+
+const GOLD_DARK = [167, 121, 66];   // тёмная бронза
+const GOLD_BASE = [226, 187, 124];  // базовое золото
+const GOLD_LIGHT = [255, 243, 214]; // светлое золото
+/** Цвет золота по тону (-1 бронза, +1 светлое золото) и общей яркости. */
+export function goldColor(tone, light = 1) {
+  const to = tone < 0 ? GOLD_DARK : GOLD_LIGHT;
+  const k = Math.min(1, Math.abs(tone));
+  return [0, 1, 2].map(i =>
+    Math.max(0, Math.min(255, Math.round((GOLD_BASE[i] + (to[i] - GOLD_BASE[i]) * k) * light))));
+}
+
+/**
+ * Профиль затухания блика вдоль пути. Вынесен отдельно, чтобы им
+ * пользовались и графика, и проверки: колокол на концах ноль, в середине
+ * единица.
+ * @param {number} u 0…1 вдоль блика @param {number} sharpness
+ */
+export function glintFalloff(u, sharpness = 1.5) {
+  const x = Math.min(1, Math.max(0, Number.isFinite(u) ? u : 0));
+  return Math.pow(Math.sin(Math.PI * x), sharpness);
+}
+
+/**
+ * Шаг, которым обходится контур при флэт-отрисовке золота. Ступени должны быть
+ * мелкими, иначе видно бандинг, но и не микроскопическими — на кадр приходится
+ * ограниченное число обводок.
+ * @param {number} totalPx @param {number} [maxSegments]
+ */
+export function goldSegmentCount(totalPx, maxSegments = 160) {
+  const px = Number.isFinite(totalPx) && totalPx > 0 ? totalPx : 0;
+  // Шаг ~8 px по контуру: на дуге угла длиной ~60 px это ~8 сегментов,
+  // перехода тона внутри одного сегмента не видно.
+  return Math.max(24, Math.min(maxSegments, Math.round(px / 8)));
 }

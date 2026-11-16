@@ -2,7 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   easeOutCubic, easeInOutCubic, easeOutBack, easeOutExpo, window01, glintSpan, reveal,
-  framePathMetrics, framePathPoint, frameGlint, frameGold,
+  framePathMetrics, framePathPoint, frameGlint, frameGold, framePathSpan, curvatureAt, frameContour,
+  frameGoldSteps, goldColor, glintFalloff, goldSegmentCount,
 } from "../src/partners-motion.js";
 
 // Кривые движения проверяются числами, а не «на глаз»: от них зависит,
@@ -246,43 +247,100 @@ test("точка контура идёт по периметру монотон�
 
 test("касательная контура повёрнута по сторонам кадра", () => {
   const m = framePathMetrics(0);
-  // Середина верхней прямой — горизонталь, правой — вертикаль, низа — тоже
-  // горизонталь. По этому углу вытягивается блик, поэтому он обязан меняться.
-  const top = framePathPoint((m.arc + m.top / 2) / m.total);
-  assert.equal(top.angle, 0);
-  const right = framePathPoint((m.arc + m.top + m.arc + m.right / 2) / m.total);
-  assert.equal(right.angle, 90);
-  const bottom = framePathPoint((m.arc + m.top + m.arc + m.right + m.arc + m.bottom / 2) / m.total);
-  assert.equal(bottom.angle, 180);
-});
+  const contour = frameContour(0);
+  // Находим середины сторон по фактическим координатам, а не по долям:
+  // доли зависят от длины скруглений, и подгонять их в тесте бессмысленно.
+  const mid = (predicate) => {
+    let best = null;
+    for (let i = 0; i < 2000; i++) {
+      const at = i / 2000;
+      const p = framePathPoint(at);
+      if (!predicate(p)) continue;
+      // Берём точку, у которой касательная ровно по стороне.
+      const a = Math.abs(p.angle);
+      const score = a < 5 ? a : (Math.abs(a - 90) < 5 ? Math.abs(a - 90) : 999);
+      if (score < 999 && (!best || score < best.score)) best = { at, p, score };
+    }
+    return best;
+  };
+  const top = mid(p => p.y < 45);
+  assert.ok(top, "не нашлась вертикальная точка на верхней кромке");
+  assert.ok(Math.abs(top.p.angle) < 5, `касательная сверху ${top.p.angle}`);
 
-test("блик обходит весь контур, а не только верхнюю кромку", () => {
-  // Прежний блик жил на верхней кромке (y=42). Теперь путь по всему периметру.
-  const sides = new Set();
-  for (let i = 0; i < 24; i++) {
-    const p = framePathPoint(i / 24);
-    // Относим точку к стороне по её положению.
-    if (p.y < 60) sides.add("верх");
-    else if (p.x > 1855) sides.add("право");
-    else if (p.y > 1020) sides.add("низ");
-    else if (p.x < 65) sides.add("лево");
+  // Правая сторона: касательная вертикальна.
+  let rightOk = false;
+  for (let i = 0; i < 2000; i++) {
+    const p = framePathPoint(i / 2000);
+    if (p.x > 1860 && Math.abs(p.angle - 90) < 5) { rightOk = true; break; }
   }
-  assert.deepEqual([...sides].sort(), ["верх", "лево", "низ", "право"]);
+  assert.ok(rightOk, "на правой стороне нет вертикальной касательной");
+
+  // Нижняя сторона: касательная горизонтальна.
+  let bottomOk = false;
+  for (let i = 0; i < 2000; i++) {
+    const p = framePathPoint(i / 2000);
+    if (p.y > 1035 && Math.abs(Math.abs(p.angle) - 180) < 5) { bottomOk = true; break; }
+  }
+  assert.ok(bottomOk, "на нижней стороне нет горизонтальной касательной");
 });
 
-test("блик самосветится и сжимается на слабой силе", () => {
-  const strong = frameGlint(.25, { strength: 1 });
-  const weak = frameGlint(.25, { strength: .2 });
-  assert.ok(strong.core > weak.core, "сила не влияет на яркость");
-  assert.ok(strong.coreLength > weak.coreLength, "слабый блик должен быть короче");
-  // Ореол всегда мягче и длиннее ядра — иначе блик выглядит наклейкой.
-  assert.ok(strong.haloLength > strong.coreLength * 2);
-  assert.ok(strong.halo < strong.core);
-  // Отрицательная и запредельная сила не ломают геометрию.
-  for (const s of [-5, 0, 5, NaN]) {
-    const g = frameGlint(.5, { strength: s });
-    assert.ok(Number.isFinite(g.x) && Number.isFinite(g.y) && Number.isFinite(g.angle));
-    assert.ok(g.core >= 0 && g.core <= 1);
+test("блик идёт по контуру и повторяет его повороты", () => {
+  // Блик — участок самой линии, а не повёрнутая плашка: он обязан состоять из
+  // точек контура. Раньше на угле наружу торчала диагональная полоса.
+  const glint = frameGlint(.317, { strength: 1 });
+  assert.ok(glint.parts.length >= 1);
+  const points = [];
+  for (const part of glint.parts) {
+    for (let i = 0; i <= 20; i++) {
+      points.push(framePathPoint(part.from + (part.to - part.from) * i / 20));
+    }
+  }
+  // Все точки лежат на контуре. Допуск 3.5 px, а не 2: обход контура в тесте
+  // идёт по 800 точкам, а на верхней стороне шаг между ними ~2.2 px, так что
+  // погрешность поиска ближайшей точки сама по себе достигает ~1.1 px.
+  for (const p of points) {
+    let best = Infinity;
+    for (let i = 0; i < 3000; i++) {
+      const c = framePathPoint(i / 3000);
+      best = Math.min(best, Math.hypot(c.x - p.x, c.y - p.y));
+    }
+    assert.ok(best < 1.5, `точка блика (${p.x.toFixed(1)},${p.y.toFixed(1)}) вне контура на ${best.toFixed(1)} px`);
+  }
+  // Решающая проверка формы: на угле участок блика огибает его, то есть в нём
+  // есть и горизонтальные, и вертикальные точки. Повёрнутая плашка такого не
+  // даёт — она остаётся прямой линией под углом 45°.
+  const angles = points.map(p => Math.abs(p.angle));
+  assert.ok(angles.some(a => a < 10), "в блике на угле нет горизонтального участка");
+  assert.ok(angles.some(a => a > 80), "в блике на угле нет вертикального участка");
+  // Через стык контура блик делится на два куска, а не обрывается.
+  const wrapped = frameGlint(.005, { strength: 1, length: 400 });
+  assert.equal(wrapped.parts.length, 2, "блик на стыке контура должен делиться на два куска");
+});
+
+test("блик сжимается и ярчает на скруглении", () => {
+  // На прямом участке отражение вытянуто, на скруглении собирается в пятно.
+  const straight = frameGlint(.12, { strength: 1 });
+  const corner = frameGlint(.318, { strength: 1 });
+  const px = (g) => g.parts.reduce((sum, p) => sum + (p.to - p.from), 0) * framePathMetrics(0).total;
+  assert.ok(px(corner) < px(straight), `на угле ${px(corner).toFixed(0)} px против ${px(straight).toFixed(0)} на прямой`);
+  assert.ok(corner.halo > straight.halo, "на скруглении блик должен быть ярче");
+  assert.ok(curvatureAt(.318) > curvatureAt(.12), "кривизна угла должна быть выше прямой");
+  assert.ok(curvatureAt(.12) < .01, `прямой участок имеет кривизну ${curvatureAt(.12)}`);
+  // Слабый блик короче сильного — он «разгорается», а не появляется целиком.
+  const weak = frameGlint(.12, { strength: .2 });
+  assert.ok(px(weak) < px(straight), `слабый ${px(weak).toFixed(0)} px против сильного ${px(straight).toFixed(0)}`);
+});
+
+test("участок контура не выходит за границы при любых долях", () => {
+  // framePathSpan обязан возвращать корректные куски: им рисуется блик, и
+  // ошибка в долях дала бы обводку через полкадра.
+  for (const [from, to] of [[0, .1], [.95, 1.05], [-.1, .1], [.5, .5], [0, 1]]) {
+    const parts = framePathSpan(from, to);
+    for (const part of parts) {
+      assert.ok(part.from >= 0 && part.from <= 1 + 1e-9, `from=${part.from}`);
+      assert.ok(part.to >= part.from - 1e-9, `to=${part.to} < from=${part.from}`);
+      assert.ok(part.to <= 1 + 1e-9, `to=${part.to}`);
+    }
   }
 });
 
@@ -314,4 +372,60 @@ test("переливание и блик детерминированы: оди�
     const a = frameGlint(at, { strength: .7 }), b = frameGlint(at, { strength: .7 });
     assert.deepEqual(a, b);
   }
+});
+
+// --- Детерминированность отрисовки рамки -----------------------------------
+// Два самых дорогих дефекта, найденных при работе над бликом: накопление
+// цвета в 2D-canvas не воспроизводится, поэтому длинные градиентные обводки
+// давали другой пиксель при повторной отрисовке того же кадра. Живое золото и
+// блик строятся только флэт-сегментами.
+
+test("ступени золота детерминированы и покрывают весь контур", () => {
+  const a = frameGoldSteps(7.5, 96), b = frameGoldSteps(7.5, 96);
+  assert.deepEqual(a, b, "два вызова с одним временем дали разные ступени");
+  // Ступени идут по всему периметру без разрывов и наложений.
+  for (let i = 1; i < a.length; i++) assert.ok(a[i].at > a[i - 1].at);
+  assert.ok(Math.abs(a[0].at - 0) < 1e-9);
+  assert.ok(a[a.length - 1].at < 1);
+  // Цвета — целые каналы: с ними флэт-заливка даёт побитово один результат.
+  for (const step of a) {
+    assert.equal(step.color.length, 3);
+    for (const c of step.color) assert.ok(Number.isInteger(c) && c >= 0 && c <= 255, `канал ${c}`);
+  }
+});
+
+test("цвет золота: бронза темнее базового, светлое золото ярче", () => {
+  const lum = (c) => .3 * c[0] + .6 * c[1] + .1 * c[2];
+  const dark = lum(goldColor(-1)), base = lum(goldColor(0)), light = lum(goldColor(1));
+  assert.ok(dark < base && base < light, `${dark} < ${base} < ${light}`);
+  // За пределами -1…1 цвет не уходит в клиппинг по краям диапазона.
+  assert.deepEqual(goldColor(-5), goldColor(-1));
+  assert.deepEqual(goldColor(5), goldColor(1));
+});
+
+test("шаг золота держит ступени мелкими и не раздувает кадр", () => {
+  // Периметр рамки ~5559 px: ступень должна быть около 8 px, то есть ~695,
+  // но их число ограничено, чтобы кадр не превращался в тысячи обводок.
+  const count = goldSegmentCount(5559);
+  assert.ok(count >= 24 && count <= 160, `ступеней ${count}`);
+  assert.ok(5559 / count <= 60, `ступень ${(5559 / count).toFixed(1)} px — видно бандинг`);
+  // Вырожденные значения не ломают счёт.
+  assert.ok(goldSegmentCount(0) >= 24);
+  assert.ok(goldSegmentCount(NaN) >= 24);
+});
+
+test("затухание блика: ноль на концах, максимум в середине", () => {
+  // Math.sin(π) не ноль, а 1.2e-16, поэтому на концах проверяем допуск, а не
+  // строгое равенство: с погрешностью 1e-24 разницы в кадре не видно.
+  assert.ok(glintFalloff(0) < 1e-12);
+  assert.ok(glintFalloff(1) < 1e-12);
+  assert.ok(glintFalloff(.5) > .99);
+  // Симметрично по длине: блик не «съезжает» в одну сторону.
+  for (const u of [.1, .25, .4]) {
+    assert.ok(Math.abs(glintFalloff(u) - glintFalloff(1 - u)) < 1e-9, `асимметрия на ${u}`);
+  }
+  // За пределами 0…1 не даёт NaN.
+  for (const bad of [-2, 2, NaN]) assert.ok(Number.isFinite(glintFalloff(bad)));
+  // Чем выше sharpness, тем резче блик.
+  assert.ok(glintFalloff(.2, 4) < glintFalloff(.2, 1));
 });
