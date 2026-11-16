@@ -327,6 +327,41 @@ function drawCompositeFrame(ctx) {
   ctx.drawImage(canvas, 0, 0, ctx.canvas.width, ctx.canvas.height);
 }
 
+// Переход в предпросмотре — прозрачный оверлей поверх кадра нового вида.
+// Показ считается тем же drawOutgoingFrame, что и экспорт: CSS-растворение
+// гасило всё содержимое разом и давало серую муть, а кроме того расход
+// времени в CSS и в кадрах видео не совпадал.
+let previewTransition = null;
+let transitionOverlay = null;
+// Оверлей обязан вставать ровно на кадр сцены: те же left/top/размер/обрезка,
+// что у #stage. Иначе на изменённом масштабе переход «съезжает» с кадра.
+function syncTransitionOverlay() {
+  if (!transitionOverlay) return;
+  const to = transitionOverlay.style;
+  const from = canvas.style;
+  if (to.left !== from.left) to.left = from.left;
+  if (to.top !== from.top) to.top = from.top;
+  if (to.width !== from.width) to.width = from.width;
+  if (to.height !== from.height) to.height = from.height;
+  if (to.clipPath !== from.clipPath) to.clipPath = from.clipPath;
+}
+function overlayCtx() {
+  return transitionOverlay ? transitionOverlay.getContext("2d") : null;
+}
+function drawPreviewTransition(ctx) {
+  if (!ctx) return;
+  if (!previewTransition) return;
+  syncTransitionOverlay();
+  const elapsed = (performance.now() - previewTransition.startedAt) / 1000;
+  const done = elapsed / previewTransition.duration >= 1;
+  if (done || !drawOutgoingFrame(ctx, previewTransition.snapshot, elapsed * OUTPUT.fps,
+    OUTPUT.fps, previewTransition.duration, ctx.canvas.width, ctx.canvas.height)) {
+    previewTransition = null;
+    transition = null;
+    if (transitionOverlay) { transitionOverlay.hidden = true; transitionOverlay.style.display = "none"; }
+  }
+}
+
 /** Тот же композит, что записывается в видео; includeCaption=false — эталон для теста. */
 function compositeFrameAt(time, dt = 1 / OUTPUT.fps, includeCaption = true) {
   scene.setCaptionVisible(includeCaption);
@@ -368,14 +403,9 @@ function switchScene(id, source) {
   const duration = transitionDuration(nextCfg);
   let snapshot = null;
   if (duration > 0) {
-    snapshot = document.createElement("canvas");
-    snapshot.width = REC_W; snapshot.height = REC_H;
-    snapshot.className = "transition-frame";
-    snapshot.style.width = canvas.style.width;
-    snapshot.style.height = canvas.style.height;
-    snapshot.style.transitionDuration = `${duration}s`;
-    drawCompositeFrame(snapshot.getContext("2d"));
-    if (source !== SEQUENCE_SWITCH) document.body.appendChild(snapshot);
+    // Тот же композит, что уходит в видео, и уже с титром: иначе на переходе
+    // подпись старой сцены исчезала бы раньше картинки.
+    snapshot = compositeFrameAt(runtime.time, 1 / OUTPUT.fps, true);
   }
   const oldCanvas = canvas;
   const oldScene = scene;
@@ -401,14 +431,24 @@ function switchScene(id, source) {
   if (source === SEQUENCE_SWITCH) {
     recording.outgoing = snapshot;
   } else if (snapshot) {
+    // Оверлей живёт до конца перехода; снимает его сам цикл кадров.
     transition = snapshot;
-    requestAnimationFrame(() => {
-      snapshot.classList.add("transition-out");
-      setTimeout(() => {
-        snapshot.remove();
-        if (transition === snapshot) transition = null;
-      }, duration * 1000 + 150);
-    });
+    if (!transitionOverlay) {
+      transitionOverlay = document.createElement("canvas");
+      transitionOverlay.className = "transition-overlay";
+      transitionOverlay.width = REC_W; transitionOverlay.height = REC_H;
+      document.body.appendChild(transitionOverlay);
+    }
+    if (transitionOverlay.width !== REC_W || transitionOverlay.height !== REC_H) {
+      transitionOverlay.width = REC_W; transitionOverlay.height = REC_H;
+    }
+    transitionOverlay.hidden = false;
+    transitionOverlay.style.display = "block";
+    syncTransitionOverlay();
+    previewTransition = { snapshot, duration, startedAt: performance.now() };
+    // Первый кадр перехода рисуем сразу: иначе до следующего тика цикла на
+    // экране виден чистый оверлей (прозрачный) и переход «моргает».
+    drawPreviewTransition(overlayCtx());
   }
   operator.refresh();
   return true;
@@ -615,6 +655,7 @@ function frame(now) {
   const before = runtime.time;
   if (!recording) {
     runtime.advance(elapsed, renderDt);
+    if (previewTransition) drawPreviewTransition(overlayCtx());
     if (operator.auto && !cfg.playback.paused && !transition &&
         crossedBoundary(before, runtime.time, cfg.timeline.startDelay, runtime.cycle)) {
       const idx = activeChain.indexOf(sceneId);

@@ -93,11 +93,12 @@ body.operator-idle:not(.ui-on) .cfg-toggle { opacity: .55; }
 .operator-busy .operator-scenes, .operator-busy .operator-transport input,
 .operator-busy .operator-transport .operator-duration,
 .operator-busy [data-action="record"], .operator-busy [data-action="record-chain"] { opacity: .4; pointer-events: none; }
-.transition-frame {
-  position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%);
-  z-index: 12; pointer-events: none; opacity: 1; display: block;
+/* Переход предпросмотра: рисуется тем же кодом, что и в экспорте, и лежит
+   поверх кадра сцены. Геометрию копирует syncTransitionOverlay(). */
+.transition-overlay {
+  position: fixed; transform: translate(-50%, -50%);
+  z-index: 12; pointer-events: none; display: block;
 }
-.transition-frame.transition-out { opacity: 0; transition: opacity .9s ease-in-out; }
 @media (max-width: 780px) {
   .operator-panel { padding: 8px; }
   .operator-row { flex-wrap: wrap; }
