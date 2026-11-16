@@ -89,22 +89,40 @@ export function scenePresence(local, exitStart, fadeSpan) {
 }
 
 /**
- * Раскладка пары знаков в ярусе.
+ * Раскладка пары знаков в ярусе БЕЗ искажения логотипов.
  *
- * Центрирования на фиксированных колонках недостаточно: у знаков разные
- * пропорции (3.6:1 у Промрукав, 5.4:1 у КЭАЗ), поэтому пара из блоков разной
- * ширины читается сдвинутой, даже когда середины колонок стоят на оси кадра.
- * Ячейки делаются равными по ширине — тогда равны и внешние поля, и зазор.
+ * Центрировать блоки на фиксированных колонках нельзя: у знаков разные
+ * пропорции (3.6:1 у Промрукав, 5.4:1 у КЭАЗ), и пара из блоков разной ширины
+ * читается сдвинутой. Сжимать отдельный знак тоже нельзя — это искажает
+ * логотип (было сжатие в 1.25 и 1.34 раза).
  *
- * @param {{center:number, leftWidth:number, rightWidth:number, gap:number}} spec
- * @returns {{leftX:number, rightX:number, slot:number, slotHalf:number}}
+ * Поэтому пара строится от общих внешних краёв контейнера: одинаковые поля по
+ * краям кадра, зазор в центре выводится из ширины. Если оба знака не влезают
+ * вместе с зазором, они уменьшаются ОДНИМ коэффициентом — пропорции сохраняются.
+ *
+ * @param {{center:number, leftWidth:number, rightWidth:number, container:number, gap:number}} spec
+ * @returns {{leftX:number, rightX:number, leftWidth:number, rightWidth:number, fit:number, innerGap:number}}
  */
-export function pairLayout({ center, leftWidth, rightWidth, gap }) {
-  const usable = [leftWidth, rightWidth].filter((w) => Number.isFinite(w) && w > 0);
-  if (!usable.length) return { leftX: center, rightX: center, slot: 0, slotHalf: 0 };
-  // Ячейка чётной ширины: тогда полуширина и зазор целые, и пара стоит точно
-  // по оси. Знак ужимается максимум на пиксель — это незаметно.
-  const slot = 2 * Math.floor(Math.min(...usable) / 2);
-  const offset = slot / 2 + Math.max(0, gap) / 2;
-  return { leftX: center - offset, rightX: center + offset, slot, slotHalf: offset };
+export function pairLayout({ center, leftWidth, rightWidth, container, gap }) {
+  const lw = Number.isFinite(leftWidth) && leftWidth > 0 ? leftWidth : 0;
+  const rw = Number.isFinite(rightWidth) && rightWidth > 0 ? rightWidth : 0;
+  if (!lw && !rw) return { leftX: center, rightX: center, leftWidth: 0, rightWidth: 0, fit: 1, innerGap: 0 };
+
+  const total = lw + rw;
+  const usable = Math.max(0, container - Math.max(0, gap));
+  const fit = Math.min(1, usable / total);
+  const fLeft = lw * fit;
+  const fRight = rw * fit;
+
+  const leftEdge = center - container / 2;
+  return {
+    // Поля по краям равны по построению: обе стороны контейнера отстоят от оси
+    // одинаково. Знаки прижаты к своим краям — внешние границы важнее осей.
+    leftX: Math.round(leftEdge + fLeft / 2),
+    rightX: Math.round(leftEdge + container - fRight / 2),
+    leftWidth: fLeft,
+    rightWidth: fRight,
+    fit,
+    innerGap: container - fLeft - fRight,
+  };
 }

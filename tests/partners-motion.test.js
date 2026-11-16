@@ -153,34 +153,55 @@ test("блик не задевает края строки заголовка �
 import { pairLayout } from "../src/partners-motion.js";
 
 test("пара строится симметрично при знаках разной ширины", () => {
-  // Реальные пропорции яруса: 411 и 500 px у организаторов, 376 и 498 у спонсоров.
+  // Реальные ширины ярусов: 411 и 500 px у организаторов, 376 и 498 у спонсоров.
   for (const [leftWidth, rightWidth] of [[411, 500], [376, 498], [300, 300]]) {
-    const { leftX, rightX, slot } = pairLayout({ center: 960, leftWidth, rightWidth, gap: 90 });
-    // Зазор между ячейками одинаковый, потому что ячейки равны.
-    const gap = rightX - leftX - slot;
-    assert.equal(gap, 90, `зазор ${gap} вместо 90 при ширинах ${leftWidth}/${rightWidth}`);
-    // Середина между ячейками — ровно ось кадра.
-    assert.equal((leftX + rightX) / 2, 960);
-    // Ячейка равна меньшему знаку (с точностью до чётного округления вниз):
-    // короткий знак не растягивается.
-    assert.ok(Math.min(leftWidth, rightWidth) - slot < 2, `ячейка ${slot} при меньшем знаке ${Math.min(leftWidth, rightWidth)}`);
-    assert.equal(slot % 2, 0, "ячейка должна быть чётной — иначе зазор уезжает на пиксель");
+    const l = pairLayout({ center: 960, leftWidth, rightWidth, container: 1010, gap: 90 });
+    // Внешние поля равны по построению: контейнер стоит по центру кадра.
+    const leftField = l.leftX - l.leftWidth / 2 - (960 - 450);
+    const rightField = 960 + 450 - (l.rightX + l.rightWidth / 2);
+    assert.ok(Math.abs(leftField - rightField) <= 1, `поля ${leftField} и ${rightField}`);
+    // Зазор не меньше заданного — знаки не срастаются.
+    assert.ok(l.innerGap >= 90 - 1, `зазор ${l.innerGap} вместо 90`);
+    // Середина пары — ось кадра.
+    assert.ok(Math.abs((l.leftX - l.leftWidth / 2 + l.rightX + l.rightWidth / 2) / 2 - 960) <= 1);
   }
 });
 
-test("пара с знаками равной ширины совпадает с симметричной раскладкой", () => {
-  const { leftX, rightX, slot } = pairLayout({ center: 960, leftWidth: 400, rightWidth: 400, gap: 100 });
-  assert.equal(slot, 400);
-  assert.equal(leftX, 960 - 250);
-  assert.equal(rightX, 960 + 250);
+test("свободное место уходит в зазор, знаки не растягиваются", () => {
+  // Реальный ярус организаторов: 411 + 500 + 90 = 1001 — влезает в 1010.
+  const l = pairLayout({ center: 960, leftWidth: 411, rightWidth: 500, container: 1010, gap: 90 });
+  assert.equal(l.fit, 1, "места хватает — ужимать нечего");
+  assert.equal(Math.round(l.leftWidth), 411);
+  assert.equal(Math.round(l.rightWidth), 500);
+  // Спонсоры уже: свободное место уходит в зазор, а не в растягивание знаков.
+  const wide = pairLayout({ center: 960, leftWidth: 376, rightWidth: 498, container: 1010, gap: 90 });
+  assert.equal(wide.fit, 1);
+  assert.equal(Math.round(wide.leftWidth), 376);
+  assert.equal(wide.innerGap, 136, "свободные 136 px — зазор");
+  // Внешние края обоих ярусов совпадают: 960 ± 505 (±1 px на округление центра).
+  const outerLeft = (p) => p.leftX - p.leftWidth / 2;
+  assert.ok(Math.abs(outerLeft(l) - 455) <= 1, `левый край ${outerLeft(l)} вместо 455`);
+  assert.ok(Math.abs(outerLeft(wide) - 455) <= 1, `левый край ${outerLeft(wide)} вместо 455`);
+});
+
+test("при нехватке места оба знака ужимаются ОДНИМ коэффициентом", () => {
+  // Пропорции логотипов священны: fit общий, отношение ширин сохраняется.
+  const l = pairLayout({ center: 960, leftWidth: 600, rightWidth: 500, container: 900, gap: 90 });
+  assert.ok(l.fit < 1, "должен включиться ужим");
+  assert.ok(Math.abs(l.innerGap - 90) <= 1, `зазор ${l.innerGap} вместо 90`);
+  assert.ok(Math.abs(l.leftWidth / l.rightWidth - 600 / 500) < 1e-6, "отношение ширин изменилось");
+  assert.ok(Math.abs(l.leftWidth + l.rightWidth + 90 - 900) <= 1, "пара должна ровно заполнить контейнер");
+  assert.ok(Math.abs(l.leftX - l.leftWidth / 2 - 510) <= 1, `левый край ${l.leftX - l.leftWidth / 2} вместо 510`);
+  assert.ok(Math.abs(l.rightX + l.rightWidth / 2 - 1410) <= 1, `правый край ${l.rightX + l.rightWidth / 2} вместо 1410`);
 });
 
 test("вырожденный случай не роняет раскладку", () => {
-  const empty = pairLayout({ center: 960, leftWidth: 0, rightWidth: 0, gap: 90 });
+  const empty = pairLayout({ center: 960, leftWidth: 0, rightWidth: 0, container: 1010, gap: 90 });
   assert.equal(empty.leftX, 960);
   assert.equal(empty.rightX, 960);
-  // Один знак без второго: ячейка по нему, второй центр на оси — кадр не ломается.
-  const single = pairLayout({ center: 960, leftWidth: 440, rightWidth: 0, gap: 90 });
-  assert.equal(single.slot, 440);
-  assert.equal((single.leftX + single.rightX) / 2, 960);
+  // Один знак без второго: он остаётся у своего края, кадр не ломается.
+  const single = pairLayout({ center: 960, leftWidth: 440, rightWidth: 0, container: 1010, gap: 90 });
+  assert.equal(Math.round(single.leftWidth), 440);
+  assert.equal(single.fit, 1);
+  assert.ok(Number.isFinite(single.rightX));
 });

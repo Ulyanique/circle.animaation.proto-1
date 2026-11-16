@@ -121,6 +121,15 @@ const MARK_MAX_WIDTH = 500;
 const MARK_MAX_HEIGHT = 105;
 const MARK_SUPERSAMPLE = 2;
 
+// Контейнер яруса: 1010 px по центру кадра. Знаки прижимаются к его внешним
+// краям, между ними остаётся не меньше PAIR_INNER_GAP. Ширина общая для обоих
+// ярусов, поэтому внешние края всех четырёх знаков встают в единые колонки.
+// 1010 подобрано так, чтобы самый широкий ярус (411+500 у организаторов) влезал
+// в полный размер без ужима: 411+500+90 = 1001. При 900 знаки ужимались на 11 %,
+// при 840 зазор схлопывался и пары срастались в один блок.
+const PAIR_WIDTH = 1010;
+const PAIR_INNER_GAP = 90;
+
 // Золотая заливка использует альфу SVG/PNG, а не прямоугольную белую плашку.
 /**
  * Готовит знак к отрисовке: подгоняет под экранный размер и заливает золотом.
@@ -512,7 +521,7 @@ export class PartnersScene {
       if (!logo) return 0;
       return logo.width * Math.min(MARK_MAX_WIDTH / logo.width, MARK_MAX_HEIGHT / logo.height);
     };
-    const company = (key, x, y, entry, glintAt, phaseIdx, limit = null) => {
+    const company = (key, x, y, entry, glintAt, phaseIdx, fit = 1) => {
       const value = data[key];
       const logo = marks[key];
       // Мягкий подъём с перелётом: p идёт 0→1, overshoot даёт «доезд».
@@ -522,12 +531,13 @@ export class PartnersScene {
         text(value, x, y, '600 52px Manrope, sans-serif', ivory, visible * Math.max(0, Math.min(1, p)), 440, Math.min(1, p));
         return;
       }
-      let scale = Math.min(MARK_MAX_WIDTH / logo.width, MARK_MAX_HEIGHT / logo.height);
+      // Ширина И высота считаются от ОДНОГО коэффициента. Раньше высота
+      // бралась до ограничения пары, а ширина ужималась отдельно — правые
+      // знаки (ПРОэлектрощит, КЭАЗ) выходили сжатыми по горизонтали в 1.25 и
+      // 1.34 раза. Логотип искажать нельзя ни при каких раскладках.
+      const scale = Math.min(MARK_MAX_WIDTH / logo.width, MARK_MAX_HEIGHT / logo.height) * fit;
+      const lw = logo.width * scale;
       const lh = logo.height * scale;
-      // Ограничение пары: длинный знак ужимается, короткий остаётся как есть —
-      // ширина блока при этом общая, иначе пара снова поедет.
-      let lw = logo.width * scale;
-      if (limit != null && lw > limit) { scale *= limit / lw; lw = limit; }
       // Масштаб группы: 0.955 → 1, на перелёте — до 1.008.
       // На удержании знак медленно «дышит» (±0.4 % размера и ±2 px по высоте):
       // у каждого своя фаза, поэтому группа не качается синхронно.
@@ -589,29 +599,28 @@ export class PartnersScene {
     // пара из блоков разной ширины читалась сдвинутой вправо — центр групп был
     // на оси, но зазор между ними 65 px против 20, а внешние поля 485 против 441.
     // Теперь поля по краям равны, и зазор в середине тоже.
+    // Раскладка пары: общие внешние края, зазор в центре, при нехватке места —
+    // один коэффициент на оба знака (см. pairLayout).
     const pairSlot = (leftKey, rightKey) => {
       const lw = markWidth(leftKey), rw = markWidth(rightKey);
-      if (!lw && !rw) return { leftX: COLUMN_LEFT, rightX: COLUMN_RIGHT, leftW: null, rightW: null };
-      const { leftX, rightX, slot } = pairLayout({
-        center: CONTENT_CENTER, leftWidth: lw, rightWidth: rw, gap: PAIR_INNER_GAP,
+      if (!lw && !rw) return { leftX: COLUMN_LEFT, rightX: COLUMN_RIGHT, fit: 1 };
+      return pairLayout({
+        center: CONTENT_CENTER, leftWidth: lw, rightWidth: rw,
+        container: PAIR_WIDTH, gap: PAIR_INNER_GAP,
       });
-      return { leftX, rightX, leftW: slot, rightW: slot };
     };
-    // Зазор между знаками одной пары. Меньше — знаки липнут, больше — пара
-    // распадается на две одиночные колонки.
-    const PAIR_INNER_GAP = 90;
     const organizers = pairSlot('organizer1', 'organizer2');
     // Подписи идут по центрам своих знаков: они относятся к знаку, а не к колонке.
     label(data.organizerLabel, organizers.leftX, 401, visible * cue.organizerLabel, cue.organizerLabel);
     label(data.coorganizerLabel, organizers.rightX, 401, visible * cue.organizerLabel, cue.organizerLabel);
     // Блик идёт очередью уже по «севшему» знаку: 1.69+1.0 с — конец входа.
-    company('organizer1', organizers.leftX, 495, cue.organizer, 2.75, 0, organizers.leftW);
-    company('organizer2', organizers.rightX, 495, cue.organizerSecond, 3.25, 1, organizers.rightW);
+    company('organizer1', organizers.leftX, 495, cue.organizer, 2.75, 0, organizers.fit);
+    company('organizer2', organizers.rightX, 495, cue.organizerSecond, 3.25, 1, organizers.fit);
     ornament(613, visible * cue.separator * .55, 420 * cue.separator, CONTENT_CENTER, cue.separator);
     label(data.partnerLabel, CONTENT_CENTER, 690, visible * cue.partnerLabel, cue.partnerLabel);
     const sponsors = pairSlot('partner1', 'partner2');
-    company('partner1', sponsors.leftX, 785, cue.partner, 4.45, 2, sponsors.leftW);
-    company('partner2', sponsors.rightX, 785, cue.partnerSecond, 4.95, 3, sponsors.rightW);
+    company('partner1', sponsors.leftX, 785, cue.partner, 4.45, 2, sponsors.fit);
+    company('partner2', sponsors.rightX, 785, cue.partnerSecond, 4.95, 3, sponsors.fit);
     this.cardTexture.needsUpdate = true;
   }
 
