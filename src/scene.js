@@ -51,7 +51,7 @@ import { Plotter } from "./plotter.js";
 import { SolarBokeh } from "./bokeh.js";
 import { captionState, finaleCaptionState, captionAccent, glyphReveal } from "./caption.js";
 import { captionDrift, introTitleLanding } from "./caption-layout.js";
-import { computePhase, compositionFocus, heroGlint, seamCurtainOpacity, layerParallax, logoDrawFinish } from "./timeline.js";
+import { computePhase, compositionFocus, heroGlint, holdGlint, seamCurtainOpacity, layerParallax, logoDrawFinish } from "./timeline.js";
 import { introCues, introSequence, introOutro, introCornerEnvelopes, finaleCues } from "./scenes/cues.js";
 
 const FOV = 30;
@@ -464,11 +464,21 @@ export class LogoScene {
     // Один короткий тёплый проход по граням, пока собирается название.
     // На удержании ключевой акцент — текст, а не бегущий по нему блик.
     const cue = heroGlint(ph, cfg.timeline, sequence?.captionStart);
-    revealUniforms.uSpecPass.value = cfg.logo.glint * 1.8 * cue.intensity;
-    const gx = cue.position * 1.6;
+    // На удержании металл не замирает: один медленный тёплый проход за цикл
+    // (holdGlint) идёт в обратную сторону и вдвое слабее геройского. Окна
+    // почти не пересекаются, а в пересечении интенсивности складываются и
+    // позиция берётся средневзвешенной — полоса не телепортируется.
+    const hold = holdGlint(ph, cfg.timeline);
+    const glintSum = cue.intensity + hold.intensity;
+    const glintIntensity = Math.min(1, glintSum);
+    const glintPosition = glintSum > 1e-4
+      ? (cue.position * cue.intensity + hold.position * hold.intensity) / glintSum
+      : cue.position;
+    revealUniforms.uSpecPass.value = cfg.logo.glint * 1.8 * glintIntensity;
+    const gx = glintPosition * 1.6;
     revealUniforms.uSpecX.value = gx;
     this.glintLight.position.set(gx, -.665, 2.2);
-    this.glintLight.intensity = cfg.logo.glint * 1.4 * cue.intensity * exposure;
+    this.glintLight.intensity = cfg.logo.glint * 1.4 * glintIntensity * exposure;
     const edgeFlare = 4 * ph.reveal * (1 - ph.reveal);
     const flare = flarePosition(gx, cue.intensity);
     this.flare.set(flare.x, cfg.post.anamorphic * cfg.logo.glint * 0.20 * cue.intensity +

@@ -336,3 +336,28 @@ test("титр стартует с нахлёстом на подъём знак
   const flush = introSequence(at(0), tl, { ...intro, titleDelay: 0 });
   assert.ok(Math.abs(flush.captionStart - flush.liftEnd) < 1e-9);
 });
+
+test("блик удержания: один медленный проход внутри удержания, вне его — ноль", async () => {
+  const { holdGlint } = await import("../src/timeline.js");
+  const D = tl.drawDuration, E = tl.emergeDuration, H = tl.holdDuration, F = tl.fadeDuration;
+  const settle = D + E;
+  // До удержания и после него металл освещает только геройский проход.
+  assert.equal(holdGlint(at(settle - 0.1), tl).intensity, 0);
+  assert.equal(holdGlint(at(settle + H + F * 0.5), tl).intensity, 0);
+  assert.equal(holdGlint(at(cycle - 1e-3), tl).intensity, 0, "на шве блик обязан быть нулевым");
+  // Окно 0.30…0.80 удержания, пик вдвое слабее геройского.
+  assert.equal(holdGlint(at(settle + H * 0.30), tl).intensity, 0);
+  const peak = holdGlint(at(settle + H * 0.55), tl);
+  assert.ok(peak.intensity > 0.45 && peak.intensity <= 0.5, `пик ${peak.intensity}`);
+  // Направление обратное геройскому: полоса идёт справа налево.
+  const early = holdGlint(at(settle + H * 0.35), tl);
+  const late = holdGlint(at(settle + H * 0.75), tl);
+  assert.ok(early.position > 0 && late.position < 0, `позиции ${early.position} → ${late.position}`);
+  // Интенсивность непрерывна по времени: без скачков полосы.
+  let prev = 0;
+  for (let local = settle; local <= settle + H; local += 0.05) {
+    const value = holdGlint(at(local), tl).intensity;
+    assert.ok(Math.abs(value - prev) < 0.02, `скачок на ${local}: ${prev} → ${value}`);
+    prev = value;
+  }
+});

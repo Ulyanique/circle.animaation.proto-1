@@ -175,6 +175,26 @@ export function heroGlint(phase, tl, captionStart) {
   return { intensity, position };
 }
 
+/**
+ * Медленный проход света по металлу на удержании: знак не должен стоять
+ * неподвижно все десять секунд, но акцент удержания — текст, поэтому пик
+ * вдвое слабее геройского, а направление обратное. Окно лежит внутри
+ * удержания и не пересекает шов: на первой и последней секунде цикла
+ * интенсивность нулевая, seek и шов остаются побитово прежними.
+ */
+export function holdGlint(phase, tl) {
+  const settle = tl.drawDuration + tl.emergeDuration;
+  const start = settle + tl.holdDuration * 0.30;
+  const end = settle + tl.holdDuration * 0.80;
+  if (phase.beforeStart || end <= start || phase.local <= start || phase.local >= end) {
+    return { intensity: 0, position: 1 };
+  }
+  const progress = (phase.local - start) / (end - start);
+  const intensity = 0.5 * Math.sin(Math.PI * progress) ** 2;
+  const position = 1 - 2 * smooth(0, 1, progress);
+  return { intensity, position };
+}
+
 /** Угловой свет уступает внимание логотипу и тексту, пока дописывается название. */
 export function compositionFocus(phase, tl, captionStart) {
   const settle = tl.drawDuration + tl.emergeDuration;
