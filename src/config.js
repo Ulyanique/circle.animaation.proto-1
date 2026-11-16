@@ -14,19 +14,18 @@ export const DEFAULTS = WAITING_DEFAULTS;
 
 // Схема UI: группы → поля. type: range | color | bool
 export const SCHEMA = [
-  { id: "partners", title: "Спонсоры и партнёры (текстовые заглушки)", fields: [
+  { id: "partners", title: "Спонсоры и организаторы", fields: [
     {key:"title",label:"Название вечера",type:"text",maxLength:120},
     {key:"subtitle",label:"Подзаголовок",type:"text",maxLength:120},
     {key:"organizerLabel",label:"Заголовок организатора",type:"text",maxLength:60},
+    {key:"coorganizerLabel",label:"Заголовок соорганизатора",type:"text",maxLength:60},
     {key:"organizer1",label:"Организатор 1",type:"text",maxLength:80},
-    {key:"organizer2",label:"Организатор 2",type:"text",maxLength:80},
-    {key:"partnerLabel",label:"Заголовок партнёров",type:"text",maxLength:60},
+    {key:"organizer2",label:"Соорганизатор",type:"text",maxLength:80},
+    {key:"partnerLabel",label:"Заголовок спонсоров",type:"text",maxLength:60},
     {key:"partner1",label:"Партнёр 1",type:"text",maxLength:80},
     {key:"partner2",label:"Партнёр 2",type:"text",maxLength:80},
     {key:"frameVisible",label:"Показывать рамку",type:"bool"},
     {key:"curtainVisible",label:"Показывать занавес",type:"bool"},
-    {key:"foliageVisible",label:"Показывать золотую ветвь",type:"bool"},
-    {key:"compassVisible",label:"Показывать циркуль",type:"bool"},
     {key:"motion",label:"Движение декора при удержании",type:"range",min:0,max:1,step:.01},
   ] },
   { id: "intro", title: "Последовательность интро", fields: [

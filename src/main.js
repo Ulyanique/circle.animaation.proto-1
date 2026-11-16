@@ -233,7 +233,7 @@ const operator = createOperatorControls({
 editor = createFrameEditor({
   getState: () => ({ id: sceneId, time: runtime.time, scene, canvas, config: cfg, defaults: activeScene.defaults }),
   onEnable: () => {
-    if (sceneId === "partners") { toast("Имена в этой сцене меняются в настройках. Логотипы пока не загружены.", true); return false; }
+    if (sceneId === "partners") { toast("Имена в этой сцене меняются в настройках; визуальный редактор слоёв здесь пока недоступен.", true); return false; }
     if (recording || transition) { toast("Во время записи или перехода редактирование недоступно", true); return false; }
     cfg.playback.paused = true;
     const tl = cfg.timeline;
@@ -565,7 +565,7 @@ function frame(now) {
       applyTypography(true); scene.refreshTextTexture?.();
       if (!recording) runtime.renderAt(runtime.time, 1 / OUTPUT.fps);
       window.__bootReady?.();
-      if (!partnersLoaded && sceneId === "partners") toast("Фон спонсоров не загрузился", true);
+      if (!partnersLoaded && sceneId === "partners") toast("Не все изображения спонсоров загрузились; возможны текстовые замены", true);
       if (!fabricLoaded) toast("Текстура камня не загрузилась; используется упрощённый фон", true);
     });
   }

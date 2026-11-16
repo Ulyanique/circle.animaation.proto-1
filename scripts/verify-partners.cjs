@@ -13,6 +13,8 @@ const {launchBrowser} = require('./browser.cjs');
   await page.waitForFunction(()=>document.body.classList.contains('boot-ready'),{timeout:240000});
   const result=await page.evaluate(async()=>{
    await document.fonts.ready;window.requestAnimationFrame=()=>0;
+   const assetsReady=await (await import('/src/partners-scene.js')).loadPartnersBackground();
+   if(!assetsReady) throw new Error('Не загрузились изображения спонсоров');
    const L=window.__logo;L.cfg.playback.paused=true;
    async function sample(t){const c=L.compositeFrameAt(t),data=c.getContext('2d').getImageData(0,0,1920,1080).data;
     let nonBlack=0;for(let i=0;i<data.length;i+=4)if(data[i]||data[i+1]||data[i+2])nonBlack++;
@@ -27,6 +29,15 @@ const {launchBrowser} = require('./browser.cjs');
    let frameChanged=0;for(let i=0;i<frameOn.length;i+=4)if(Math.abs(frameOn[i]-frameOff[i])+Math.abs(frameOn[i+1]-frameOff[i+1])+Math.abs(frameOn[i+2]-frameOff[i+2])>12)frameChanged++;
    L.cfg.partners.curtainVisible=false;const noCurtain=await sample(8);L.cfg.partners.curtainVisible=true;
    L.cfg.partners.motion=0;const noMotion=await sample(8);L.cfg.partners.motion=1;
+   // Четыре присланных знака: смена имени на пустое удаляет вклад именно
+   // этого логотипа, а фоновый композит остаётся; старые имена заменяются текстом.
+   const imageData=()=>L.compositeFrameAt(8).getContext('2d',{willReadFrequently:true}).getImageData(0,0,1920,1080).data;
+   const marked=imageData(), logoChanges={};
+   for(const key of ['organizer1','organizer2','partner1','partner2']) {
+    const saved=L.cfg.partners[key];L.cfg.partners[key]='';const without=imageData();L.cfg.partners[key]=saved;
+    let changed=0;for(let i=0;i<marked.length;i+=4)if(Math.abs(marked[i]-without[i])+Math.abs(marked[i+1]-without[i+1])+Math.abs(marked[i+2]-without[i+2])>12)changed++;
+    logoChanges[key]=changed;
+   }
    const field=document.querySelector('input[data-key="partners.partner1"]');
    if(!field) throw new Error('Нет поля партнёра в настройках');
    field.value='Проверка';field.dispatchEvent(new Event('input',{bubbles:true}));const changed=await sample(8);
@@ -38,9 +49,11 @@ const {launchBrowser} = require('./browser.cjs');
    const marker=new TextDecoder().decode(new Uint8Array(await video.blob.slice(4,8).arrayBuffer()));
    L.getSceneConfig('brand').transition.duration=0;const switched=L.switchScene('brand');
    L.getSceneConfig('partners').transition.duration=0;const back=L.switchScene('partners');
-   return {frameChanged,initial,hold,early,earlyAgain,holdOtherBuffer,noCurtain,noMotion,repeat,end,changed,stored,switched,back,id:L.activeScene.id,video:{frames:video.frames,marker,size:video.blob.size}};
+   return {frameChanged,logoChanges,initial,hold,early,earlyAgain,holdOtherBuffer,noCurtain,noMotion,repeat,end,changed,stored,switched,back,id:L.activeScene.id,video:{frames:video.frames,marker,size:video.blob.size}};
   });
   assert.ok(result.frameChanged>100, `левая рамка не дорисована: ${result.frameChanged} пикселей`);
+  for(const [key, count] of Object.entries(result.logoChanges)) assert.ok(count>300, `${key}: логотип не виден (${count} пикселей)`);
+  console.log('Вклад логотипов (пиксели):', result.logoChanges);
   assert.equal(result.initial.nonBlack,0);assert.equal(result.end.nonBlack,0);
   assert.notEqual(result.early.hash,result.hold.hash);assert.equal(result.early.hash,result.earlyAgain.hash);
   assert.equal(result.hold.hash,result.holdOtherBuffer.hash);assert.notEqual(result.hold.hash,result.noCurtain.hash);assert.notEqual(result.hold.hash,result.noMotion.hash);

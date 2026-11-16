@@ -113,7 +113,7 @@ export function createSettingsUI({
       det.appendChild(sum);
       if (section.id === "partners") {
         const note = document.createElement("p"); note.className = "cfg-io-hint";
-        note.textContent = "Пока показаны названия вместо логотипов. Для точной замены нужны файлы логотипов; загрузка изображений в этой версии ещё не добавлена.";
+        note.textContent = "Исходные названия показывают присланные золотые логотипы; изменённые — текст. Ветвь и циркуль являются частью фонового изображения.";
         det.appendChild(note);
       }
       if (section.id === "caption") {

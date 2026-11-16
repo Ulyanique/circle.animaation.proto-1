@@ -8,6 +8,9 @@ import {cycleDuration} from '../src/runtime.js';
 test('макет спонсоров имеет независимые редактируемые имена и не входит в готовую цепочку',()=>{
   assert.equal(sceneById('partners').status,'preview');
   assert.equal(cycleDuration(PARTNERS_DEFAULTS.timeline),20);
+  assert.equal(PARTNERS_DEFAULTS.partners.organizerLabel,'ОРГАНИЗАТОР');
+  assert.equal(PARTNERS_DEFAULTS.partners.coorganizerLabel,'СООРГАНИЗАТОР');
+  assert.equal(PARTNERS_DEFAULTS.partners.partnerLabel,'СПОНСОРЫ');
   assert.equal(PARTNERS_DEFAULTS.partners.organizer1,'ПРОэлектро');
   assert.equal(PARTNERS_DEFAULTS.partners.organizer2,'ПРОэлектрощит');
   assert.equal(PARTNERS_DEFAULTS.partners.partner1,'Промрукав');
