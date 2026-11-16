@@ -6,7 +6,7 @@ import proelectroschitUrl from './assets/partners/proelectroschit.svg';
 import promrukavUrl from './assets/partners/promrukav.svg';
 import keazUrl from './assets/partners/keaz.svg';
 import { partnersCues, drawPartnersDecor, drawAmberAtmosphere } from './partners-graphics.js';
-import { glintSpan, reveal, easeOutBack } from './partners-motion.js';
+import { glintSpan, reveal, easeOutBack, pairLayout } from './partners-motion.js';
 import { computePhase } from './timeline.js';
 import { BASE_FRAME } from './scenes/catalog.js';
 import { masterSize, masterId } from './output-profile.js';
@@ -489,15 +489,32 @@ export class PartnersScene {
     // Знак входит не «проявлением», а движением: поднимается на 26 px, чуть
     // увеличиваясь, и садится с мягким перелётом. Текст рядом идёт следом,
     // чтобы группа читалась как единое целое, а не как два независимых слоя.
-    const company = (key, x, y, entry, glintAt, phaseIdx) => {
-      const value = data[key];
-      const customLogo = resolveCustomLogo(data[`${key}Logo`], style, () => {
+    /** Знак из настроек (свой файл) либо встроенный, если имя не меняли. */
+    const customLogoFor = (key) => {
+      const custom = resolveCustomLogo(data[`${key}Logo`], style, () => {
         if (window.__logo?.activeScene?.id === 'partners' && window.__logo?.cfg?.playback?.paused) {
           window.__logo.renderAt(window.__logo.time);
         }
       });
-      const isDefaultName = String(value ?? '').trim().toLocaleLowerCase('ru') === defaults[key].toLocaleLowerCase('ru');
-      const logo = customLogo || (isDefaultName ? builtinMark(key, style) : null);
+      const isDefault = String(data[key] ?? '').trim().toLocaleLowerCase('ru') === defaults[key].toLocaleLowerCase('ru');
+      return custom || (isDefault ? builtinMark(key, style) : null);
+    };
+    // Знаки готовим один раз на кадр: и для замера пары, и для отрисовки.
+    // Раньше company() и замер звали подготовку по отдельности.
+    const marks = {
+      organizer1: customLogoFor('organizer1'), organizer2: customLogoFor('organizer2'),
+      partner1: customLogoFor('partner1'), partner2: customLogoFor('partner2'),
+    };
+    // Ширина знака на экране без отрисовки: нужна, чтобы построить пару
+    // симметрично. Показной масштаб тот же, что в company().
+    const markWidth = (key) => {
+      const logo = marks[key];
+      if (!logo) return 0;
+      return logo.width * Math.min(MARK_MAX_WIDTH / logo.width, MARK_MAX_HEIGHT / logo.height);
+    };
+    const company = (key, x, y, entry, glintAt, phaseIdx, limit = null) => {
+      const value = data[key];
+      const logo = marks[key];
       // Мягкий подъём с перелётом: p идёт 0→1, overshoot даёт «доезд».
       const p = entry <= 0 ? 0 : Math.min(1.06, easeOutBack(entry));
       const rise = (1 - Math.min(1, p)) * 26;
@@ -505,8 +522,12 @@ export class PartnersScene {
         text(value, x, y, '600 52px Manrope, sans-serif', ivory, visible * Math.max(0, Math.min(1, p)), 440, Math.min(1, p));
         return;
       }
-      const scale = Math.min(MARK_MAX_WIDTH / logo.width, MARK_MAX_HEIGHT / logo.height);
-      const lw = logo.width * scale, lh = logo.height * scale;
+      let scale = Math.min(MARK_MAX_WIDTH / logo.width, MARK_MAX_HEIGHT / logo.height);
+      const lh = logo.height * scale;
+      // Ограничение пары: длинный знак ужимается, короткий остаётся как есть —
+      // ширина блока при этом общая, иначе пара снова поедет.
+      let lw = logo.width * scale;
+      if (limit != null && lw > limit) { scale *= limit / lw; lw = limit; }
       // Масштаб группы: 0.955 → 1, на перелёте — до 1.008.
       // На удержании знак медленно «дышит» (±0.4 % размера и ±2 px по высоте):
       // у каждого своя фаза, поэтому группа не качается синхронно.
@@ -563,15 +584,34 @@ export class PartnersScene {
     };
     tierGlow(CONTENT_CENTER, 495, 620, 190, visible * cue.shadow * .85);
     tierGlow(CONTENT_CENTER, 785, 620, 190, visible * cue.shadow * .7);
-    label(data.organizerLabel, COLUMN_LEFT, 401, visible * cue.organizerLabel, cue.organizerLabel);
-    label(data.coorganizerLabel, COLUMN_RIGHT, 401, visible * cue.organizerLabel, cue.organizerLabel);
+    // Ярус строится симметрично по КРАЯМ, а не центрированием на фиксированных
+    // колонках: у знаков разные пропорции (3.6:1 у Промрукав, 5.4:1 у КЭАЗ), и
+    // пара из блоков разной ширины читалась сдвинутой вправо — центр групп был
+    // на оси, но зазор между ними 65 px против 20, а внешние поля 485 против 441.
+    // Теперь поля по краям равны, и зазор в середине тоже.
+    const pairSlot = (leftKey, rightKey) => {
+      const lw = markWidth(leftKey), rw = markWidth(rightKey);
+      if (!lw && !rw) return { leftX: COLUMN_LEFT, rightX: COLUMN_RIGHT, leftW: null, rightW: null };
+      const { leftX, rightX, slot } = pairLayout({
+        center: CONTENT_CENTER, leftWidth: lw, rightWidth: rw, gap: PAIR_INNER_GAP,
+      });
+      return { leftX, rightX, leftW: slot, rightW: slot };
+    };
+    // Зазор между знаками одной пары. Меньше — знаки липнут, больше — пара
+    // распадается на две одиночные колонки.
+    const PAIR_INNER_GAP = 90;
+    const organizers = pairSlot('organizer1', 'organizer2');
+    // Подписи идут по центрам своих знаков: они относятся к знаку, а не к колонке.
+    label(data.organizerLabel, organizers.leftX, 401, visible * cue.organizerLabel, cue.organizerLabel);
+    label(data.coorganizerLabel, organizers.rightX, 401, visible * cue.organizerLabel, cue.organizerLabel);
     // Блик идёт очередью уже по «севшему» знаку: 1.69+1.0 с — конец входа.
-    company('organizer1', COLUMN_LEFT, 495, cue.organizer, 2.75, 0);
-    company('organizer2', COLUMN_RIGHT, 495, cue.organizerSecond, 3.25, 1);
+    company('organizer1', organizers.leftX, 495, cue.organizer, 2.75, 0, organizers.leftW);
+    company('organizer2', organizers.rightX, 495, cue.organizerSecond, 3.25, 1, organizers.rightW);
     ornament(613, visible * cue.separator * .55, 420 * cue.separator, CONTENT_CENTER, cue.separator);
     label(data.partnerLabel, CONTENT_CENTER, 690, visible * cue.partnerLabel, cue.partnerLabel);
-    company('partner1', COLUMN_LEFT, 785, cue.partner, 4.45, 2);
-    company('partner2', COLUMN_RIGHT, 785, cue.partnerSecond, 4.95, 3);
+    const sponsors = pairSlot('partner1', 'partner2');
+    company('partner1', sponsors.leftX, 785, cue.partner, 4.45, 2, sponsors.leftW);
+    company('partner2', sponsors.rightX, 785, cue.partnerSecond, 4.95, 3, sponsors.rightW);
     this.cardTexture.needsUpdate = true;
   }
 

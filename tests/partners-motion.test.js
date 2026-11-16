@@ -147,3 +147,40 @@ test("блик не задевает края строки заголовка �
     assert.ok(span > -0.2 && span < 1.2, `полоса блика вышла за строку: ${span.toFixed(3)}`);
   }
 });
+
+// Раскладка пары: центрирование по колонкам не спасало, потому что знаки разной
+// ширины. Проверяем симметрию полей и зазора численно.
+import { pairLayout } from "../src/partners-motion.js";
+
+test("пара строится симметрично при знаках разной ширины", () => {
+  // Реальные пропорции яруса: 411 и 500 px у организаторов, 376 и 498 у спонсоров.
+  for (const [leftWidth, rightWidth] of [[411, 500], [376, 498], [300, 300]]) {
+    const { leftX, rightX, slot } = pairLayout({ center: 960, leftWidth, rightWidth, gap: 90 });
+    // Зазор между ячейками одинаковый, потому что ячейки равны.
+    const gap = rightX - leftX - slot;
+    assert.equal(gap, 90, `зазор ${gap} вместо 90 при ширинах ${leftWidth}/${rightWidth}`);
+    // Середина между ячейками — ровно ось кадра.
+    assert.equal((leftX + rightX) / 2, 960);
+    // Ячейка равна меньшему знаку (с точностью до чётного округления вниз):
+    // короткий знак не растягивается.
+    assert.ok(Math.min(leftWidth, rightWidth) - slot < 2, `ячейка ${slot} при меньшем знаке ${Math.min(leftWidth, rightWidth)}`);
+    assert.equal(slot % 2, 0, "ячейка должна быть чётной — иначе зазор уезжает на пиксель");
+  }
+});
+
+test("пара с знаками равной ширины совпадает с симметричной раскладкой", () => {
+  const { leftX, rightX, slot } = pairLayout({ center: 960, leftWidth: 400, rightWidth: 400, gap: 100 });
+  assert.equal(slot, 400);
+  assert.equal(leftX, 960 - 250);
+  assert.equal(rightX, 960 + 250);
+});
+
+test("вырожденный случай не роняет раскладку", () => {
+  const empty = pairLayout({ center: 960, leftWidth: 0, rightWidth: 0, gap: 90 });
+  assert.equal(empty.leftX, 960);
+  assert.equal(empty.rightX, 960);
+  // Один знак без второго: ячейка по нему, второй центр на оси — кадр не ломается.
+  const single = pairLayout({ center: 960, leftWidth: 440, rightWidth: 0, gap: 90 });
+  assert.equal(single.slot, 440);
+  assert.equal((single.leftX + single.rightX) / 2, 960);
+});

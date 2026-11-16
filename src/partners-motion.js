@@ -87,3 +87,24 @@ export function scenePresence(local, exitStart, fadeSpan) {
   const outP = easeInOutCubic(window01(local, exitStart, fadeSpan));
   return clamp01(inP * (1 - outP));
 }
+
+/**
+ * Раскладка пары знаков в ярусе.
+ *
+ * Центрирования на фиксированных колонках недостаточно: у знаков разные
+ * пропорции (3.6:1 у Промрукав, 5.4:1 у КЭАЗ), поэтому пара из блоков разной
+ * ширины читается сдвинутой, даже когда середины колонок стоят на оси кадра.
+ * Ячейки делаются равными по ширине — тогда равны и внешние поля, и зазор.
+ *
+ * @param {{center:number, leftWidth:number, rightWidth:number, gap:number}} spec
+ * @returns {{leftX:number, rightX:number, slot:number, slotHalf:number}}
+ */
+export function pairLayout({ center, leftWidth, rightWidth, gap }) {
+  const usable = [leftWidth, rightWidth].filter((w) => Number.isFinite(w) && w > 0);
+  if (!usable.length) return { leftX: center, rightX: center, slot: 0, slotHalf: 0 };
+  // Ячейка чётной ширины: тогда полуширина и зазор целые, и пара стоит точно
+  // по оси. Знак ужимается максимум на пиксель — это незаметно.
+  const slot = 2 * Math.floor(Math.min(...usable) / 2);
+  const offset = slot / 2 + Math.max(0, gap) / 2;
+  return { leftX: center - offset, rightX: center + offset, slot, slotHalf: offset };
+}
