@@ -57,6 +57,7 @@ body.scene-finale #caption .cap-sub {
   left: calc(50% + var(--subtitle-offset-x, 0%)); top: calc(var(--finale-subtitle-y, 79%) + var(--subtitle-offset-y, 0%)); font-size: calc(var(--u) * 2.55 * var(--subtitle-scale, 1) * var(--subtitle-fit, 1));
   letter-spacing: var(--subtitle-tracking, .18em); padding-left: var(--subtitle-tracking, .18em);
 }
+
 /* Мышь видна всегда. Только элементы пульта исчезают после бездействия. */
 body, body.ui-on { cursor: auto; }
 /* Настройки есть в каждой сцене. В простое кнопка приглушена, но кликабельна. */

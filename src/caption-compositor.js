@@ -280,8 +280,34 @@ export function drawCaption(ctx, alpha, sceneId) {
     fill: titleColor || (cap.dataset.titleMetallic === "true" ? (y, shine) => metallicTitleGradient(ctx, y, tSize, shine) : titleGrad),
   });
   if (finale) {
+    const subPosition = linePosition(".cap-sub", 0.79 * H);
+    // Финальная строка остаётся одна на чёрном поле: тёплый ореол под ней
+    // работает картой света и не даёт строке висеть в пустоте. Альфа берёт
+    // прозрачность строки из DOM, поэтому ореол гаснет вместе с ней; на тёплых
+    // кадрах с знаком он неразличим. Титр рисует композитор (DOM скрыт),
+    // значит и ореол живёт здесь, а не в CSS.
+    const subElement = cap?.querySelector(".cap-sub");
+    const subAlpha = subElement
+      ? Math.max(0, Math.min(1, parseFloat(getComputedStyle(subElement).opacity) || 0))
+      : 1;
+    if (subAlpha > 0.01) {
+      // Эллипс на всю строку с запасом: узкий радиус читался кляксой за
+      // серединой текста, а не картой света под строкой.
+      const haloRadius = 26 * u;
+      ctx.save();
+      ctx.globalAlpha *= subAlpha;
+      ctx.translate(subPosition.centerX, subPosition.y);
+      ctx.scale(1, 0.38);
+      const halo = ctx.createRadialGradient(0, 0, 0, 0, 0, haloRadius);
+      halo.addColorStop(0, "rgba(236,190,102,.10)");
+      halo.addColorStop(0.55, "rgba(214,150,70,.035)");
+      halo.addColorStop(1, "rgba(214,150,70,0)");
+      ctx.fillStyle = halo;
+      ctx.beginPath(); ctx.arc(0, 0, haloRadius, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
+    }
     builtinTextLine(".cap-sub", {
-      ...linePosition(".cap-sub", 0.79 * H), weight: 400, size: subSize, ls: 0.18 * subSize,
+      ...subPosition, weight: 400, size: subSize, ls: 0.18 * subSize,
       stroke: subtitleColor || "#d9b061", sw: 0.04 * u, fill: subtitleColor || "#ecd08c",
     });
   }
