@@ -6,6 +6,48 @@ import { glyphReveal } from "./caption.js";
 // Размер берём у целевого canvas: титр должен совпадать с мастером кадра,
 // а не с единственным форматом 1920×1080.
 /** Регистр тот же, что задаёт CSS для каждой графемы в предпросмотре. */
+/**
+ * Геометрия строки титра на канвасе: ширина каждой графемы с межбуквенным
+ * интервалом, полная ширина строки и левый край каждой графемы.
+ *
+ * Чистый расчёт, общий для экспорта и для замеров: раньше он жил inline в
+ * отрисовке, и любая неточность в нём сдвигала текст в видео относительно
+ * DOM-предпросмотра незаметно для тестов. Хвостовой интервал после последней
+ * графемы в ширину строки не входит — CSS при центрировании его тоже не учитывает.
+ *
+ * @param {object} shape
+ * @param {string[]} shape.glyphs графемы строки (регистр уже применён)
+ * @param {(text: string) => number} shape.measure ширина текста в px канваса
+ * @param {number} shape.spacing межбуквенный интервал в px канваса
+ * @param {number} [shape.centerX] ось строки; по умолчанию 0
+ * @param {((glyph: string) => string[]) | null} [shape.split] развод графемы на
+ *   части для канваса без letterSpacing; null — графема рисуется целиком
+ * @returns {{items: Array<{glyph: string, width: number, runs: Array<{text: string, offset: number}> | null, x: number}>, width: number, startX: number}}
+ */
+export function captionLineLayout({ glyphs, measure, spacing, centerX = 0, split = null }) {
+  const gap = Number.isFinite(spacing) ? spacing : 0;
+  const items = (glyphs ?? []).map((glyph) => {
+    if (!split) return { glyph, width: measure(glyph), runs: null, x: 0 };
+    // Канвас без letterSpacing: части расширенной графемы рисуются отдельно,
+    // но измеряются и раскрываются как одно целое.
+    let width = 0;
+    const runs = split(glyph).map((text) => {
+      const offset = width;
+      width += measure(text) + gap;
+      return { text, offset };
+    });
+    return { glyph, width, runs, x: 0 };
+  });
+  const width = items.reduce((sum, item) => sum + item.width, 0) - (items.length ? gap : 0);
+  const startX = centerX - width / 2;
+  let x = startX;
+  for (const item of items) {
+    item.x = x;
+    x += item.width;
+  }
+  return { items, width, startX };
+}
+
 export function transformGlyph(glyph, transform, language = "ru") {
   const text = glyph === "\u00a0" ? " " : glyph;
   if (transform === "uppercase") return text.toLocaleUpperCase(language);
@@ -95,27 +137,24 @@ export function drawCaption(ctx, alpha, sceneId) {
     if (nativeSpacing) ctx.letterSpacing = `${spacing}px`;
     const segmenter = !nativeSpacing && typeof Intl.Segmenter === "function"
       ? new Intl.Segmenter(language, { granularity: "grapheme" }) : null;
-    const metrics = glyphs.map((glyph) => {
-      if (nativeSpacing) return { width: ctx.measureText(glyph).width, runs: null };
-      // Старый canvas без letterSpacing: рисуем части расширенной графемы отдельно,
-      // но измеряем и раскрываем всю исходную графему как одно целое.
-      const parts = segmenter ? [...segmenter.segment(glyph)].map((part) => part.segment) : Array.from(glyph);
-      let width = 0;
-      const runs = parts.map((text) => {
-        const offset = width;
-        width += ctx.measureText(text).width + spacing;
-        return { text, offset };
-      });
-      return { width, runs };
+    // Геометрия строки — чистый расчёт captionLineLayout: один и тот же для
+    // замеров и отрисовки, поэтому текст в видео не разъезжается с DOM-макетом.
+    const layout = captionLineLayout({
+      glyphs,
+      measure: (text) => ctx.measureText(text).width,
+      spacing,
+      centerX: o.centerX ?? W / 2,
+      split: nativeSpacing ? null : (glyph) => segmenter
+        ? [...segmenter.segment(glyph)].map((part) => part.segment)
+        : Array.from(glyph),
     });
-    const w = metrics.reduce((sum, item) => sum + item.width, 0) - (glyphs.length ? spacing : 0);
-    let x = (o.centerX ?? W / 2) - w / 2; // отступ DOM уже учитывается центрированием строки
+    const w = layout.width;
     ctx.textAlign = "left";
     ctx.strokeStyle = o.stroke; ctx.lineWidth = o.sw; ctx.lineJoin = "round";
     const pen = capVal(sel, "--pen");
     glyphs.forEach((glyph, i) => {
       const reveal = glyphReveal(line, i, glyphs.length);
-      const { width, runs } = metrics[i];
+      const { width, runs, x } = layout.items[i];
       const paint = (method) => {
         if (runs) runs.forEach((run) => ctx[method](run.text, x + run.offset, y));
         else ctx[method](glyph, x, y);
@@ -159,7 +198,6 @@ export function drawCaption(ctx, alpha, sceneId) {
         ctx.fillRect(head - spread, centerY - o.size * 0.38, spread * 2, o.size * 0.8);
         ctx.restore();
       }
-      x += width;
     });
     ctx.textAlign = "center";
   };
