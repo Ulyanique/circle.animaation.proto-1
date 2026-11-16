@@ -162,7 +162,38 @@ export class PartnersScene {
         buf.canvas.height = height;
         buf.ctx = buf.canvas.getContext('2d');
       }
+      // Статический слой привязан к разрешению мастера — пересобрать.
+      this._staticLayer = null;
+      this._staticLayerKey = "";
     }
+  }
+
+  /**
+   * Фон и постоянный градиент света не меняются за цикл и не зависят от времени.
+   * Раньше они перерисовывались каждый кадр: уменьшение фото 2752×1536 до 1920
+   * и полноэкранный градиент стоят дороже всей анимации вместе.
+   */
+  _buildStaticLayer(master, background) {
+    // Ключ обязан учитывать наличие фона: первые кадры могут пройти до загрузки
+    // фото, и закэшированная «пустая» подложка иначе останется навсегда.
+    const key = `${master.width}x${master.height}|${background ? "bg" : "empty"}`;
+    if (this._staticLayer && this._staticLayerKey === key) return this._staticLayer;
+    const w = BASE_FRAME.width, h = BASE_FRAME.height;
+    /** @type {any} */
+    const layer = this._staticLayer?.canvas ?? document.createElement("canvas");
+    layer.width = master.width; layer.height = master.height;
+    const ctx = layer.getContext("2d");
+    ctx.setTransform(master.width / w, 0, 0, master.height / h, 0, 0);
+    if (background) ctx.drawImage(background, 0, 0, w, h);
+    else { ctx.fillStyle = "#22070b"; ctx.fillRect(0, 0, w, h); }
+    const light = ctx.createRadialGradient(720, 90, 20, 850, 400, 900);
+    light.addColorStop(0, "rgba(255,190,139,.13)");
+    light.addColorStop(.45, "rgba(197,97,76,.035)");
+    light.addColorStop(1, "rgba(0,0,0,.16)");
+    ctx.fillStyle = light; ctx.fillRect(0, 0, w, h);
+    this._staticLayer = layer;
+    this._staticLayerKey = key;
+    return layer;
   }
 
   get quality() { return this._quality; }
@@ -196,15 +227,16 @@ export class PartnersScene {
     const cue = partnersCues(phase, tl, data.motion ?? 1), visible = cue.visible;
     this._blackFrame = visible <= 0;
 
+    // Непрозрачная чёрная заливка уже стирает прошлый кадр: отдельный clearRect
+    // поверх 2 млн пикселей — лишняя работа на каждом кадре.
     ctx.globalAlpha = 1;
-    ctx.clearRect(0, 0, w, h); ctx.fillStyle = '#000000'; ctx.fillRect(0, 0, w, h);
+    ctx.fillStyle = '#000000'; ctx.fillRect(0, 0, w, h);
     if (visible <= 0) { this.cardTexture.needsUpdate = true; return; }
+    // Фон и постоянный свет берутся готовым слоем: масштабирование фото и
+    // полноэкранный градиент выполняются один раз, а не 60 раз в секунду.
+    const staticLayer = this._buildStaticLayer(master, backgroundCanvas);
     ctx.save(); ctx.globalAlpha = visible;
-    if (backgroundCanvas) ctx.drawImage(backgroundCanvas, 0, 0);
-    else { ctx.fillStyle = '#22070b'; ctx.fillRect(0, 0, w, h); }
-    const light = ctx.createRadialGradient(720, 90, 20, 850, 400, 900);
-    light.addColorStop(0, 'rgba(255,190,139,.13)'); light.addColorStop(.45, 'rgba(197,97,76,.035)'); light.addColorStop(1, 'rgba(0,0,0,.16)');
-    ctx.fillStyle = light; ctx.fillRect(0, 0, w, h);
+    ctx.drawImage(staticLayer, 0, 0, w, h);
     ctx.restore();
     drawAmberAtmosphere(ctx, phase.local, (data.motion ?? 1) * visible, phase.cycle);
     if (data.curtainVisible !== false && curtainImage) {

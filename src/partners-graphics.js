@@ -37,6 +37,19 @@ function framePath(ctx, inset) {
   ctx.quadraticCurveTo(l+c,b-c,l,b-c);ctx.lineTo(l,t+c);
   ctx.quadraticCurveTo(l+c,t+c,l+c,t);ctx.closePath();
 }
+// Позолота рамки не зависит от времени: градиент создаётся один раз на контекст.
+// Раньше он строился каждый кадр вместе с четырьмя обводками периметра ~5600 px.
+const frameGradients = new WeakMap();
+function frameGradient(ctx) {
+  let gold = frameGradients.get(ctx);
+  if (gold) return gold;
+  gold = ctx.createLinearGradient(0,0,BASE_FRAME.width,BASE_FRAME.height);
+  gold.addColorStop(0,'#805b34');gold.addColorStop(.25,'#d1ac70');
+  gold.addColorStop(.48,'#f4dcaa');gold.addColorStop(.72,'#99703e');gold.addColorStop(1,'#d8b77f');
+  frameGradients.set(ctx, gold);
+  return gold;
+}
+
 function drawFrame(ctx,cue) {
   ctx.save();ctx.globalAlpha=cue.visible*.82;
   // Периметр внешнего контура около 5600 px; запас нужен и для
@@ -47,12 +60,12 @@ function drawFrame(ctx,cue) {
   ctx.lineWidth=5;ctx.strokeStyle='rgba(33,13,5,.65)';framePath(ctx,0);ctx.stroke();
   // Рамка рисуется в координатах базового кадра; контекст уже отмасштабирован
   // вызывающей стороной, поэтому берём размер из каталога, а не литерал.
-  const gold=ctx.createLinearGradient(0,0,BASE_FRAME.width,BASE_FRAME.height);
-  gold.addColorStop(0,'#805b34');gold.addColorStop(.25,'#d1ac70');
-  gold.addColorStop(.48,'#f4dcaa');gold.addColorStop(.72,'#99703e');gold.addColorStop(1,'#d8b77f');
-  ctx.strokeStyle=gold;ctx.lineWidth=2.5;framePath(ctx,0);ctx.stroke();
-  ctx.strokeStyle='rgba(255,239,197,.5)';ctx.lineWidth=.7;framePath(ctx,1.5);ctx.stroke();
-  ctx.globalAlpha=cue.visible*.37;ctx.lineWidth=1;framePath(ctx,10);ctx.stroke();
+  ctx.strokeStyle=frameGradient(ctx);ctx.lineWidth=2.5;framePath(ctx,0);ctx.stroke();
+  // Внутренние кромки видны только когда рамка уже проявилась.
+  if (cue.frame > 0.02) {
+    ctx.strokeStyle='rgba(255,239,197,.5)';ctx.lineWidth=.7;framePath(ctx,1.5);ctx.stroke();
+    ctx.globalAlpha=cue.visible*.37;ctx.lineWidth=1;framePath(ctx,10);ctx.stroke();
+  }
   ctx.setLineDash([]);
   // Небольшие ювелирные акценты на углах появляются вместе с рамкой.
   ctx.globalAlpha=cue.visible*cue.frame*.65;ctx.fillStyle='#e8cc96';
@@ -76,6 +89,29 @@ const AMBER_PARTICLES = Array.from({ length: 74 }, (_, i) => {
   seed = (seed * 1664525 + 1013904223) >>> 0;
   return { x, y, radius: 0.7 + (seed / 0x100000000) * 1.8, phase: i * 2.3999632297, cycles: 1 + (i % 4) };
 });
+
+// Частица рисуется спрайтом, а не через shadowBlur: размытие тени в canvas2D
+// дорого и линейно растёт с числом частиц (здесь их 74 и до 8 кадров на секунду
+// экран не жалеет). Спрайт даёт тот же мягкий ореол одним drawImage.
+const SPRITE_SIZE = 32;
+let amberSprite = null;
+function getAmberSprite() {
+  if (amberSprite) return amberSprite;
+  const canvas = document.createElement('canvas');
+  canvas.width = canvas.height = SPRITE_SIZE;
+  const ctx = canvas.getContext('2d');
+  const r = SPRITE_SIZE / 2;
+  const glow = ctx.createRadialGradient(r, r, 0, r, r, r);
+  // Те же стопы, что были в shadowColor '#ffbe66' + shadowBlur: ядро, ореол, ноль.
+  glow.addColorStop(0, 'rgba(255,217,149,1)');
+  glow.addColorStop(.34, 'rgba(255,200,120,.62)');
+  glow.addColorStop(.62, 'rgba(255,190,102,.22)');
+  glow.addColorStop(1, 'rgba(255,190,102,0)');
+  ctx.fillStyle = glow;
+  ctx.fillRect(0, 0, SPRITE_SIZE, SPRITE_SIZE);
+  amberSprite = canvas;
+  return canvas;
+}
 
 /** Warm moving light and subtle amber dust, deterministic at any seek time.
  * @param {CanvasRenderingContext2D} ctx
@@ -112,22 +148,23 @@ export function drawAmberAtmosphere(ctx, time, motion = 1, period = 20) {
 
   ctx.save();
   ctx.globalCompositeOperation = 'screen';
+  const sprite = getAmberSprite();
+  // Спрайт заменяет радиус ~1.4 px плюс shadowBlur 5–12: ореол той же ширины,
+  // но одним drawImage без размытия. Множитель подобран по площади: тень
+  // покрывала ~30 тыс. px на кадр, спрайт — столько же, иначе выигрыш съедается.
+  const spriteScale = 6;
   for (const particle of AMBER_PARTICLES) {
     const twinkle = 0.18 + 0.82 * (0.5 + 0.5 * Math.sin(angle * particle.cycles + particle.phase));
     const dx = (particle.x - x) / 470, dy = (particle.y - y) / 330;
     const beamCatch = Math.exp(-0.5 * (dx * dx + dy * dy));
     const alpha = power * twinkle * (0.26 + beamCatch * 0.48);
     const radius = particle.radius * (0.65 + twinkle * 0.65 + beamCatch * 0.35);
+    const size = radius * spriteScale;
     ctx.globalAlpha = alpha;
-    ctx.fillStyle = '#ffd995';
-    ctx.shadowColor = '#ffbe66';
-    ctx.shadowBlur = 5 + radius * 5;
-    ctx.beginPath();
-    ctx.arc(particle.x, particle.y, radius, 0, Math.PI * 2);
-    ctx.fill();
+    ctx.drawImage(sprite, particle.x - size / 2, particle.y - size / 2, size, size);
     if (twinkle > 0.84) {
       ctx.globalAlpha = (twinkle - 0.84) * power * 1.45;
-      ctx.shadowBlur = 8;
+      ctx.fillStyle = '#ffd995';
       ctx.fillRect(particle.x - 3.5, particle.y - 0.45, 7, 0.9);
       ctx.fillRect(particle.x - 0.45, particle.y - 3.5, 0.9, 7);
     }
