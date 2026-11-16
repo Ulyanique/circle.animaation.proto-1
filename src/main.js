@@ -9,7 +9,7 @@ import { refreshContours } from "./contour-preview.js";
 import { syncCaptionContent } from "./caption-content.js";
 import { applyCaptionFit } from "./caption-fit.js";
 import {
-  cloneDefaults, loadSceneConfig, saveSceneConfig, replaceConfig, mergeConfig, projectToJSON,
+  cloneDefaults, loadSceneConfig, saveSceneConfigDetailed, replaceConfig, mergeConfig, projectToJSON,
 } from "./config.js";
 import { LogoScene } from "./scene.js";
 import { BrandScene } from "./brand-scene.js";
@@ -66,8 +66,9 @@ function configFor(id) {
 }
 function saveScene(id = sceneId) {
   id = sceneById(id)?.id || id;
-  if (saveSceneConfig(id, configFor(id))) storageFailures.delete(id);
-  else storageFailures.add(id);
+  const result = saveSceneConfigDetailed(id, configFor(id));
+  if (result.ok) storageFailures.delete(id);
+  else { storageFailures.add(id); storageReason = result.reason; }
   updateStorageWarning();
 }
 /** Применить присланный JSON к сцене, не ломая ссылку, которую держит рендер. */
@@ -94,10 +95,22 @@ function toast(msg, isError = false) {
 }
 
 // Persistent warning: a toast can be overwritten by a later success message.
+// Текст зависит от причины: при переполнении квоты нужно подсказать, что делать,
+// а не ограничиваться «настройки не сохранились».
+let storageReason = null;
 const storageWarning = document.createElement("div");
 storageWarning.className = "storage-warning";
 storageWarning.setAttribute("role", "alert");
-storageWarning.innerHTML = '<span>Настройки не удалось прочитать или сохранить в браузере. Изменения могут потеряться после перезагрузки.</span> <button type="button">Скачать текущий проект JSON</button>';
+storageWarning.innerHTML = '<span></span> <button type="button">Скачать текущий проект JSON</button>';
+const storageWarningText = storageWarning.querySelector("span");
+const STORAGE_MESSAGES = {
+  quota: "Не хватает места в хранилище браузера: настройки не сохраняются (обычно из-за загруженных логотипов). Уберите логотипы в разделах «Организаторы»/«Партнёры» или скачайте проект JSON — изменения потеряются после перезагрузки.",
+  blocked: "Браузер запретил сохранение настроек (приватный режим или запрет хранилища сайта). Изменения потеряются после перезагрузки — скачайте проект JSON.",
+  unknown: "Настройки не удалось прочитать или сохранить в браузере. Изменения могут потеряться после перезагрузки.",
+};
+function storageWarningMessage(reason) {
+  return STORAGE_MESSAGES[reason] || STORAGE_MESSAGES.unknown;
+}
 storageWarning.querySelector("button").addEventListener("click", () => {
   const blob = new Blob([projectToJSON(Object.fromEntries(READY_IDS.map(id => [id, configFor(id)])), READY_IDS)], {type: "application/json"});
   const link = document.createElement("a");
@@ -105,7 +118,10 @@ storageWarning.querySelector("button").addEventListener("click", () => {
   link.click(); setTimeout(() => URL.revokeObjectURL(link.href), 1000);
 });
 document.body.appendChild(storageWarning);
-function updateStorageWarning() { storageWarning.hidden = storageFailures.size === 0; }
+function updateStorageWarning() {
+  storageWarning.hidden = storageFailures.size === 0;
+  if (!storageWarning.hidden) storageWarningText.textContent = storageWarningMessage(storageReason);
+}
 updateStorageWarning();
 
 function activateClasses(id) {

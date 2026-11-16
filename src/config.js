@@ -509,13 +509,30 @@ export function loadSceneConfig(sceneId, defaults, onReadError) {
   return cfg;
 }
 
-export function saveSceneConfig(sceneId, cfg) {
+/**
+ * Сохраняет настройки сцены в localStorage.
+ * Возвращает причину неудачи, а не просто false: при переполнении квоты
+ * (типичный случай — несколько загруженных логотипов) пользователю нужно
+ * сказать, что именно делать, иначе изменения теряются молча.
+ * @returns {{ok:true, reason:null}|{ok:false, reason:"quota"|"blocked"|"unknown"}}
+ */
+export function saveSceneConfigDetailed(sceneId, cfg) {
   try {
     localStorage.setItem(sceneStorageKey(sceneId), JSON.stringify(cfg));
-    return true;
+    return { ok: true, reason: null };
   } catch (e) {
-    return false;
+    const name = e && e.name;
+    if (name === "QuotaExceededError" || name === "NS_ERROR_DOM_QUOTA_REACHED" || e?.code === 22 || e?.code === 1014) {
+      return { ok: false, reason: "quota" };
+    }
+    // Приватный режим и запрет на хранилище приходят как SecurityError.
+    if (name === "SecurityError" || name === "NotAllowedError") return { ok: false, reason: "blocked" };
+    return { ok: false, reason: "unknown" };
   }
+}
+
+export function saveSceneConfig(sceneId, cfg) {
+  return saveSceneConfigDetailed(sceneId, cfg).ok;
 }
 
 export function resetSceneConfig(sceneId) {
