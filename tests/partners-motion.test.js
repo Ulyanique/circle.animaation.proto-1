@@ -429,3 +429,50 @@ test("затухание блика: ноль на концах, максиму�
   // Чем выше sharpness, тем резче блик.
   assert.ok(glintFalloff(.2, 4) < glintFalloff(.2, 1));
 });
+
+test('глиттер — это россыпь мелких искр, а не звёзды и не луч-прожектор', async () => {
+  // Проверка рисует светлый слой в буфер и смотрит на распределение ярких
+  // пятен: у звёзд были бы лучи (длинные цепочки ярких пикселей), у прожектора —
+  // сплошная засветка. Глиттер — мелкие, редкие, разбросанные точки.
+  const { drawAmberAtmosphere } = await import('../src/partners-graphics.js');
+  // В node нет canvas: строим минимальную заглушку с нужным API. Спрайт искры
+  // создаётся через document.createElement — подменяем его на пустышку.
+  globalThis.document = globalThis.document || {
+    createElement() {
+      return { width: 0, height: 0, getContext: () => ctxStub() };
+    },
+  };
+  const calls = [];
+  function ctxStub() {
+    return {
+      createRadialGradient: () => ({ addColorStop() {} }),
+      fillRect() {}, save() {}, restore() {}, translate() {}, rotate() {}, scale() {},
+    };
+  }
+  const ctx = {
+    canvas: { width: 1920, height: 1080 },
+    globalAlpha: 1, globalCompositeOperation: 'source-over', fillStyle: '',
+    save() {}, restore() {}, translate() {}, rotate() {}, scale() {},
+    createRadialGradient() { return { addColorStop() {} }; },
+    createLinearGradient() { return { addColorStop() {} }; },
+    fillRect(...args) { calls.push(['fillRect', args]); },
+    drawImage(_img, x, y, w) { calls.push(['drawImage', [x, y, w]]); },
+  };
+  drawAmberAtmosphere(ctx, 6, 1, 16, []);
+  const grains = calls.filter(([kind]) => kind === 'drawImage');
+  // Искр много и они мелкие: крупный спрайт давал бы «блямбы».
+  assert.ok(grains.length > 120, `слишком мало искр: ${grains.length}`);
+  assert.ok(grains.every(([, [, , w]]) => w <= 14), 'искра крупнее 14 px — это уже блямба');
+  // Искры занимают небольшую долю кадра и распределены по площади, а не
+  // выстроены в одну диагональ или в луч.
+  const xs = grains.map(([, [x]]) => x), ys = grains.map(([, [, y]]) => y);
+  const spanX = Math.max(...xs) - Math.min(...xs);
+  const spanY = Math.max(...ys) - Math.min(...ys);
+  assert.ok(spanX > 1200 && spanY > 700, `россыпь сжалась в полосу: ${spanX}×${spanY}`);
+  // Мерцание: два разных момента дают разные наборы искр.
+  const first = new Set(grains.map(([, [x, y]]) => `${Math.round(x)},${Math.round(y)}`));
+  calls.length = 0;
+  drawAmberAtmosphere(ctx, 6.7, 1, 16, []);
+  const second = new Set(calls.filter(([k]) => k === 'drawImage').map(([, [x, y]]) => `${Math.round(x)},${Math.round(y)}`));
+  assert.notDeepEqual([...first], [...second], 'искры не мерцают');
+});
