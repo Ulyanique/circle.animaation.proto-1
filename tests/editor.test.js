@@ -13,7 +13,7 @@ test('перемещение учитывает размер кадра и ог�
 });
 
 test('позиции принадлежат отдельной сцене и сохраняются в JSON', () => {
-  for (const scene of SCENES.filter(s => s.defaults)) {
+  for (const scene of SCENES.filter(s => s.defaults && s.status === "ready")) {
     const cfg = mergeConfig(scene.defaults, { logo: { offsetX: 0.7, offsetY: 0.2 }, caption: { titleX: 0.1, titleY: -0.05, subtitleX: -0.12, subtitleY: 0.03, subtitleScale: 1.3, titleScale: 1.4, dateX: 0.14, dateY: -0.08, dateScale: 0.8 } });
     const next = parseConfigJSON(configToJSON(cfg), scene.defaults);
     assert.equal(next.logo.offsetX, 0.7);

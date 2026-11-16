@@ -14,7 +14,7 @@ test('автоподгонка только уменьшает строку и �
   assert.equal(captionFitFactor(1000, 0), 1);
 });
 test('автоподгонка выключена в старых сценах и хранится независимо', () => {
-  const scenes = SCENES.filter(s=>s.defaults), ids = scenes.map(s=>s.id);
+  const scenes = SCENES.filter(s=>s.defaults && s.status === "ready"), ids = scenes.map(s=>s.id);
   const configs = Object.fromEntries(scenes.map(s=>[s.id,parseConfigJSON('{}',s.defaults)]));
   for (const cfg of Object.values(configs)) for (const name of ['title','subtitle','date']) assert.equal(cfg.caption[`${name}AutoFit`], false);
   configs.waiting.caption.titleAutoFit = true;

@@ -1,3 +1,4 @@
+import { metallicTitleGradient } from './caption-material.js';
 import { OUTPUT } from "./scenes/catalog.js";
 import { contourShape } from "./contour-fonts.js";
 import { glyphReveal } from "./caption.js";
@@ -79,8 +80,8 @@ export function drawCaption(ctx, alpha, sceneId) {
     const language = element.closest("[lang]")?.getAttribute("lang") || "ru";
     const centerY = o.y + capVal(sel, "--lift") * scale;
     const y = centerY + lineBaseline(element, style, language) * scale;
-    const glyphs = [...element.querySelectorAll(".cap-glyph")]
-      .map((span) => transformGlyph(span.textContent, style.textTransform, language));
+    const glyphElements = [...element.querySelectorAll(".cap-glyph")];
+    const glyphs = glyphElements.map((span) => transformGlyph(span.textContent, style.textTransform, language));
     ctx.font = font(o.weight, o.size, style.fontFamily);
     // После uppercase одна графема может содержать несколько букв (например, ß → SS).
     // Межбуквенный интервал внутри неё должен совпадать с CSS, но reveal остаётся общим.
@@ -138,7 +139,7 @@ export function drawCaption(ctx, alpha, sceneId) {
         ctx.save();
         ctx.beginPath(); ctx.rect(x, 0, width * reveal.fill, H); ctx.clip();
         if (o.shadow) { ctx.shadowColor = "rgba(0,0,0,0.7)"; ctx.shadowBlur = 0.5 * u; ctx.shadowOffsetY = 0.2 * u; }
-        ctx.fillStyle = typeof o.fill === "function" ? o.fill(centerY) : o.fill;
+        ctx.fillStyle = typeof o.fill === "function" ? o.fill(centerY, parseFloat(glyphElements[i].style.getPropertyValue("--title-shine")) || 0) : o.fill;
         paint("fillText");
         ctx.restore();
       }
@@ -231,7 +232,8 @@ export function drawCaption(ctx, alpha, sceneId) {
   const titlePosition = linePosition(".cap-title", (brand || photo || finale) ? 0.65 * H : 0.55 * H);
   if (!photo) builtinTextLine(".cap-title", {
     ...titlePosition,
-    weight: 600, size: tSize, ls: 0, stroke: titleColor || "#e0b25a", sw: 0.08 * u, shadow: true, fill: titleColor || titleGrad,
+    weight: 600, size: tSize, ls: 0, stroke: titleColor || "#e0b25a", sw: 0.08 * u, shadow: true,
+    fill: titleColor || (cap.dataset.titleMetallic === "true" ? (y, shine) => metallicTitleGradient(ctx, y, tSize, shine) : titleGrad),
   });
   if (finale) {
     builtinTextLine(".cap-sub", {

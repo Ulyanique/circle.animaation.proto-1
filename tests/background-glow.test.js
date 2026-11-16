@@ -8,7 +8,7 @@ import { layersForScene } from '../src/editor-layers.js';
 import { computePhase } from '../src/timeline.js';
 
 test('свечение самостоятельно, детерминированно и не требует включённых колец или знака', () => {
-  for (const scene of SCENES.filter(s => s.defaults)) {
+  for (const scene of SCENES.filter(s => s.defaults && s.status === "ready")) {
     const cfg = mergeConfig(scene.defaults, {
       backgroundGlow: {present: true, offsetX: 1.7, offsetY: -0.4, radius: 2, color: '#24aaff', intensity: 0.6, pulse: 0.5, speed: 0.25},
       rings: {enabled: false}, logo: {visible: false},
@@ -33,7 +33,7 @@ test('свечение самостоятельно, детерминирова�
 });
 
 test('новое свечение отсутствует в старых настройках и сохраняется отдельно для каждой сцены', () => {
-  const scenes = SCENES.filter(s => s.defaults), configs = {};
+  const scenes = SCENES.filter(s => s.defaults && s.status === "ready"), configs = {};
   for (const [i, scene] of scenes.entries()) {
     const old = parseConfigJSON('{"logo":{"offsetX":0.2}}', scene.defaults);
     assert.equal(old.backgroundGlow.present, false);
@@ -56,7 +56,7 @@ test('до четырёх ореолов в сцене независимы и �
   const defaults = backgroundGlowDefaults();
   assert.notEqual(defaults.backgroundGlow, defaults.backgroundGlow2);
   assert.deepEqual(BACKGROUND_GLOW_IDS.map(id => SCHEMA.some(s => s.id === id)), [true, true, true, true]);
-  for (const scene of SCENES.filter(s => s.defaults)) {
+  for (const scene of SCENES.filter(s => s.defaults && s.status === "ready")) {
     const cfg = mergeConfig(scene.defaults, {});
     const texture = new THREE.Texture();
     const effects = BACKGROUND_GLOW_IDS.map(id => new BackgroundGlow(texture, id));
@@ -84,7 +84,7 @@ test('до четырёх ореолов в сцене независимы и �
 
 test('старый JSON с одним свечением сохраняет его и не создаёт новые', async () => {
   const { BACKGROUND_GLOW_IDS } = await import('../src/background-glow-config.js');
-  for (const scene of SCENES.filter(s => s.defaults)) {
+  for (const scene of SCENES.filter(s => s.defaults && s.status === "ready")) {
     const old = parseConfigJSON('{"backgroundGlow":{"present":true,"offsetX":1.23,"color":"#abcdef"}}', scene.defaults);
     assert.equal(old.backgroundGlow.present, true);
     assert.equal(old.backgroundGlow.offsetX, 1.23); assert.equal(old.backgroundGlow.color, '#abcdef');

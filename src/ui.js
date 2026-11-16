@@ -102,6 +102,7 @@ export function createSettingsUI({
     const current = cfg();
     const defaults = defs();
     for (const section of SCHEMA) {
+      if (editing === "partners" && !["partners", "timeline", "playback", "transition"].includes(section.id)) continue;
       if (!current[section.id] || (section.id === "caption" && editing === "photo-pause")) continue;
       const det = document.createElement("details");
       det.className = "cfg-sec";
@@ -110,6 +111,11 @@ export function createSettingsUI({
       const sum = document.createElement("summary");
       sum.textContent = section.title;
       det.appendChild(sum);
+      if (section.id === "partners") {
+        const note = document.createElement("p"); note.className = "cfg-io-hint";
+        note.textContent = "Пока показаны названия вместо логотипов. Для точной замены нужны файлы логотипов; загрузка изображений в этой версии ещё не добавлена.";
+        det.appendChild(note);
+      }
       if (section.id === "caption") {
         const note = document.createElement("p");
         note.className = "cfg-io-hint";
@@ -309,7 +315,7 @@ export function createSettingsUI({
     } else if (act === "import") {
       showIO("import");
     } else if (act === "reset") {
-      if (!confirm(`Сбросить настройки сцены ${sceneLabel(editing)} к умолчаниям?`)) return;
+      if (!confirm(`Сбросить настройки сцены ${sceneLabel(editing)} к умолчаниям? При необходимости сначала скачайте экспорт проекта.`)) return;
       const defaults = cloneDefaults(defs());
       onApplyScene?.(editing, defaults);
       rebuild();
@@ -336,11 +342,13 @@ export function createSettingsUI({
         if (!text) throw new Error("пустой JSON");
         if (text.includes('"scenes"')) {
           const project = parseProjectJSON(text, scenes.map((s) => s.id));
+          if (!confirm("Импорт заменит настройки указанных сцен и очистит их историю. При необходимости сначала скачайте экспорт проекта. Продолжить?")) return;
           onApplyProject?.(project.scenes);
           rebuild();
           onToast?.("Настройки проекта применены");
         } else {
           const next = parseConfigJSON(text, defs());
+          if (!confirm(`Импорт заменит настройки сцены ${sceneLabel(editing)} и очистит её историю. При необходимости сначала скачайте экспорт проекта. Продолжить?`)) return;
           onApplyScene?.(editing, next);
           rebuild();
           onToast?.(`Настройки сцены ${sceneLabel(editing)} применены`);

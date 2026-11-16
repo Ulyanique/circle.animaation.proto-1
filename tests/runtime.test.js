@@ -27,6 +27,7 @@ test("единый формат и каталог девяти сцен без �
   assert.equal(cycleDuration(PHOTO_PAUSE_DEFAULTS.timeline), 24);
   assert.equal(cycleDuration(FINALE_DEFAULTS.timeline), 18);
   assert.equal(SCENES.filter((scene) => scene.status === "ready").length, 4);
+  assert.equal(sceneById("partners")?.status, "preview");
   assert.deepEqual(RECORDING_CHAIN, ["waiting", "brand", "photo-pause", "finale"]);
   assert.ok(RECORDING_CHAIN.every((id) => sceneById(id)?.status === "ready"));
   assert.equal(sceneById("nonexistent"), undefined);
@@ -141,9 +142,12 @@ test("каждая сцена получает полный независимы
     assert.deepEqual(cfg[key], WAITING_DEFAULTS[key], key);
     assert.notEqual(cfg[key], WAITING_DEFAULTS[key], key);
   }
-  // Фирменная сцена сохраняет размер и теперь центрирована.
-  assert.equal(cfg.logo.scale, 0.58);
-  assert.equal(cfg.logo.offsetY, 0);
+  // Сцена 02 использует композицию и материалы интро, сохраняя круг.
+  assert.equal(cfg.logo.scale, 0.47);
+  assert.equal(cfg.logo.offsetY, 0.62);
+  assert.equal(cfg.caption.titleY, 0.10);
+  assert.equal(cfg.caption.titleVisible, true);
+  assert.equal(cfg.decor.present, true);
   assert.equal(WAITING_DEFAULTS.logo.scale, 0.47);
   cfg.rings.radius = 123;
   assert.notEqual(WAITING_DEFAULTS.rings.radius, 123);

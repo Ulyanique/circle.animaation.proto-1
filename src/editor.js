@@ -1,3 +1,4 @@
+import { createEditorToolbar } from './editor-toolbar.js';
 import * as THREE from 'three';
 import { OUTPUT } from './scenes/catalog.js';
 import { createExtraPropertyControls } from './editor-inspector-controls.js';
@@ -32,13 +33,8 @@ export function createFrameEditor({ getState, onEnable, onChange, onSeek, onLayo
   const previewClip = document.createElement('div');
   previewClip.className = 'editor-preview-clip'; layer.appendChild(previewClip);
   const history = new EditorHistory();
-  const historyBar = document.createElement('div');
-  historyBar.className = 'editor-history';
-  historyBar.innerHTML = '<button type="button" data-history="undo" title="Отменить (Ctrl+Z)" aria-label="Отменить">↶ Отменить</button><button type="button" data-history="redo" title="Повторить (Ctrl+Shift+Z или Ctrl+Y)" aria-label="Повторить">↷ Повторить</button><button type="button" data-safe-toggle aria-pressed="true" title="Показать ориентир безопасных полей">Поля 5%</button><button type="button" class="editor-panel-toggle" data-panel="layers" aria-expanded="false">Слои</button><button type="button" class="editor-panel-toggle" data-panel="inspector" aria-expanded="false">Свойства</button>';
+  const { historyBar, undoButton, redoButton, safeToggle } = createEditorToolbar();
   layer.appendChild(historyBar);
-  const undoButton = historyBar.querySelector('[data-history="undo"]');
-  const redoButton = historyBar.querySelector('[data-history="redo"]');
-  const safeToggle = historyBar.querySelector('[data-safe-toggle]');
   const safeFrame = document.createElement('div');
   safeFrame.className = 'editor-safe-frame'; safeFrame.setAttribute('aria-hidden', 'true');
   const safeNotice = document.createElement('div');
@@ -804,7 +800,7 @@ export function createFrameEditor({ getState, onEnable, onChange, onSeek, onLayo
   // Строки создаются один раз: обновления кадров не сбрасывают фокус и захват указателя.
   const trackPanel = document.createElement('section');
   trackPanel.className = 'editor-track-panel'; trackPanel.setAttribute('aria-label', 'Таймлайн элементов');
-  trackPanel.innerHTML = `<div class="editor-track-head"><strong>Таймлайн</strong><small>Маска титра — по сценарию · цветная полоса — своё время</small><span class="editor-track-readout"><button type="button" data-frame-step="-1" title="Предыдущий кадр" aria-label="Предыдущий кадр">−1</button><button type="button" data-frame-step="1" title="Следующий кадр" aria-label="Следующий кадр">+1</button><input data-track-timecode type="text" spellcheck="false" aria-label="Локальный таймкод цикла" title="ЧЧ:ММ:СС:КК — введите время цикла и нажмите Enter. Escape отменяет ввод"><output data-track-time></output></span></div>
+  trackPanel.innerHTML = `<div class="editor-track-head"><strong>Таймлайн</strong><small>Сценарий — без правки на шкале · «задать своё время» — доступно · цветная полоса — свой интервал</small><span class="editor-track-readout"><button type="button" data-frame-step="-1" title="Предыдущий кадр" aria-label="Предыдущий кадр">−1</button><button type="button" data-frame-step="1" title="Следующий кадр" aria-label="Следующий кадр">+1</button><input data-track-timecode type="text" spellcheck="false" aria-label="Локальный таймкод цикла" title="ЧЧ:ММ:СС:КК — введите время цикла и нажмите Enter. Escape отменяет ввод"><output data-track-time></output></span></div>
     <div class="editor-track-scale"><span>Элементы</span><div class="editor-track-ruler" data-track-ruler role="slider" tabindex="0" aria-label="Перемотка цикла" aria-valuemin="0" aria-valuemax="100"><span>0</span><span data-tick="25"></span><span data-tick="50"></span><span data-tick="75"></span><span data-tick="100"></span></div></div>
     <div class="editor-phase-row"><span title="Базовые фазы; в интро дополнительные такты продолжаются в удержании">Фазы сцены</span><div class="editor-phase-lane" data-phase-lane>
       <div class="editor-phase-entry" title="Базовые прорисовка и проявление">Вступление</div><div class="editor-phase-hold">Удержание</div><div class="editor-phase-exit">Завершение</div>

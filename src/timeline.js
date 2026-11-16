@@ -83,7 +83,7 @@ export function computePhase(t, tl) {
 }
 
 /** Фирменный жест: орбита передаёт свет контуру, а в конце забирает его обратно. */
-export function plotSequence(phase, tl, { intro = false, finale = false } = {}) {
+export function plotSequence(phase, tl, { intro = false, finale = false, directed = false } = {}) {
   if (phase.beforeStart) return { sweep: 0, transfer: 0, opacity: 0, head: 0, trace: 0, reverse: false };
   const D = tl.drawDuration, E = tl.emergeDuration, H = tl.holdDuration;
   const F = tl.fadeDuration, R = tl.restDuration;
@@ -104,15 +104,15 @@ export function plotSequence(phase, tl, { intro = false, finale = false } = {}) 
       return { sweep: 1 - smooth(.56, .68, p), transfer: 1 - smooth(.50, .56, p),
         opacity: .65 * smooth(.50, .56, p) * tail, head: .7 * tail, trace: 0, reverse: true };
     }
-    if (p < .65) return { sweep: 0, transfer: 0, opacity: 0, head: 0, trace: 0, reverse: true };
-    if (p < .78) {
+    if (p < .67) return { sweep: 0, transfer: 0, opacity: 0, head: 0, trace: 0, reverse: true };
+    if (p < .80) {
       const retire = 1 - clamp01(phase.draw);
-      return { sweep: 1, transfer: 1, opacity: 0, head: .7 * smooth(.65, .70, p),
+      return { sweep: 1, transfer: 1, opacity: 0, head: .7 * smooth(.67, .72, p),
         trace: 1 - smooth(.27, 1, retire), reverse: true };
     }
     const tail = 1 - smooth(.96, 1, p);
-    return { sweep: 1 - smooth(.85, .99, p), transfer: 1 - smooth(.78, .85, p),
-      opacity: .65 * smooth(.78, .84, p) * tail, head: .7 * tail, trace: 0, reverse: true };
+    return { sweep: 1 - smooth(.87, .995, p), transfer: 1 - smooth(.80, .87, p),
+      opacity: .65 * smooth(.80, .86, p) * tail, head: .7 * tail, trace: 0, reverse: true };
   }
   // Если пауза достаточно длинная, световая точка подхватывает последнюю дугу
   // логотипа, возвращается к орбите и отматывает её к исходной точке.
@@ -144,8 +144,13 @@ export function plotSequence(phase, tl, { intro = false, finale = false } = {}) 
   const start = intro ? Math.min(0.5, D * 0.30) : Math.min(0.32, D * 0.12);
   const end = Math.max(start + 0.1, D * (intro ? 0.68 : 0.60));
   const transferEnd = Math.max(end + 0.05, D * 0.83);
-  const sweep = smooth(start, end, phase.local);
-  const transfer = smooth(end, transferEnd, phase.local);
+  // Режиссёрский жест имеет нулевое ускорение на границах движения:
+  // точка не дёргается при старте, остановке и передаче на контур.
+  const move = directed && intro && !finale
+    ? (a, b, t) => clamp01(easeInOutCubic((t - a) / Math.max(b - a, 1e-4)))
+    : smooth;
+  const sweep = move(start, end, phase.local);
+  const transfer = move(end, transferEnd, phase.local);
   const opacity = (intro ? smooth(Math.max(0, start - D * 0.12), start, phase.local)
     : smooth(start, start + Math.min(0.35, D * 0.14), phase.local)) *
     (1 - smooth(end, D + E * 0.15, phase.local));

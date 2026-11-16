@@ -32,10 +32,10 @@ url.searchParams.set("scene", "intro");
       };
       const grab = () => {
         const c = document.createElement("canvas");
-        c.width = 1520; c.height = 540;
+        c.width = 960; c.height = 540;
         const context = c.getContext("2d");
-        context.drawImage(document.querySelector("#stage"), 200, 0, 1520, 540, 0, 0, 1520, 540);
-        return context.getImageData(0, 0, 1520, 540).data;
+        context.drawImage(document.querySelector("#stage"), 0, 0, 960, 540);
+        return context.getImageData(0, 0, 960, 540).data;
       };
       const changed = (a, b, threshold = 6) => {
         let count = 0;

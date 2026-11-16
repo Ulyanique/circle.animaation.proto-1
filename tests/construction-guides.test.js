@@ -21,7 +21,7 @@ test('линии следуют знаку, перекрестия — двум 
   cfg.constructionGuides.enabled = false; guides.update(10, phase, cfg, root, sides);
   assert.equal(guides.group.visible, false);
   assert.deepEqual(parseConfigJSON(configToJSON(cfg), brand.defaults).constructionGuides, cfg.constructionGuides);
-  for (const scene of SCENES.filter(s => s.defaults && s.id !== 'waiting' && s.id !== 'finale')) assert.equal(scene.defaults.constructionGuides.enabled, false);
+  for (const scene of SCENES.filter(s => s.defaults && s.status === 'ready' && s.id !== 'waiting' && s.id !== 'finale')) assert.equal(scene.defaults.constructionGuides.enabled, false);
 });
 
 test('для интро крупное перекрестие заменяет направляющие и предшествует контуру', async () => {

@@ -4,7 +4,7 @@ import { SCHEMA, mergeConfig, configToJSON, parseConfigJSON, projectToJSON, pars
 import { SCENES } from '../src/scenes/catalog.js';
 
 test('интервалы независимы по строкам и сценам, старые настройки сохраняют прежний вид', () => {
-  const scenes = SCENES.filter(s=>s.defaults), ids = scenes.map(s=>s.id);
+  const scenes = SCENES.filter(s=>s.defaults && s.status === "ready"), ids = scenes.map(s=>s.id);
   const configs = Object.fromEntries(scenes.map(s=>[s.id, parseConfigJSON('{"typography":{"font":"prata"}}',s.defaults)]));
   assert.deepEqual(ids.map(id => configs[id].typography.subtitleTracking), [.32,.32,.32,.18]);
   for (const id of ids) { assert.equal(configs[id].typography.titleTracking, 0); assert.equal(configs[id].typography.dateTracking, .28); }

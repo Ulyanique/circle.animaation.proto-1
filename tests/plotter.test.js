@@ -57,3 +57,29 @@ test('другие сцены сохраняют исходную одну то�
   assert.equal(plotSequence(outro, tl, {intro:true}).reverse, true);
   plotter.dispose();
 });
+
+test('режиссёрский жест интро плавно ускоряется и не меняет соседние сцены', () => {
+  const tl = WAITING_DEFAULTS.timeline, D=tl.drawDuration;
+  const start=Math.min(.5,D*.3), end=D*.68, transferEnd=D*.83;
+  const sample=(t, opts) => plotSequence(computePhase(tl.startDelay+t,tl),tl,opts);
+  const directed={intro:true,directed:true};
+  const old={intro:true};
+  assert.equal(sample(start,directed).sweep,0); assert.equal(sample(end,directed).sweep,1);
+  assert.equal(sample(end,directed).transfer,0); assert.equal(sample(transferEnd,directed).transfer,1);
+  const dt=(end-start)/20;
+  const progress=i=>sample(start+i*dt,directed).sweep;
+  assert.ok(progress(1)<sample(start+dt,old).sweep, 'мягкое начало');
+  assert.ok(progress(20)-progress(19)<sample(end,old).sweep-sample(end-dt,old).sweep, 'мягкая остановка');
+  for(let i=1;i<=20;i++)assert.ok(progress(i)>=progress(i-1));
+  const phase=computePhase(tl.startDelay+start+dt,tl);
+  assert.deepEqual(plotSequence(phase,tl,{directed:true}),plotSequence(phase,tl));
+  assert.deepEqual(plotSequence(phase,tl,{intro:true,finale:true,directed:true}),plotSequence(phase,tl,{intro:true,finale:true}));
+  const cfg=mergeConfig(WAITING_DEFAULTS, {}), plotter=new Plotter(new THREE.Texture(),fakeLogo(),{twoHeads:true});
+  plotter.update(phase,cfg); assert.equal(plotter.uniforms.uDirected.value,1);
+  const first=plotter.head.position.clone();
+  plotter.update(computePhase(tl.startDelay+end,tl),cfg);plotter.update(phase,cfg);
+  assert.ok(first.distanceTo(plotter.head.position)<1e-9);
+  cfg.logo.directedMotion=false;plotter.update(phase,cfg);assert.equal(plotter.uniforms.uDirected.value,0);
+  assert.equal(plotter.head.scale.x,.17);
+  plotter.dispose();
+});

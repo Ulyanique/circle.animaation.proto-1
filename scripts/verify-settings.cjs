@@ -1,4 +1,4 @@
-// Настройки каждой сцены: вкладки 01/02/08/09, изоляция значений, JSON сцены и проекта.
+// Настройки каждой сцены: вкладки 01/02/04/08/09, изоляция значений, JSON сцены и проекта.
 const fs = require("node:fs");
 const path = require("node:path");
 const { launchBrowser } = require("./browser.cjs");
@@ -15,7 +15,9 @@ if (OUT) fs.mkdirSync(OUT, { recursive: true });
     page.on("pageerror", (error) => errors.push(error.message));
     page.on("console", (msg) => { if (msg.type() === "error") errors.push(msg.text()); });
 
-    await page.goto("http://localhost:5173/?scene=intro", { waitUntil: "networkidle0", timeout: 120000 });
+    const url = new URL(process.env.URL || "http://localhost:5173/");
+    url.searchParams.set("scene", "intro");
+    await page.goto(url.href, { waitUntil: "networkidle0", timeout: 120000 });
     await page.waitForFunction(() => document.body.classList.contains("boot-ready"), { timeout: 240000 });
 
     // 1. Кнопка настроек есть в интро и открывает панель.
@@ -127,6 +129,8 @@ if (OUT) fs.mkdirSync(OUT, { recursive: true });
       uiOn: document.body.classList.contains("ui-on"),
       open: document.querySelector(".cfg-panel").classList.contains("open"),
     }));
+    // После диалогов фокус может вернуться на пульт: он намеренно удерживает его видимым.
+    await page.evaluate(() => document.activeElement?.blur());
     await page.mouse.move(400, 400);
     await page.waitForFunction(() => document.body.classList.contains("operator-idle"), { timeout: 30000 });
     // Переход прозрачности на software-WebGL может не успевать за кадрами,
@@ -146,14 +150,14 @@ if (OUT) fs.mkdirSync(OUT, { recursive: true });
     console.log(result);
 
     const expectedResetScale = 0.58;
-    const expectedResetY = 0.86;
+    const expectedResetY = 0;
     const failed =
       errors.length > 0 ||
       closed.display === "none" || closed.open ||
-      !opened.open || opened.tabs.join(",") !== "waiting,brand,photo-pause,finale" ||
+      !opened.open || opened.tabs.join(",") !== "waiting,brand,partners,photo-pause,finale" ||
       opened.active !== "waiting" || opened.heading !== "01" ||
       !brandPanel.open || brandPanel.active !== "brand" ||
-      Number(brandPanel.scale) !== 0.58 || Number(brandPanel.offsetY) !== 0.86 ||
+      Number(brandPanel.scale) !== 0.58 || Number(brandPanel.offsetY) !== 0 ||
       edited.live !== 0.62 || edited.stored !== 0.62 ||
       isolation.introScale !== 0.47 || isolation.brandScale !== 0.62 || isolation.introStored !== null ||
       !exported.sceneKeys.includes("logo") || !exported.sceneKeys.includes("timeline") ||

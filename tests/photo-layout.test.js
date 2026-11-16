@@ -90,14 +90,14 @@ test('пунктир у текста и пульсация уголков нез
   assert.equal(restored.photo.ringRadius, p.ringRadius); assert.equal(restored.photo.framePulse, p.framePulse);
 });
 
-test('фирменный шаблон переносится в центр один раз без потери пользовательских правок', async () => {
+test('фирменный шаблон обновляется один раз без потери пользовательских правок', async () => {
   const { loadSceneConfig, saveSceneConfig, sceneStorageKey } = await import('../src/config.js');
   const data = new Map(), previous = globalThis.localStorage;
   globalThis.localStorage = {getItem: key => data.get(key) ?? null, setItem: (key, value) => data.set(key, String(value)), removeItem: key => data.delete(key)};
   try {
     data.set(sceneStorageKey('brand'), JSON.stringify({logo: {offsetY: .86}, caption: {titleText: 'Янтарный циркуль', titleVisible: true}}));
     let cfg = loadSceneConfig('brand', BRAND_DEFAULTS);
-    assert.equal(cfg.logo.offsetY, 0); assert.equal(cfg.caption.titleVisible, false);
+    assert.equal(cfg.logo.offsetY, 0.62); assert.equal(cfg.caption.titleVisible, true);
     assert.equal(cfg.photo.text, 'ЯНТАРНЫЙ ЦИРКУЛЬ');
     cfg.logo.offsetY = .86; cfg.caption.titleVisible = true; saveSceneConfig('brand', cfg);
     cfg = loadSceneConfig('brand', BRAND_DEFAULTS);
@@ -128,4 +128,48 @@ test('старый стандартный размер фотопаузы уве
     const imported = parseConfigJSON('{"logo":{"scale":0.47}}', PHOTO_PAUSE_DEFAULTS);
     assert.equal(imported.logo.scale, .47);
   } finally { globalThis.localStorage = previous; }
+});
+
+test('стиль интро для сцены 02 переносит прежние стандартные настройки однократно', async () => {
+  const { loadSceneConfig, saveSceneConfig, sceneStorageKey } = await import('../src/config.js');
+  const data = new Map(), previous = globalThis.localStorage;
+  globalThis.localStorage = {getItem: key => data.get(key) ?? null, setItem: (key, value) => data.set(key, String(value))};
+  try {
+    data.set(sceneStorageKey('brand'), JSON.stringify({
+      logo: {scale: .58, offsetY: 0, cinematic: false, studioRelief: 0, facetPolish: 0},
+      background: {fabricTexture: 0}, caption: {titleText:'Янтарный циркуль',titleVisible:false,titleMetallic:false},
+      decor: {present:true,followLogo:true},
+    }));
+    let cfg = loadSceneConfig('brand', BRAND_DEFAULTS);
+    assert.equal(cfg.logo.scale,.47);assert.equal(cfg.logo.offsetY,.62);assert.equal(cfg.caption.titleY,.1);
+    assert.equal(cfg.logo.cinematic,true);assert.equal(cfg.background.fabricTexture,.8);
+    assert.equal(cfg.caption.titleVisible,true);assert.equal(cfg.caption.titleMetallic,true);assert.equal(cfg.decor.present,true);
+    cfg.caption.titleVisible=false;cfg.background.fabricTexture=0;saveSceneConfig('brand',cfg);
+    cfg=loadSceneConfig('brand', BRAND_DEFAULTS);assert.equal(cfg.caption.titleVisible,false);assert.equal(cfg.background.fabricTexture,0);
+    data.clear();data.set(sceneStorageKey('brand'), JSON.stringify({logo:{offsetY:-.3,scale:.7,studioRelief:.4},background:{fabricTexture:.3},caption:{titleText:'Свой текст',titleVisible:false,titleMetallic:false}}));
+    cfg=loadSceneConfig('brand', BRAND_DEFAULTS);
+    assert.equal(cfg.logo.offsetY,-.3);assert.equal(cfg.logo.scale,.7);assert.equal(cfg.logo.studioRelief,.4);
+    assert.equal(cfg.background.fabricTexture,.3);assert.equal(cfg.caption.titleText,'Свой текст');assert.equal(cfg.caption.titleVisible,false);
+    const imported=parseConfigJSON('{"caption":{"titleVisible":false},"background":{"fabricTexture":0}}',BRAND_DEFAULTS);
+    assert.equal(imported.caption.titleVisible,false);assert.equal(imported.background.fabricTexture,0);
+  } finally {globalThis.localStorage=previous;}
+});
+
+test('композиция сцены 02 переносится ниже однократно, свои координаты не меняются', async () => {
+  const { loadSceneConfig, saveSceneConfig, sceneStorageKey } = await import('../src/config.js');
+  const data = new Map(), previous = globalThis.localStorage;
+  globalThis.localStorage = {getItem: key => data.get(key) ?? null, setItem: (key, value) => data.set(key, String(value))};
+  try {
+    data.set('circle-anim-brand-center-v1','1');data.set('circle-anim-brand-intro-style-v1','1');
+    data.set(sceneStorageKey('brand'), JSON.stringify({logo:{offsetY:1.1},caption:{titleY:0,titleText:'Янтарный циркуль'},decor:{present:true,followLogo:true}}));
+    let cfg=loadSceneConfig('brand',BRAND_DEFAULTS);
+    assert.equal(cfg.logo.offsetY,.62);assert.equal(cfg.caption.titleY,.1);assert.equal(cfg.decor.followLogo,true);
+    cfg.logo.offsetY=1.1;cfg.caption.titleY=0;saveSceneConfig('brand',cfg);
+    cfg=loadSceneConfig('brand',BRAND_DEFAULTS);assert.equal(cfg.logo.offsetY,1.1);assert.equal(cfg.caption.titleY,0);
+    data.clear();data.set('circle-anim-brand-center-v1','1');data.set('circle-anim-brand-intro-style-v1','1');
+    data.set(sceneStorageKey('brand'),JSON.stringify({logo:{offsetY:-.4},caption:{titleY:-.05,titleText:'Свой текст'}}));
+    cfg=loadSceneConfig('brand',BRAND_DEFAULTS);assert.equal(cfg.logo.offsetY,-.4);assert.equal(cfg.caption.titleY,-.05);
+    const imported=parseConfigJSON('{"logo":{"offsetY":1.1},"caption":{"titleY":0}}',BRAND_DEFAULTS);
+    assert.equal(imported.logo.offsetY,1.1);assert.equal(imported.caption.titleY,0);
+  } finally {globalThis.localStorage=previous;}
 });

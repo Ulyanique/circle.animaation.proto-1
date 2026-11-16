@@ -9,7 +9,7 @@ import { configToJSON, parseConfigJSON, SCHEMA } from '../src/config.js';
 test('объём граней регулируется и хранится отдельно для каждой сцены', () => {
   assert.equal(WAITING_DEFAULTS.logo.facetPolish, .65);
   assert.equal(FINALE_DEFAULTS.logo.facetPolish, .65);
-  assert.equal(BRAND_DEFAULTS.logo.facetPolish, 0);
+  assert.equal(BRAND_DEFAULTS.logo.facetPolish, .65);
   assert.equal(PHOTO_PAUSE_DEFAULTS.logo.facetPolish, 0);
   assert.ok(SCHEMA.find(s => s.id === 'logo').fields.some(f => f.key === 'facetPolish'));
   for (const defaults of [WAITING_DEFAULTS, FINALE_DEFAULTS, BRAND_DEFAULTS, PHOTO_PAUSE_DEFAULTS]) {

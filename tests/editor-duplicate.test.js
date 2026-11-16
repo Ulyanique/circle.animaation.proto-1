@@ -17,7 +17,7 @@ function apply(cfg, plan, history, scene) {
 }
 
 test('копирование каждого типа создаёт независимый слот и атомарно отменяется в каждой сцене', () => {
-  for (const scene of SCENES.filter(s => s.defaults)) {
+  for (const scene of SCENES.filter(s => s.defaults && s.status === "ready")) {
     const cfg = mergeConfig(scene.defaults, {}), history = new EditorHistory();
     Object.assign(cfg.textLayers, {text1Present: true, text1Text: 'Копия', text1Color: '#125578', text1X: .2, text1Y: -.3,
       text1AutoFit: true, text1TimingMode: 'custom', text1Start: 20, text1End: 70, text1Fade: 25, text1Visible: false});

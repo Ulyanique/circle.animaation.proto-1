@@ -1,6 +1,7 @@
 import { WAITING_DEFAULTS } from "./waiting.js";
 import { BRAND_DEFAULTS } from "./brand.js";
 import { PHOTO_PAUSE_DEFAULTS } from "./photo-pause.js";
+import { PARTNERS_DEFAULTS } from "./partners.js";
 import { FINALE_DEFAULTS } from "./finale.js";
 
 // Единственный технический формат цикла. Других разрешений и пресетов нет.
@@ -17,7 +18,7 @@ export const SCENES = Object.freeze([
   { id: "waiting", title: "Интро — открытие вечера", status: "ready", defaults: WAITING_DEFAULTS },
   { id: "brand", title: "Фирменный фон для речи, ужина и музыкальных сетов", status: "ready", defaults: BRAND_DEFAULTS },
   { id: "dream-project", title: "Проект мечты", status: "planned" },
-  { id: "partners", title: "Партнёры вечера", status: "needs-approval" },
+  { id: "partners", title: "Спонсоры и партнёры (макет)", status: "preview", defaults: PARTNERS_DEFAULTS },
   { id: "archive", title: "Янтарный циркуль: помним всё", status: "needs-assets" },
   { id: "trick-brief", title: "ТЗ с подвохом", status: "needs-host" },
   { id: "architect", title: "Проектировщик объясняет", status: "needs-host" },

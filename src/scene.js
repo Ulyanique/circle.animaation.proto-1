@@ -1,3 +1,4 @@
+import { metallicTitleCSS, titleGlintAtGlyph } from "./caption-material.js";
 import { ConstructionGuides } from "./construction-guides.js";
 import { logoRotation } from "./scenes/logo-motion.js";
 import { updateTopIllumination, updateUpperRays } from "./top-illumination.js";
@@ -35,9 +36,9 @@ import { Sparks, AnamorphicFlare, flarePosition } from "./sparks.js";
 import { Plotter } from "./plotter.js";
 import { SolarBokeh } from "./bokeh.js";
 import { captionState, finaleCaptionState, captionAccent, glyphReveal } from "./caption.js";
-import { captionDrift } from "./caption-layout.js";
+import { captionDrift, introTitleLanding } from "./caption-layout.js";
 import { computePhase, compositionFocus, heroGlint, seamCurtainOpacity, logoDrawFinish } from "./timeline.js";
-import { introCues, introSequence, introOutro, finaleCues } from "./scenes/cues.js";
+import { introCues, introSequence, introOutro, introCornerEnvelopes, finaleCues } from "./scenes/cues.js";
 
 const FOV = 30;
 const CAM_Z = 9;
@@ -293,6 +294,9 @@ export class LogoScene {
     revealUniforms.uReveal.value = logoPhase.reveal * REVEAL_MAX;
     revealUniforms.uRevealNoise.value = cfg.logo.revealNoise;
     revealUniforms.uFacetPolish.value = THREE.MathUtils.clamp(cfg.logo.facetPolish ?? 0, 0, 1);
+    revealUniforms.uStudioRelief.value = THREE.MathUtils.clamp(cfg.logo.studioRelief ?? 0, 0, 1);
+    revealUniforms.uCinematicGold.value = cfg.logo.cinematic === true ? 1 : 0;
+    revealUniforms.uCinematicTime.value = t;
     revealUniforms.uRevealGlow.value = cfg.logo.revealGlow * (ph.name === "emerge" || ph.name === "fade" ? 1.0 : 0.6) *
       (1 + opening.strike * 0.55);
     revealUniforms.uGlowColor.value.set(cfg.colors.glowColor);
@@ -302,7 +306,11 @@ export class LogoScene {
     const scaleGrow = THREE.MathUtils.lerp(cfg.logo.holdScaleFrom, cfg.logo.holdScaleTo, easeOutCubic(ph.grow));
     // частоты пульсации/покачивания кратны циклу → состояние логотипа периодично, шов бесшовный
     const quant = (f) => (f <= 0 ? 0 : Math.max(1, Math.round(f * ph.cycle)) / ph.cycle);
-    const pulse = 1 + cfg.logo.pulseAmount * Math.sin(TAUt * quant(cfg.logo.pulseSpeed) * t);
+    // Во время сборки и посадки знак не пульсирует: дыхание плавно
+    // включается только после остановки и исчезает перед обратным движением.
+    const directedMotion = this.isIntro && cfg.logo.directedMotion === true;
+    const pulseWeight = directedMotion && sequence ? sequence.settled : 1;
+    const pulse = 1 + cfg.logo.pulseAmount * pulseWeight * Math.sin(TAUt * quant(cfg.logo.pulseSpeed) * t);
     const retreat = finale?.active ? finale.retreat : 0;
     const z = -cfg.logo.shadowDepth * (1 - logoPhase.reveal) * (1 - logoPhase.reveal) - retreat * (cfg.finale?.retreatDepth ?? 0);
     const root = this.logo.root;
@@ -326,7 +334,13 @@ export class LogoScene {
     const env = sequence ? sequence.corners : ph.rings;
     const focus = compositionFocus(ph, cfg.timeline, sequence?.captionStart);
     const cornerEnv = env * (1 - 0.44 * focus);
-    const cpos = this.corners.update(t, cfg, this.halfW, this.halfH, env, focus);
+    const sideEnv = introCornerEnvelopes(env, directedMotion);
+    const cpos = this.corners.update(t, cfg, this.halfW, this.halfH, env, focus, sideEnv);
+    const cinematic = cfg.logo.cinematic === true;
+    const backgroundCinematic = cfg.background.cinematicLight ?? cinematic;
+    // Приглушаем только декоративные засветки, не меняя геометрию окружностей,
+    // пользовательские настройки или свет, падающий на металл.
+    if (backgroundCinematic) for (const sprite of Object.values(this.corners.sprites)) sprite.material.opacity *= 0.38;
     if (this.introStyle || this.hideCenterRing) this.corners.centerRing.visible = false;
     const effectPhase = computePhase(t, cfg.timeline);
     applyEffectOrder(cfg, this);
@@ -335,12 +349,19 @@ export class LogoScene {
     for (const cloud of Object.values(this.particleClouds)) cloud.update(t, effectPhase, cfg);
     for (const glow of Object.values(this.backgroundGlows)) glow.update(t, effectPhase, cfg);
     this.solarBokeh.update(t, sequence ? { ...ph, rings: env } : ph, cfg, cpos, focus);
+    if (backgroundCinematic) for (const disc of this.solarBokeh.discs) disc.uniforms.uOpacity.value *= 0.45;
     this.plotter.update(ph, cfg, (sequence || finale?.active) ? root.position.y : cfg.logo.offsetY, root.position.x);
     const tilt = THREE.MathUtils.degToRad(cfg.rings.tilt);
     this.particles.update(t, cfg, this.halfW, this.halfH, this.pixelRatio, this.viewportH, this.fovRad, cpos, cfg.rings.radius, tilt, cornerEnv);
+    if (directedMotion && this.particles.right) {
+      this.particles.right.material.uniforms.uBright.value *= env > 1e-6 ? sideEnv.right / env : 0;
+    }
+    if (backgroundCinematic) for (const points of [this.particles.left, this.particles.right, this.particles.dust]) {
+      if (points) points.material.uniforms.uBright.value *= 0.42;
+    }
     this.background.update(t, cfg);
-    this.background.uniforms.uEnvL.value = cornerEnv * (ringSideVisible(cfg.rings, "left") ? 1 : 0);
-    this.background.uniforms.uEnvR.value = cornerEnv * (ringSideVisible(cfg.rings, "right") ? 1 : 0);
+    this.background.uniforms.uEnvL.value = cornerEnv * (backgroundCinematic ? 0.42 : 1) * (ringSideVisible(cfg.rings, "left") ? 1 : 0);
+    this.background.uniforms.uEnvR.value = sideEnv.right * (1 - 0.44 * focus) * (backgroundCinematic ? 0.42 : 1) * (ringSideVisible(cfg.rings, "right") ? 1 : 0);
     updateUpperRays(this.background, ph, cfg, this.introStyle, opening.beams, t);
     // На удержании фон остаётся живым, но перестаёт спорить с названием.
     this.background.uniforms.uShimmer.value *= 1 - 0.32 * focus;
@@ -377,7 +398,7 @@ export class LogoScene {
     const edgeFlare = 4 * ph.reveal * (1 - ph.reveal);
     const flare = flarePosition(gx, cue.intensity);
     this.flare.set(flare.x, cfg.post.anamorphic * cfg.logo.glint * 0.20 * cue.intensity +
-      cfg.post.anamorphic * (0.035 * edgeFlare + 0.10 * opening.strike), cfg.colors.goldHighlight, flare.y,
+      cfg.post.anamorphic * (0.035 * edgeFlare + (directedMotion ? 0.15 : 0.10) * opening.strike), cfg.colors.goldHighlight, flare.y,
       1.2 + 2.0 * opening.strike, cfg.logo.depth / 2 + cfg.logo.bevel + .02);
 
     // Один и тот же t всегда даёт один и тот же кадр подписи, даже после seek.
@@ -417,7 +438,10 @@ export class LogoScene {
         if (visual) setStyleIfChanged(el, isCustom ? '--custom-reveal' : '--caption-reveal', visual.opacity.toFixed(4));
         setStyleIfChanged(el, "--p", line.outline.toFixed(4));
         if (line.fill !== undefined) setStyleIfChanged(el, "--f", line.fill.toFixed(4));
-        setStyleIfChanged(el, "--lift", `${(accent.rise * u * (name === "subtitle" ? 1 - (finale?.subtitleCenter ?? 0) : 1)).toFixed(3)}px`);
+        const landing = isCaption && name === "title" && sequence
+          ? introTitleLanding(ph, cfg.timeline, sequence.captionStart,
+            directedMotion && el.dataset.revealStyle === "fade" && cfg.captionTiming?.titleTimingMode !== "custom") : 0;
+        setStyleIfChanged(el, "--lift", `${((accent.rise * (name === "subtitle" ? 1 - (finale?.subtitleCenter ?? 0) : 1) + landing) * u).toFixed(3)}px`);
         setStyleIfChanged(el, "--pen", accent.pen.toFixed(4));
         if (line.fill !== undefined) {
           const glyphs = el.children;
@@ -426,6 +450,15 @@ export class LogoScene {
             setStyleIfChanged(glyphs[i], "--o", glyph.outline.toFixed(4));
             setStyleIfChanged(glyphs[i], "--f", glyph.fill.toFixed(4));
             setStyleIfChanged(glyphs[i], "--gpen", (accent.pen * Math.sin(Math.PI * glyph.outline)).toFixed(4));
+            if (isCaption && name === "title") {
+              // Один световой жест связывает знак и штатный металлический титр.
+              // Свой цвет и собственное время титра остаются без изменений.
+              const shine = directedMotion && capEl.dataset.titleMetallic === "true" && cfg.captionTiming?.titleTimingMode !== "custom"
+                ? titleGlintAtGlyph(cue.intensity * Math.min(1, Math.max(0, cfg.logo.glint)), cue.position, i, glyphs.length) : 0;
+              const value = shine.toFixed(4);
+              setStyleIfChanged(glyphs[i], "--title-shine", value);
+              setStyleIfChanged(glyphs[i], "--title-metallic-gradient", metallicTitleCSS(Number(value)));
+            }
           }
         }
       }
@@ -441,6 +474,11 @@ export class LogoScene {
 
     // верхнее свечение: появляется вместе с логотипом
     updateTopIllumination(this.topLight, this.topGlow, cfg, ph.reveal, exposure);
+    // Уменьшаем только видимую дымку, не мощность источника на металле.
+    if (this.introStyle && cfg.logo.cinematic === true) {
+      this.topGlow.material.opacity *= 0.48;
+      this.topGlow.scale.multiplyScalar(0.78);
+    }
 
     // искры при проявлении
     const pixel = (this.viewportH * this.pixelRatio) / (2 * Math.tan(this.fovRad / 2)) * 0.012;

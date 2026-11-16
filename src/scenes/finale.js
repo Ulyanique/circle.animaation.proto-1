@@ -5,6 +5,10 @@ import { createSharedSceneConfig } from "./shared-visuals.js";
 // Финальная реплика: достаточно времени на поэтапный уход, цикл остаётся 18 с.
 export const FINALE_DEFAULTS = createSharedSceneConfig(createSceneTimeline(18));
 
+// Общая каменная фактура и свет, независимо от материала логотипа.
+FINALE_DEFAULTS.background.fabricTexture = WAITING_DEFAULTS.background.fabricTexture;
+FINALE_DEFAULTS.background.cinematicLight = true;
+
 FINALE_DEFAULTS.typography.subtitleTracking = 0.18;
 FINALE_DEFAULTS.logo.facetPolish = WAITING_DEFAULTS.logo.facetPolish;
 FINALE_DEFAULTS.intro = { ...WAITING_DEFAULTS.intro };

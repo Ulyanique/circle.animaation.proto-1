@@ -20,6 +20,7 @@ export const WAITING_DEFAULTS = {
   caption: {
     titleText: "Янтарный циркуль", subtitleText: "Вечер ретроспектива", dateText: "20 ноября 2026 года",
     titleColor: null, subtitleColor: null, dateColor: null,
+    titleMetallic: true,
     titleVisible: true, subtitleVisible: true, dateVisible: true,
     titleAutoFit: false, subtitleAutoFit: false, dateAutoFit: false,
     titleX: 0, titleY: 0, titleScale: 1, subtitleX: 0, subtitleY: 0, subtitleScale: 1,
@@ -43,6 +44,8 @@ export const WAITING_DEFAULTS = {
   },
   logo: {
     visible: true,
+    cinematic: true,       // мягкие отражения и направленный объёмный свет
+    directedMotion: true,  // режиссёрская подача: асимметрия и мягкая остановка
     scale: 0.47,           // лёгкий акцент на символе без потери пропорций
     offsetX: 0,            // горизонтальная позиция
     offsetY: 1.1,          // сдвиг логотипа вверх (мировые единицы)
@@ -52,6 +55,7 @@ export const WAITING_DEFAULTS = {
     roughness: 0.34,       // читаемые грани без белого зеркального пятна
     clearcoat: 0.35,
     facetPolish: 0.65,     // мягкий объём лицевой плоскости и фасок
+    studioRelief: 0.85,    // студийный свет по настоящим фаскам
     envIntensity: 0.75,
     holdScaleFrom: 1.0,    // плавное увеличение во время удержания
     holdScaleTo: 1.04,
@@ -115,6 +119,7 @@ export const WAITING_DEFAULTS = {
     rayLift: 1.0,          // насколько пыль подсвечивается световыми лучами
   },
   background: {
+    fabricTexture: 0.8,     // каменная фактура; ключ сохранён для старых настроек
     lightSpread: 0.7,     // насколько далеко расходится свет от кругов
     lightIntensity: 0.65,  // яркость отражённого света на фоне
     shimmer: 0.55,         // переливание (шум)

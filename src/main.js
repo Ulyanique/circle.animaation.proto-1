@@ -1,5 +1,6 @@
 import "./styles.css";
 import "./font-assets.js";
+import { loadFabricTexture } from "./fabric-texture.js";
 import { fontName, loadFonts } from "./fonts.js";
 import { loadContourFonts } from "./contour-fonts.js";
 import { parse as parseFont } from "opentype.js";
@@ -13,10 +14,11 @@ import {
 import { LogoScene } from "./scene.js";
 import { BrandScene } from "./brand-scene.js";
 import { PhotoPauseScene } from "./photo-pause-scene.js";
+import { PartnersScene, loadPartnersBackground } from "./partners-scene.js";
 import { FinaleScene } from "./finale-scene.js";
 import { createSettingsUI } from "./ui.js";
 import { AnimationRuntime, cycleDuration } from "./runtime.js";
-import { encodeOfflineVideo, frameCount } from "./offline-video.js";
+import { encodeOfflineVideo, frameCount, estimateVideoBytes } from "./offline-video.js";
 import { transitionDuration, drawOutgoingFrame } from "./scene-transition.js";
 import { OUTPUT, RECORDING_CHAIN, sceneById } from "./scenes/catalog.js";
 import { drawCaption } from "./caption-compositor.js";
@@ -24,18 +26,22 @@ import { createOperatorControls, crossedBoundary } from "./operator.js";
 import { createFrameEditor } from "./editor.js";
 import { layoutEditorPreview } from "./editor-layout.js";
 
+const fabricReady = loadFabricTexture();
+const partnersReady = loadPartnersBackground();
+
 const requestedScene = new URLSearchParams(location.search).get("scene") || "intro";
 let activeScene = sceneById(requestedScene);
-if (!activeScene?.defaults || activeScene.status !== "ready") {
+if (!activeScene?.defaults || !["ready", "preview"].includes(activeScene.status)) {
   throw new Error(`Сцена «${requestedScene}» пока не подготовлена`);
 }
 // "waiting" остаётся внутренним идентификатором для старых ссылок и настроек.
 let sceneId = activeScene.id;
 // Настройки каждой готовой сцены живут отдельно: в браузере свой ключ на сцену.
-const READY_IDS = ["waiting", "brand", "photo-pause", "finale"];
+const READY_IDS = ["waiting", "brand", "partners", "photo-pause", "finale"];
 const configs = new Map();
+const storageFailures = new Set();
 for (const id of READY_IDS) {
-  configs.set(id, loadSceneConfig(id, sceneById(id).defaults));
+  configs.set(id, loadSceneConfig(id, sceneById(id).defaults, failedId => storageFailures.add(failedId)));
 }
 function configFor(id) {
   id = sceneById(id)?.id || id;
@@ -43,7 +49,10 @@ function configFor(id) {
   return configs.get(id);
 }
 function saveScene(id = sceneId) {
-  saveSceneConfig(sceneById(id)?.id || id, configFor(id));
+  id = sceneById(id)?.id || id;
+  if (saveSceneConfig(id, configFor(id))) storageFailures.delete(id);
+  else storageFailures.add(id);
+  updateStorageWarning();
 }
 /** Применить присланный JSON к сцене, не ломая ссылку, которую держит рендер. */
 function applySceneConfig(id, next) {
@@ -68,8 +77,23 @@ function toast(msg, isError = false) {
   toastTimer = setTimeout(() => toastEl.classList.remove("show"), isError ? 10000 : 2200);
 }
 
+// Persistent warning: a toast can be overwritten by a later success message.
+const storageWarning = document.createElement("div");
+storageWarning.className = "storage-warning";
+storageWarning.setAttribute("role", "alert");
+storageWarning.innerHTML = '<span>Настройки не удалось прочитать или сохранить в браузере. Изменения могут потеряться после перезагрузки.</span> <button type="button">Скачать текущий проект JSON</button>';
+storageWarning.querySelector("button").addEventListener("click", () => {
+  const blob = new Blob([projectToJSON(Object.fromEntries(READY_IDS.map(id => [id, configFor(id)])), READY_IDS)], {type: "application/json"});
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(blob); link.download = "circle-scenes-backup.json";
+  link.click(); setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+});
+document.body.appendChild(storageWarning);
+function updateStorageWarning() { storageWarning.hidden = storageFailures.size === 0; }
+updateStorageWarning();
+
 function activateClasses(id) {
-  for (const name of ["brand", "photo-pause", "finale"]) {
+  for (const name of ["brand", "partners", "photo-pause", "finale"]) {
     document.body.classList.toggle(`scene-${name === "photo-pause" ? "photo" : name}`, id === name);
   }
   document.body.classList.toggle("scene-waiting", id === "waiting");
@@ -98,7 +122,7 @@ function applyTypography(force = false) {
 applyTypography();
 
 const adapters = { waiting: LogoScene, brand: BrandScene,
-  "photo-pause": PhotoPauseScene, finale: FinaleScene };
+  "partners": PartnersScene, "photo-pause": PhotoPauseScene, finale: FinaleScene };
 let scene = new adapters[sceneId](canvas, cfg);
 let runtime = new AnimationRuntime(scene, cfg, OUTPUT.fps);
 layoutEditorPreview(canvas, document.getElementById("caption"));
@@ -107,7 +131,7 @@ let editor;
 const settings = createSettingsUI({
   scenes: READY_IDS.map((id) => ({
     id,
-    label: ({ waiting: "01", brand: "02", "photo-pause": "08", finale: "09" })[id],
+    label: ({ waiting: "01", brand: "02", partners: "04", "photo-pause": "08", finale: "09" })[id],
     title: sceneById(id).title,
   })),
   getSceneId: () => sceneId,
@@ -179,6 +203,7 @@ const operator = createOperatorControls({
 editor = createFrameEditor({
   getState: () => ({ id: sceneId, time: runtime.time, scene, canvas, config: cfg, defaults: activeScene.defaults }),
   onEnable: () => {
+    if (sceneId === "partners") { toast("Имена в этой сцене меняются в настройках. Логотипы пока не загружены.", true); return false; }
     if (recording || transition) { toast("Во время записи или перехода редактирование недоступно", true); return false; }
     cfg.playback.paused = true;
     const tl = cfg.timeline;
@@ -207,7 +232,7 @@ function drawCompositeFrame(ctx, includeCaption = true) {
   ctx.drawImage(canvas, 0, 0, REC_W, REC_H);
   const cap = document.getElementById("caption");
   const op = includeCaption && cap ? parseFloat(getComputedStyle(cap).opacity) : 0;
-  if (op > 0.001) drawCaption(ctx, op, activeScene.id);
+  if (op > 0.001 && activeScene.id !== "partners") drawCaption(ctx, op, activeScene.id);
 }
 
 /** Тот же композит, что записывается в видео; includeCaption=false — эталон для теста. */
@@ -288,13 +313,14 @@ function switchScene(id, source) {
 }
 
 // The export owns the renderer until it has completed or has been cancelled.
-function exportOverlay(job) {
+function exportOverlay(job, estimatedMiB) {
   const overlay = document.createElement("div");
   overlay.className = "export-overlay";
-  overlay.innerHTML = '<div class="export-dialog" role="status" aria-live="polite"><strong>Покадровый экспорт</strong><p>Подготовка…</p><progress max="100" value="0"></progress><button type="button">Отменить</button></div>';
+  overlay.innerHTML = '<div class="export-dialog" role="status" aria-live="polite"><strong>Покадровый экспорт</strong><p>Подготовка…</p><small></small><progress max="100" value="0"></progress><button type="button">Отменить</button></div>';
   const inert = [...document.body.children].filter(el => el !== canvas && el.id !== "caption" && el.id !== "toast").map(el => [el, el.inert]);
   for (const [el] of inert) el.inert = true;
   document.body.appendChild(overlay);
+  overlay.querySelector("small").textContent = `Ориентировочный размер MP4: ${estimatedMiB} МиБ. Памяти браузеру потребуется больше; фактический размер может отличаться.`;
   const button = overlay.querySelector("button");
   button.addEventListener("click", () => { job.cancelled = true; button.disabled = true; button.textContent = "Отмена…"; });
   const blockKeys = event => { if (event.key !== "Tab") event.stopImmediatePropagation(); };
@@ -327,10 +353,20 @@ function startSequenceRecording({ download = true } = {}) {
 }
 function startOfflineRecording(kind, download) {
   if (recording || transition) return false;
+  let estimatedMiB;
+  try {
+    const ids = kind === "sequence" ? RECORDING_CHAIN : [sceneId];
+    const frames = ids.reduce((sum, id) => {
+      const timeline = configFor(id).timeline;
+      return sum + frameCount(cycleDuration(timeline), timeline.speed, OUTPUT.fps);
+    }, 0);
+    estimatedMiB = Math.ceil(estimateVideoBytes(frames, OUTPUT.fps) / 1024 ** 2);
+  } catch (error) { toast(`Ошибка экспорта: ${error.message}`, true); return false; }
+  if (download && estimatedMiB >= 256 && !confirm(`Ориентировочный размер MP4 — ${estimatedMiB} МиБ. Видео собирается в памяти браузера; потребуется больше памяти, а итоговый размер может отличаться. Продолжить?`)) return false;
   editor?.disable();
   const job = { kind, cancelled:false, outgoing:null };
   recording = job;
-  const overlay = exportOverlay(job);
+  const overlay = exportOverlay(job, estimatedMiB);
   operator.refresh();
   runOfflineRecording(job, overlay, download).catch(error => console.error("Ошибка экспорта", error));
   return true;
@@ -344,6 +380,7 @@ async function runOfflineRecording(job, overlay, download) {
   if (job.kind === "sequence") { window.__sequenceStats = stats; window.__lastSequenceBlob = null; }
   else { window.__recStats = stats; window.__lastVideoBlob = null; }
   try {
+    await Promise.all([fabricReady, partnersReady]); // ассеты не меняются в середине записи
     const ids = job.kind === "sequence" ? RECORDING_CHAIN : [sceneId];
     const segments = ids.map(id => {
       const sceneConfig = configFor(id);
@@ -426,7 +463,13 @@ function frame(now) {
   if (!firstFrameRendered) {
     firstFrameRendered = true;
     const fonts = Promise.all([loadFonts(), loadContourFonts(contourSources, parseFont)]).catch((error) => console.warn("Не удалось загрузить контуры шрифтов", error));
-    fonts.then(() => { applyTypography(true); scene.refreshTextTexture?.(); window.__bootReady?.(); });
+    Promise.all([fonts, fabricReady, partnersReady]).then(([, fabricLoaded, partnersLoaded]) => {
+      applyTypography(true); scene.refreshTextTexture?.();
+      if (!recording) runtime.renderAt(runtime.time, 1 / OUTPUT.fps);
+      window.__bootReady?.();
+      if (!partnersLoaded && sceneId === "partners") toast("Фон спонсоров не загрузился", true);
+      if (!fabricLoaded) toast("Текстура камня не загрузилась; используется упрощённый фон", true);
+    });
   }
   editor?.refresh();
   if (now - lastOperatorRefresh >= 120) {

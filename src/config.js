@@ -14,6 +14,22 @@ export const DEFAULTS = WAITING_DEFAULTS;
 
 // Схема UI: группы → поля. type: range | color | bool
 export const SCHEMA = [
+  { id: "partners", title: "Спонсоры и партнёры", fields: [
+    {key:"title",label:"Название вечера",type:"text",maxLength:120},
+    {key:"subtitle",label:"Подзаголовок",type:"text",maxLength:120},
+    {key:"organizerLabel",label:"Заголовок организатора",type:"text",maxLength:60},
+    {key:"coorganizerLabel",label:"Заголовок соорганизатора",type:"text",maxLength:60},
+    {key:"organizer1",label:"Организатор 1",type:"text",maxLength:80},
+    {key:"organizer2",label:"Соорганизатор",type:"text",maxLength:80},
+    {key:"partnerLabel",label:"Заголовок спонсоров",type:"text",maxLength:60},
+    {key:"partner1",label:"Партнёр 1",type:"text",maxLength:80},
+    {key:"partner2",label:"Партнёр 2",type:"text",maxLength:80},
+    {key:"frameVisible",label:"Показывать рамку",type:"bool"},
+    {key:"curtainVisible",label:"Показывать занавес",type:"bool"},
+    {key:"particlesVisible",label:"Показывать золотые частицы",type:"bool"},
+    {key:"shimmerVisible",label:"Мерцающий свет на фоне",type:"bool"},
+    {key:"motion",label:"Движение декора при удержании",type:"range",min:0,max:1,step:.01},
+  ] },
   { id: "intro", title: "Последовательность интро", fields: [
     { key: "cornerDuration", label: "Прорисовка боковых кругов", type: "range", min: 0.2, max: 4, step: 0.05 },
     { key: "liftDuration", label: "Подъём логотипа", type: "range", min: 0.2, max: 3, step: 0.05 },
@@ -91,6 +107,7 @@ export const SCHEMA = [
   ] },
   { id: "caption", title: "Надписи", fields: [
     { key: "titleVisible", label: "Название: показывать", type: "bool" },
+    { key: "titleMetallic", label: "Название: металлическое золото", type: "bool" },
     { key: "titleAutoFit", label: "Название: вписать в поля", type: "bool" },
     { key: "titleText", label: "Название: текст", type: "text", maxLength: 120 },
     { key: "titleColor", label: "Название: свой цвет", type: "color", fallback: "#e0b25a" },
@@ -136,6 +153,8 @@ export const SCHEMA = [
   {
     id: "logo", title: "Логотип", fields: [
       { key: "visible", label: "Показывать логотип", type: "bool" },
+      { key: "cinematic", label: "Кинематографичный свет и металл", type: "bool" },
+      { key: "directedMotion", label: "Интро: режиссёрская подача движения", type: "bool" },
       { key: "scale", label: "Размер", type: "range", min: 0.3, max: 2.5, step: 0.01 },
       { key: "offsetX", label: "Положение по горизонтали", type: "range", min: -2, max: 2, step: 0.01 },
       { key: "offsetY", label: "Положение по высоте", type: "range", min: -2, max: 2, step: 0.01 },
@@ -145,6 +164,7 @@ export const SCHEMA = [
       { key: "roughness", label: "Шероховатость", type: "range", min: 0, max: 1, step: 0.01 },
       { key: "clearcoat", label: "Лак", type: "range", min: 0, max: 1, step: 0.01 },
       { key: "facetPolish", label: "Объём граней золота", type: "range", min: 0, max: 1, step: 0.01 },
+      { key: "studioRelief", label: "Студийный свет и отражения", type: "range", min: 0, max: 1, step: 0.01 },
       { key: "envIntensity", label: "Отражения среды", type: "range", min: 0, max: 3, step: 0.01 },
       { key: "holdScaleFrom", label: "Масштаб в начале удержания", type: "range", min: 0.5, max: 1.5, step: 0.001 },
       { key: "holdScaleTo", label: "Масштаб в конце удержания", type: "range", min: 0.5, max: 1.5, step: 0.001 },
@@ -223,6 +243,7 @@ export const SCHEMA = [
   },
   {
     id: "background", title: "Фон и свет", fields: [
+      { key: "fabricTexture", label: "Текстура тёмного камня", type: "range", min: 0, max: 1, step: 0.01 },
       { key: "lightSpread", label: "Расход света", type: "range", min: 0.2, max: 3, step: 0.01 },
       { key: "lightIntensity", label: "Яркость света на фоне", type: "range", min: 0, max: 3, step: 0.01 },
       { key: "shimmer", label: "Переливание", type: "range", min: 0, max: 2, step: 0.01 },
@@ -300,8 +321,13 @@ const LEGACY_KEY = "circle-anim-settings-v1";
 const PHOTO_CENTER_MIGRATION = "circle-anim-photo-center-v1";
 const GUIDES_PLACEMENT_MIGRATION = "circle-anim-guides-placement-v1";
 const FINALE_GUIDES_MIGRATION = "circle-anim-finale-guides-v1";
+const SHARED_STONE_MIGRATION = "circle-anim-shared-stone-v1";
 const PHOTO_SIZE_MIGRATION = "circle-anim-photo-size-v1";
 const BRAND_CENTER_MIGRATION = "circle-anim-brand-center-v1";
+const BRAND_INTRO_STYLE_MIGRATION = "circle-anim-brand-intro-style-v1";
+const BRAND_LAYOUT_MIGRATION = "circle-anim-brand-centered-block-v1";
+const PARTNERS_TITLE_MIGRATION = "circle-anim-partners-title-uppercase-v1";
+const PARTNERS_LABEL_MIGRATION = "circle-anim-partners-labels-v1";
 export const PROJECT_VERSION = 2;
 
 export function sceneStorageKey(sceneId) {
@@ -347,25 +373,44 @@ export function mergeConfig(defaults, patch) {
 }
 
 /** Настройки сцены: её умолчания + сохранённое в браузере (если есть). */
-export function loadSceneConfig(sceneId, defaults) {
+export function loadSceneConfig(sceneId, defaults, onReadError) {
   const cfg = cloneDefaults(defaults);
   let raw = null;
-  let migratePhotoCenter = false, migratePhotoSize = false, migrateBrandCenter = false, migrateGuides = false, migrateFinaleGuides = false;
+  let migratePhotoCenter = false, migratePhotoSize = false, migrateBrandCenter = false, migrateGuides = false, migrateFinaleGuides = false, migrateBrandStyle = false, migrateBrandLayout = false, migratePartnersLabel = false, migratePartnersTitle = false, migrateSharedStone = false;
   try {
     raw = localStorage.getItem(sceneStorageKey(sceneId));
     if (!raw && sceneId === "waiting") raw = localStorage.getItem(LEGACY_KEY);
+    if (sceneId === "photo-pause" || sceneId === "finale") migrateSharedStone = !localStorage.getItem(`${SHARED_STONE_MIGRATION}:${sceneId}`);
     if (sceneId === "photo-pause") {
       migratePhotoCenter = !localStorage.getItem(PHOTO_CENTER_MIGRATION);
       migratePhotoSize = !localStorage.getItem(PHOTO_SIZE_MIGRATION);
     }
+    if (sceneId === "partners") {
+      migratePartnersLabel = !localStorage.getItem(PARTNERS_LABEL_MIGRATION);
+      migratePartnersTitle = !localStorage.getItem(PARTNERS_TITLE_MIGRATION);
+    }
     if (sceneId === "finale") migrateFinaleGuides = !localStorage.getItem(FINALE_GUIDES_MIGRATION);
-    if (sceneId === "brand") migrateBrandCenter = !localStorage.getItem(BRAND_CENTER_MIGRATION);
+    if (sceneId === "brand") {
+      migrateBrandCenter = !localStorage.getItem(BRAND_CENTER_MIGRATION);
+      migrateBrandStyle = !localStorage.getItem(BRAND_INTRO_STYLE_MIGRATION);
+      migrateBrandLayout = !localStorage.getItem(BRAND_LAYOUT_MIGRATION);
+    }
     if (sceneId === "waiting" || sceneId === "brand") migrateGuides = !localStorage.getItem(`${GUIDES_PLACEMENT_MIGRATION}:${sceneId}`);
   } catch (e) {
     console.warn("Не удалось прочитать настройки", e);
+    onReadError?.(sceneId, e);
     return cfg;
   }
   if (!raw) {
+    if (migrateSharedStone) {
+      try { localStorage.setItem(`${SHARED_STONE_MIGRATION}:${sceneId}`, "1"); } catch (e) { /* noop */ }
+    }
+    if (migratePartnersTitle) {
+      try { localStorage.setItem(PARTNERS_TITLE_MIGRATION, "1"); } catch (e) { /* noop */ }
+    }
+    if (migratePartnersLabel) {
+      try { localStorage.setItem(PARTNERS_LABEL_MIGRATION, "1"); } catch (e) { /* noop */ }
+    }
     if (migratePhotoCenter) {
       try { localStorage.setItem(PHOTO_CENTER_MIGRATION, "1"); } catch (e) { /* noop */ }
     }
@@ -374,6 +419,12 @@ export function loadSceneConfig(sceneId, defaults) {
     }
     if (migrateBrandCenter) {
       try { localStorage.setItem(BRAND_CENTER_MIGRATION, "1"); } catch (e) { /* noop */ }
+    }
+    if (migrateBrandStyle) {
+      try { localStorage.setItem(BRAND_INTRO_STYLE_MIGRATION, "1"); } catch (e) { /* noop */ }
+    }
+    if (migrateBrandLayout) {
+      try { localStorage.setItem(BRAND_LAYOUT_MIGRATION, "1"); } catch (e) { /* noop */ }
     }
     if (migratePhotoSize) {
       try { localStorage.setItem(PHOTO_SIZE_MIGRATION, "1"); } catch (e) { /* noop */ }
@@ -385,6 +436,28 @@ export function loadSceneConfig(sceneId, defaults) {
   }
   try {
     const saved = JSON.parse(raw);
+    // Только прежнее стандартное значение, другие настройки и импорт JSON не трогаем.
+    if (migrateSharedStone) {
+      if (saved?.background?.fabricTexture === 0) saved.background.fabricTexture = defaults.background.fabricTexture;
+      try {
+        localStorage.setItem(sceneStorageKey(sceneId), JSON.stringify(saved));
+        localStorage.setItem(`${SHARED_STONE_MIGRATION}:${sceneId}`, "1");
+      } catch (e) { /* noop */ }
+    }
+    if (migratePartnersTitle) {
+      if (saved?.partners?.title === 'Янтарный циркуль') saved.partners.title = defaults.partners.title;
+      try {
+        localStorage.setItem(sceneStorageKey(sceneId), JSON.stringify(saved));
+        localStorage.setItem(PARTNERS_TITLE_MIGRATION, "1");
+      } catch (e) { /* noop */ }
+    }
+    if (migratePartnersLabel) {
+      if (saved?.partners?.partnerLabel === 'ПАРТНЁРЫ') saved.partners.partnerLabel = defaults.partners.partnerLabel;
+      try {
+        localStorage.setItem(sceneStorageKey(sceneId), JSON.stringify(saved));
+        localStorage.setItem(PARTNERS_LABEL_MIGRATION, "1");
+      } catch (e) { /* noop */ }
+    }
     // Старое стандартное положение фона было 0.86. Оно ошибочно переносилось
     // в новую центрированную фотопаузу. Иные значения пользовательских правок
     // не трогаем; после первого переноса произвольное положение снова сохраняется.
@@ -410,11 +483,46 @@ export function loadSceneConfig(sceneId, defaults) {
         if (saved.logo?.offsetY === 0.86) saved.logo.offsetY = defaults.logo.offsetY;
         if (saved.caption?.titleVisible === true && saved.caption?.titleText === 'Янтарный циркуль' &&
             (saved.caption.titleX ?? 0) === 0 && (saved.caption.titleY ?? 0) === 0 &&
-            (saved.caption.titleScale ?? 1) === 1 && (saved.caption.titleColor ?? null) === null) saved.caption.titleVisible = false;
+            (saved.caption.titleScale ?? 1) === 1 && (saved.caption.titleColor ?? null) === null) saved.caption.titleVisible = defaults.caption.titleVisible;
         else if (saved.caption && saved.caption.titleVisible === undefined && saved.caption.titleText && saved.caption.titleText !== 'Янтарный циркуль') saved.caption.titleVisible = true;
         try { localStorage.setItem(sceneStorageKey(sceneId), JSON.stringify(saved)); } catch (e) { /* noop */ }
       }
       try { localStorage.setItem(BRAND_CENTER_MIGRATION, "1"); } catch (e) { /* noop */ }
+    }
+    // Обновляем только прежние штатные значения сцены 02. Пользовательский
+    // текст, положения, цвета и прочие значения не перезаписываются. Импорт JSON
+    // проходит отдельно без миграции; отметка не позволит повторить перенос.
+    if (migrateBrandStyle) {
+      const logo = saved?.logo, cap = saved?.caption, bg = saved?.background;
+      if (logo) {
+        if (logo.scale === .58 && logo.offsetY === 0) { logo.scale = defaults.logo.scale; logo.offsetY = defaults.logo.offsetY; }
+        if (logo.cinematic === false) logo.cinematic = defaults.logo.cinematic;
+        if (logo.facetPolish === 0) logo.facetPolish = defaults.logo.facetPolish;
+        if (logo.studioRelief === 0) logo.studioRelief = defaults.logo.studioRelief;
+      }
+      if (bg?.fabricTexture === 0) bg.fabricTexture = defaults.background.fabricTexture;
+      if (cap && (cap.titleText ?? 'Янтарный циркуль') === 'Янтарный циркуль' &&
+          (cap.titleX ?? 0) === 0 && (cap.titleY ?? 0) === 0 &&
+          (cap.titleScale ?? 1) === 1 && (cap.titleColor ?? null) === null) {
+        if (cap.titleVisible === false) cap.titleVisible = defaults.caption.titleVisible;
+        if (cap.titleMetallic === false) cap.titleMetallic = defaults.caption.titleMetallic;
+      }
+      try {
+        localStorage.setItem(sceneStorageKey(sceneId), JSON.stringify(saved));
+        localStorage.setItem(BRAND_INTRO_STYLE_MIGRATION, "1");
+      } catch (e) { /* noop */ }
+    }
+    // Переносим только прежние стандартные позиции блока; свои координаты
+    // и импортированные JSON не меняем. Окружность следует за знаком.
+    if (migrateBrandLayout) {
+      if (saved?.logo?.offsetY === 1.1) saved.logo.offsetY = defaults.logo.offsetY;
+      if (saved?.caption?.titleY === 0 && (saved.caption.titleText ?? 'Янтарный циркуль') === 'Янтарный циркуль') {
+        saved.caption.titleY = defaults.caption.titleY;
+      }
+      try {
+        localStorage.setItem(sceneStorageKey(sceneId), JSON.stringify(saved));
+        localStorage.setItem(BRAND_LAYOUT_MIGRATION, "1");
+      } catch (e) { /* noop */ }
     }
     // Предыдущее размещение линий переносится однократно; остальные их настройки остаются.
     if (migrateGuides) {
@@ -437,6 +545,7 @@ export function loadSceneConfig(sceneId, defaults) {
     deepMerge(cfg, saved);
   } catch (e) {
     console.warn("Сохранённые настройки повреждены, взяты умолчания", e);
+    onReadError?.(sceneId, e);
   }
   return cfg;
 }
@@ -444,8 +553,9 @@ export function loadSceneConfig(sceneId, defaults) {
 export function saveSceneConfig(sceneId, cfg) {
   try {
     localStorage.setItem(sceneStorageKey(sceneId), JSON.stringify(cfg));
+    return true;
   } catch (e) {
-    /* localStorage может быть недоступен */
+    return false;
   }
 }
 

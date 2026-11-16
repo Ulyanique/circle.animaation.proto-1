@@ -6,7 +6,7 @@ import { mergeConfig, configToJSON, parseConfigJSON, projectToJSON, parseProject
 import { circularGlyphLayout } from '../src/scenes/photo-layout.js';
 
 test('тексты и цвета независимы по сценам и переживают JSON проекта и отдельной сцены', () => {
-  const scenes = SCENES.filter(scene => scene.defaults);
+  const scenes = SCENES.filter(scene => scene.defaults && scene.status === "ready");
   const configs = Object.fromEntries(scenes.map((scene, index) => [scene.id, mergeConfig(scene.defaults, {
     caption: { titleText: `Сцена ${index}`, titleColor: '#123456', subtitleText: '', dateColor: '#abcdef' },
   })]));
@@ -24,7 +24,7 @@ test('тексты и цвета независимы по сценам и пе�
 });
 
 test('старые настройки сохраняют прежние тексты и исходные цвета', () => {
-  for (const scene of SCENES.filter(scene => scene.defaults)) {
+  for (const scene of SCENES.filter(scene => scene.defaults && scene.status === "ready")) {
     const old = parseConfigJSON('{"caption":{"titleX":0.2}}', scene.defaults);
     assert.equal(old.caption.titleText, scene.id === 'photo-pause' ? 'Фотопауза' : 'Янтарный циркуль');
     assert.equal(old.caption.subtitleText, scene.id === 'finale' ? 'История продолжается' : 'Вечер ретроспектива');

@@ -1,8 +1,13 @@
+import { WAITING_DEFAULTS } from "./waiting.js";
 import { createSceneTimeline } from "./scene-timeline.js";
 import { createSharedSceneConfig } from "./shared-visuals.js";
 
 // Фотопауза использует общий 24-секундный жест и собственную рамку.
 export const PHOTO_PAUSE_DEFAULTS = createSharedSceneConfig(createSceneTimeline(24));
+
+// Фон в общей графитовой стилистике, без изменения материала и движения знака.
+PHOTO_PAUSE_DEFAULTS.background.fabricTexture = WAITING_DEFAULTS.background.fabricTexture;
+PHOTO_PAUSE_DEFAULTS.background.cinematicLight = true;
 
 // Логотип по центру; рамка и круговой текст настраиваются отдельно.
 PHOTO_PAUSE_DEFAULTS.caption.titleText = "Фотопауза";
