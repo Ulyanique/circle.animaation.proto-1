@@ -37,7 +37,9 @@ test('видимость элементов сохраняется незави�
   const configs = Object.fromEntries(scenes.map(scene => [scene.id, mergeConfig(scene.defaults, {})]));
   for (const scene of scenes) {
     const old = parseConfigJSON('{"caption":{"titleX":0.1},"logo":{"scale":0.5}}', scene.defaults);
-    for (const layer of layersForScene(scene.id)) assert.equal(layerVisible(old, layer), !(scene.id === 'brand' && layer.id === 'title') && layer.id !== 'photoLabel' && !(!['waiting', 'finale'].includes(scene.id) && layer.id === 'constructionGuides'));
+    for (const layer of layersForScene(scene.id)) // Фоновый ролик теперь с подписью внизу, поэтому титр прячем только там,
+    // где текст живёт в кадре: у фона и заставок спонсоров его нет в разметке.
+    assert.equal(layerVisible(old, layer), layer.id !== 'photoLabel' && !(!['waiting', 'finale'].includes(scene.id) && layer.id === 'constructionGuides'));
   }
   for (const scene of scenes) {
     for (const layer of layersForScene(scene.id)) {

@@ -1,7 +1,7 @@
 import { WAITING_DEFAULTS } from "./waiting.js";
 import { BRAND_DEFAULTS } from "./brand.js";
 import { PHOTO_PAUSE_DEFAULTS } from "./photo-pause.js";
-import { PARTNERS_DEFAULTS } from "./partners.js";
+import { PARTNERS_DEFAULTS, SPONSOR_PROMRUKAV_DEFAULTS, SPONSOR_KEAZ_DEFAULTS } from "./partners.js";
 import { FINALE_DEFAULTS } from "./finale.js";
 
 // Базовый формат кадра. Это единственный источник числа 1920×1080: остальные
@@ -25,6 +25,9 @@ export const SCENES = Object.freeze([
   { id: "brand", title: "Фирменный фон для речи, ужина и музыкальных сетов", status: "ready", defaults: BRAND_DEFAULTS },
   { id: "dream-project", title: "Проект мечты", status: "planned" },
   { id: "partners", title: "Спонсоры и партнёры (макет)", status: "preview", defaults: PARTNERS_DEFAULTS },
+  // Заставки отдельных спонсоров: тот же кадр, но один знак крупно по центру.
+  { id: "sponsor-promrukav", title: "Спонсор — Промрукав", status: "preview", defaults: SPONSOR_PROMRUKAV_DEFAULTS },
+  { id: "sponsor-keaz", title: "Спонсор — КЭАЗ", status: "preview", defaults: SPONSOR_KEAZ_DEFAULTS },
   { id: "archive", title: "Янтарный циркуль: помним всё", status: "needs-assets" },
   { id: "trick-brief", title: "ТЗ с подвохом", status: "needs-host" },
   { id: "architect", title: "Проектировщик объясняет", status: "needs-host" },

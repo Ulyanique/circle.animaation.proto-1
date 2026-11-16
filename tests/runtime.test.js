@@ -14,7 +14,11 @@ import { crossedBoundary } from "../src/operator.js";
 
 test("единый формат и каталог девяти сцен без ложных готовых рендеров", () => {
   assert.deepEqual(OUTPUT, { width: 1920, height: 1080, fps: 60 });
-  assert.equal(SCENES.length, 9);
+  // Заставки отдельных спонсоров — такие же страницы программы, как остальные:
+  // у каждой свой конфиг и своя кнопка в пульте.
+  assert.equal(SCENES.length, 11);
+  assert.equal(sceneById("sponsor-promrukav")?.status, "preview");
+  assert.equal(sceneById("sponsor-keaz")?.status, "preview");
   assert.equal(sceneById("waiting")?.status, "ready");
   assert.equal(sceneById("waiting")?.defaults, DEFAULTS);
   assert.equal(sceneById("intro"), sceneById("waiting"));

@@ -37,6 +37,26 @@ export const SCHEMA = [
     {key:"curtainWidth",label:"Занавес: ширина, px",type:"range",min:320,max:760,step:4},
     {key:"motion",label:"Движение декора при удержании",type:"range",min:0,max:1,step:.01},
   ] },
+  // Заставка одного спонсора: тот же кадр, что у «Спонсоров», но знак крупно
+  // по центру. Поля повторяют общий раздел, чтобы правки привычно искались.
+  { id: "sponsor", title: "Спонсор и подписи", fields: [
+    { key: "mark", label: "Чей знак в кадре", type: "select", options: [
+      { value: "promrukav", label: "Промрукав" },
+      { value: "keaz", label: "КЭАЗ" },
+    ] },
+    { key: "markLogo", label: "Свой файл знака (SVG/PNG)", type: "image" },
+    { key: "markScale", label: "Размер знака", type: "range", min: 0.5, max: 1.8, step: 0.01 },
+    { key: "title", label: "Надпись сверху", type: "text", maxLength: 60 },
+    { key: "subtitle", label: "Подзаголовок", type: "text", maxLength: 80 },
+    { key: "logoStyle", label: "Оформление знака", type: "select", options: [
+      { value: "gold", label: "Золотое тиснение" },
+      { value: "original", label: "Исходные цвета файла" },
+    ] },
+    { key: "frameVisible", label: "Показывать рамку", type: "bool" },
+    { key: "curtainVisible", label: "Показывать занавес", type: "bool" },
+    { key: "curtainWidth", label: "Занавес: ширина, px", type: "range", min: 320, max: 760, step: 4 },
+    { key: "motion", label: "Движение декора при удержании", type: "range", min: 0, max: 1, step: 0.01 },
+  ] },
   { id: "intro", title: "Последовательность интро", fields: [
     { key: "cornerDuration", label: "Прорисовка боковых кругов", type: "range", min: 0.2, max: 4, step: 0.05 },
     { key: "liftDuration", label: "Подъём логотипа", type: "range", min: 0.2, max: 3, step: 0.05 },

@@ -28,7 +28,10 @@ html, body {
   pointer-events: none; /* никакой реакции на мышь */
 }
 
-/* Фирменное поле: название под знаком, без даты и дополнительных строк. */
+/* Фирменное поле: название под знаком, без даты и дополнительных строк.
+   На заставках спонсора весь текст собирается в кадре (заголовок, подзаголовок,
+   разделитель), поэтому DOM-титр там скрыт целиком. */
+body.scene-sponsor #caption { display: none; }
 body.scene-brand #caption .cap-rule,
 body.scene-brand #caption .cap-sub,
 body.scene-brand #caption .cap-date,
@@ -39,7 +42,11 @@ body.scene-photo #caption .cap-date,
 body.scene-finale #caption .cap-rule,
 body.scene-finale #caption .cap-date { display: none; }
 /* Фоновые сцены: титр опущен в нижнюю треть, знак крупнее. */
-body.scene-brand #caption .cap-title { left: calc(50% + var(--title-offset-x, 0%)); top: calc(65% + var(--title-offset-y, 0%)); }
+body.scene-brand #caption .cap-title {
+  left: calc(50% + var(--title-offset-x, 0%)); top: calc(84% + var(--title-offset-y, 0%));
+  font-size: calc(var(--u) * 4.6 * var(--title-scale, 1) * var(--title-fit, 1));
+  letter-spacing: var(--title-tracking, .16em); padding-left: var(--title-tracking, .16em);
+}
 body.scene-photo #caption .cap-title {
   left: calc(50% + var(--title-offset-x, 0%)); top: calc(65% + var(--title-offset-y, 0%)); font-size: calc(var(--u) * 6.7 * var(--title-scale, 1) * var(--title-fit, 1));
 }

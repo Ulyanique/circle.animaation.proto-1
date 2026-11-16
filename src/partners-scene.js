@@ -12,6 +12,7 @@ import { BASE_FRAME } from './scenes/catalog.js';
 import { masterSize, masterId } from './output-profile.js';
 import { fontName } from './fonts.js';
 import { DEFAULT_QUALITY, isQualityPreset, suggestedQuality } from './quality-presets.js';
+import { PARTNERS_DEFAULTS } from './scenes/partners.js';
 
 const loadImage = url => new Promise(resolve => {
   if (!url) { resolve(null); return; }
@@ -72,7 +73,7 @@ function glintCanvas() {
  * @param {number|null} span доля ширины, где сейчас полоса (см. glintSpan)
  * @param {number} alpha
  */
-function drawMarkGlint(ctx, logo, x, y, w, h, span, alpha) {
+export function drawMarkGlint(ctx, logo, x, y, w, h, span, alpha) {
   if (span == null || alpha <= 0.002) return;
   const buffer = glintCanvas();
   if (buffer.width !== logo.width || buffer.height !== logo.height) {
@@ -210,6 +211,38 @@ const imageReady = Promise.all([backgroundUrl, curtainUrl, proelectroUrl, proele
   return images.every(Boolean);
 });
 export const loadPartnersBackground = () => imageReady;
+
+/**
+ * Изображения программы: фон, занавес и встроенные знаки. Заставки отдельных
+ * спонсоров берут их отсюда же — вторая копия картинок в памяти не нужна.
+ * @returns {{background: HTMLCanvasElement|null, curtain: HTMLImageElement|null}}
+ */
+export function partnersAssets() {
+  return { background: backgroundCanvas ?? null, curtain: curtainImage ?? null };
+}
+
+/**
+ * Готовый знак для заставки спонсора: встроенный золотой (или свой файл).
+ * Возвращает канвас в том же виде, в каком знаки рисуются в «Спонсорах»,
+ * поэтому блик и тиснение совпадают.
+ * @param {string} key @param {string} [customUrl] @param {string} [style]
+ */
+export function partnersMark(key, customUrl, style = 'gold') {
+  const resolved = style === 'original' ? 'original' : 'gold';
+  if (typeof customUrl === 'string' && customUrl.startsWith('data:image/') && customUrl.length <= MAX_LOGO_DATA_URL) {
+    const cacheKey = `${resolved}:${customUrl}`;
+    const cached = customLogoCache.get(cacheKey);
+    if (cached) return cached;
+    resolveCustomLogo(customUrl, resolved);
+    return null;
+  }
+  return builtinMark(key, resolved);
+}
+
+/** Заголовок и подзаголовок по умолчанию: у заставок они те же, что у «Спонсоров». */
+export function partnerDefaults() {
+  return PARTNERS_DEFAULTS.partners;
+}
 
 // Кэш пользовательских логотипов (data:image/...) по URL + стилю тиснения.
 const customLogoCache = new Map();

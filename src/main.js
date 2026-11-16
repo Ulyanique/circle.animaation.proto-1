@@ -15,6 +15,7 @@ import { LogoScene } from "./scene.js";
 import { BrandScene } from "./brand-scene.js";
 import { PhotoPauseScene } from "./photo-pause-scene.js";
 import { PartnersScene, loadPartnersBackground, preloadPartnerCustomLogos } from "./partners-scene.js";
+import { SponsorScene } from "./sponsor-scene.js";
 import { FinaleScene } from "./finale-scene.js";
 import { createSettingsUI } from "./ui.js";
 import { AnimationRuntime, cycleDuration } from "./runtime.js";
@@ -46,7 +47,9 @@ if (!activeScene?.defaults || !["ready", "preview"].includes(activeScene.status)
 // "waiting" остаётся внутренним идентификатором для старых ссылок и настроек.
 let sceneId = activeScene.id;
 // Настройки каждой готовой сцены живут отдельно: в браузере свой ключ на сцену.
-const READY_IDS = ["waiting", "brand", "partners", "photo-pause", "finale"];
+// Заставки отдельных спонсоров — те же страницы программы, поэтому идут в общем
+// списке: у каждой свой конфиг, своя кнопка и своя запись.
+const READY_IDS = ["waiting", "brand", "partners", "sponsor-promrukav", "sponsor-keaz", "photo-pause", "finale"];
 const configs = new Map();
 const storageFailures = new Set();
 for (const id of READY_IDS) {
@@ -126,10 +129,12 @@ function updateStorageWarning() {
 updateStorageWarning();
 
 function activateClasses(id) {
-  for (const name of ["brand", "partners", "photo-pause", "finale"]) {
+  for (const name of ["brand", "partners", "photo-pause", "finale", "sponsor-promrukav", "sponsor-keaz"]) {
     document.body.classList.toggle(`scene-${name === "photo-pause" ? "photo" : name}`, id === name);
   }
   document.body.classList.toggle("scene-waiting", id === "waiting");
+  // На заставках спонсора текст живёт в кадре: DOM-титр там не нужен.
+  document.body.classList.toggle("scene-sponsor", id.startsWith("sponsor-"));
 }
 activateClasses(sceneId);
 function activeFontIds(config = cfg) {
@@ -174,7 +179,9 @@ function applyTypography(force = false) {
 applyTypography();
 
 const adapters = { waiting: LogoScene, brand: BrandScene,
-  "partners": PartnersScene, "photo-pause": PhotoPauseScene, finale: FinaleScene };
+  "partners": PartnersScene, "photo-pause": PhotoPauseScene, finale: FinaleScene,
+  // Заставки спонсоров — один класс, знак берётся из своего конфига.
+  "sponsor-promrukav": SponsorScene, "sponsor-keaz": SponsorScene };
 let scene = new adapters[sceneId](canvas, cfg);
 // Пресет качества запоминаем между запусками: на площадке важно не искать его
 // заново. Значение по умолчанию — полный кадр превью.
@@ -191,7 +198,7 @@ let editor;
 const settings = createSettingsUI({
   scenes: READY_IDS.map((id) => ({
     id,
-    label: ({ waiting: "01", brand: "02", partners: "04", "photo-pause": "08", finale: "09" })[id],
+    label: ({ waiting: "01", brand: "02", partners: "04", "sponsor-promrukav": "05а", "sponsor-keaz": "05б", "photo-pause": "08", finale: "09" })[id],
     title: sceneById(id).title,
   })),
   getSceneId: () => sceneId,
@@ -337,7 +344,8 @@ function syncMasterSize() {
 // WebGL целиком: превью и экспорт совпадают пиксель в пиксель.
 function captionSourceFor(id) {
   return () => {
-    if (id === "partners" || !document.getElementById("caption")) return null;
+    // «Спонсоры» и заставки спонсоров собирают текст в кадре: DOM-титра нет.
+    if (id === "partners" || id.startsWith("sponsor-") || !document.getElementById("caption")) return null;
     return { sceneId: id, alpha: 1 };
   };
 }
