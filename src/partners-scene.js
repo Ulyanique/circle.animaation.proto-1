@@ -102,6 +102,17 @@ function drawMarkGlint(ctx, logo, x, y, w, h, span, alpha) {
   ctx.restore();
 }
 
+// Ось композиции и центры колонок. Заголовок, подзаголовок и линия под ним
+// раньше стояли на 900 — на 60 px левее оси кадра, из-за чего вся верхняя часть
+// выглядела смещённой, хотя ярусы уже стояли по центру. Теперь ось одна на кадр.
+const CONTENT_CENTER = BASE_FRAME.width / 2;
+const COLUMN_LEFT = 690;
+const COLUMN_RIGHT = 1230;
+// Заголовок центрирован, поэтому предел ширины оставляет равные поля с обеих
+// сторон. Листва заходит в кадр справа примерно до x=1560: при пределе 1100
+// строка занимает 410..1510 и с листвой не соприкасается.
+const TITLE_MAX_WIDTH = 1100;
+
 // Ширина поднята с 440: у ПРОэлектрощит и КЭАЗ соотношение сторон 4,8:1 и 5,3:1,
 // поэтому прежний потолок ширины срезал им ВЫСОТУ (92 и 83 px против 105 у
 // соседей) — в одном ярусе знаки выглядели разного веса. Столбцы разнесены на
@@ -430,10 +441,10 @@ export class PartnersScene {
       }
       ctx.restore();
     };
-    // The upper-right foliage narrows the visual safe area, so the title block
-    // sits optically left and stays clear of the leaves rather than filling the frame.
-    drawFoilTitle(heading, 900, 160, title, 940);
-    text(data.subtitle, 900, 270, `400 49px "${displayFont}", serif`, gold, title, 1000, cue.title);
+    // Блок заголовка стоит строго на оси кадра: смещение «оптически влево»
+    // читалось как небрежность, а не как замысел.
+    drawFoilTitle(heading, CONTENT_CENTER, 160, title, TITLE_MAX_WIDTH);
+    text(data.subtitle, CONTENT_CENTER, 270, `400 49px "${displayFont}", serif`, gold, title, 1080, cue.title);
     // Линия расходится от центра, а ромб появляется последним и чуть крупнее:
     // взгляд успевает пройти по кадру сверху вниз, а не схватить всё сразу.
     const ornament = (y, alpha, width, center = 960, diamond = 1) => {
@@ -448,7 +459,7 @@ export class PartnersScene {
       }
       ctx.restore();
     };
-    ornament(330, title * .7, 280 * cue.rule, 900, cue.rule);
+    ornament(330, title * .7, 280 * cue.rule, CONTENT_CENTER, cue.rule);
     // Разрядка у мелких капсов — типографский приём, который сразу отделяет
     // «дорогую» вёрстку от обычной. letterSpacing поддерживается Chromium;
     // если его нет, подпись просто останется без разрядки.
@@ -550,17 +561,17 @@ export class PartnersScene {
       ctx.beginPath(); ctx.arc(0, 0, rx, 0, Math.PI * 2); ctx.fill();
       ctx.restore();
     };
-    tierGlow(960, 495, 620, 190, visible * cue.shadow * .85);
-    tierGlow(960, 785, 620, 190, visible * cue.shadow * .7);
-    label(data.organizerLabel, 690, 401, visible * cue.organizerLabel, cue.organizerLabel);
-    label(data.coorganizerLabel, 1230, 401, visible * cue.organizerLabel, cue.organizerLabel);
+    tierGlow(CONTENT_CENTER, 495, 620, 190, visible * cue.shadow * .85);
+    tierGlow(CONTENT_CENTER, 785, 620, 190, visible * cue.shadow * .7);
+    label(data.organizerLabel, COLUMN_LEFT, 401, visible * cue.organizerLabel, cue.organizerLabel);
+    label(data.coorganizerLabel, COLUMN_RIGHT, 401, visible * cue.organizerLabel, cue.organizerLabel);
     // Блик идёт очередью уже по «севшему» знаку: 1.69+1.0 с — конец входа.
-    company('organizer1', 690, 495, cue.organizer, 2.75, 0);
-    company('organizer2', 1230, 495, cue.organizerSecond, 3.25, 1);
-    ornament(613, visible * cue.separator * .55, 420 * cue.separator, 960, cue.separator);
-    label(data.partnerLabel, 960, 690, visible * cue.partnerLabel, cue.partnerLabel);
-    company('partner1', 690, 785, cue.partner, 4.45, 2);
-    company('partner2', 1230, 785, cue.partnerSecond, 4.95, 3);
+    company('organizer1', COLUMN_LEFT, 495, cue.organizer, 2.75, 0);
+    company('organizer2', COLUMN_RIGHT, 495, cue.organizerSecond, 3.25, 1);
+    ornament(613, visible * cue.separator * .55, 420 * cue.separator, CONTENT_CENTER, cue.separator);
+    label(data.partnerLabel, CONTENT_CENTER, 690, visible * cue.partnerLabel, cue.partnerLabel);
+    company('partner1', COLUMN_LEFT, 785, cue.partner, 4.45, 2);
+    company('partner2', COLUMN_RIGHT, 785, cue.partnerSecond, 4.95, 3);
     this.cardTexture.needsUpdate = true;
   }
 
