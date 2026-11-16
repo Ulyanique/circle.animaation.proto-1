@@ -9,24 +9,68 @@
  * Замер по `shtora.png` (476×1080, альфа по колонкам): непрозрачно до x≈240,
  * плотнее половины — до x≈372, полупрозрачный хвост — до x≈440. Ширина шторы
  * настраивается, поэтому порог хранится в долях её ширины и пересчитывается.
+ *
+ * Кромка ткани ДИАГОНАЛЬНАЯ: сверху штора шире (подхват с кистью собирает её к
+ * середине), к низу сходится к узкому хвосту. Одна общая граница на весь кадр
+ * оказывалась верной только для средних строк: заголовок на y≈160 упирался в
+ * ткань, которая там достигает 0.9 ширины, хотя «средняя» доля — 0.78. Поэтому
+ * граница хранится профилем по строкам и запрашивается для конкретной строки.
  */
 export const CURTAIN_OPAQUE_SHARE = 0.50;
 export const CURTAIN_SOLID_SHARE = 0.78;
+
+/**
+ * Плотная кромка ткани по строкам кадра: пары [y, x] для исходной ширины 476.
+ * Снято с `shtora.png` по альфе > 230/255 с шагом 40 px, хвост складки не в счёт.
+ */
+export const CURTAIN_EDGE_PROFILE = Object.freeze([
+  [0, 474], [40, 460], [80, 445], [120, 429], [160, 413], [200, 397],
+  [240, 379], [280, 361], [320, 341], [360, 319], [400, 295], [440, 268],
+  [480, 236], [520, 197], [560, 140], [600, 106], [640, 121], [680, 134],
+  [720, 147], [760, 159], [800, 170], [840, 182], [880, 193], [920, 204],
+  [960, 215], [1000, 226], [1040, 237], [1080, 243],
+]);
+const PROFILE_WIDTH = 476;
 
 /** Качание шторы в пике: +8 px при полной интенсивности движения (старшая сцена). */
 export const CURTAIN_SWAY_PEAK = 9;
 
 /**
- * Правая граница безопасной зоны в координатах кадра.
- * @param {{curtainVisible?:boolean, curtainWidth?:number}} settings
- * @param {{sway?:number}} [options] смещение ткани от качания в пике
+ * Плотная кромка ткани на заданной строке кадра, в координатах кадра.
+ * Между точками профиля — линейно, за краями — ближайшее значение.
+ * @param {number} y строка кадра (0…1080)
+ * @param {number} [width] ширина шторы из настроек
  */
-export function textSafeLeft(settings, { sway = CURTAIN_SWAY_PEAK } = {}) {
+export function curtainEdgeAt(y, width = PROFILE_WIDTH) {
+  const row = Number.isFinite(y) ? Math.max(0, Math.min(1080, y)) : 0;
+  const scale = (Number.isFinite(width) ? width : PROFILE_WIDTH) / PROFILE_WIDTH;
+  const profile = CURTAIN_EDGE_PROFILE;
+  if (row <= profile[0][0]) return profile[0][1] * scale;
+  for (let i = 1; i < profile.length; i++) {
+    if (row <= profile[i][0]) {
+      const [y0, x0] = profile[i - 1];
+      const [y1, x1] = profile[i];
+      return (x0 + (x1 - x0) * (row - y0) / (y1 - y0)) * scale;
+    }
+  }
+  return profile[profile.length - 1][1] * scale;
+}
+
+/**
+ * Правая граница безопасной зоны в координатах кадра.
+ * Без `atY` возвращает консервативную общую границу (средние строки кадра);
+ * с `atY` — фактическую кромку ткани на этой строке: для заголовка и верхних
+ * подписей она заметно дальше, чем «средняя» доля ширины.
+ * @param {{curtainVisible?:boolean, curtainWidth?:number}} settings
+ * @param {{sway?:number, atY?:number}} [options] смещение ткани от качания в пике
+ */
+export function textSafeLeft(settings, { sway = CURTAIN_SWAY_PEAK, atY } = {}) {
   if (!settings || settings.curtainVisible === false) return 0;
   const width = Number.isFinite(settings.curtainWidth) ? settings.curtainWidth : 476;
   // Берём плотную часть ткани, а не весь PNG: полупрозрачный хвост складки
   // текст не «съедает», но и подходить к нему вплотную не надо.
-  return width * CURTAIN_SOLID_SHARE + Math.abs(sway);
+  const base = Number.isFinite(atY) ? curtainEdgeAt(atY, width) : width * CURTAIN_SOLID_SHARE;
+  return base + Math.abs(sway);
 }
 
 /**

@@ -491,7 +491,10 @@ export class PartnersScene {
     // Безопасная зона: занавес висит поверх кадра, его ширина задаётся в
     // настройках. Раньше предел ширины был числом 1100, и при широкой шторе
     // первая буква заголовка оказывалась под тканью.
-    const safe = textSafeLeft(data);
+    // Граница берётся ДЛЯ СТРОКИ заголовка: кромка ткани диагональная, и на
+    // высоте заголовка она дальше «средней» доли ширины — общая граница
+    // пропускала первую букву под ткань при широкой шторе.
+    const safe = textSafeLeft(data, { atY: 160 - 48 });
     const titleFit = fitFontSize({
       size: 96, min: 44,
       measure: (size) => {
@@ -500,8 +503,9 @@ export class PartnersScene {
       },
     }, safe);
     drawFoilTitle(heading, CONTENT_CENTER, 160, title, titleFit.size);
+    const subtitleSafe = textSafeLeft(data, { atY: 270 - 25 });
     text(data.subtitle, CONTENT_CENTER, 270, `400 49px "${displayFont}", serif`, gold, title,
-      Math.min(1080, 2 * (960 - safe)), cue.title);
+      Math.min(1080, 2 * (960 - subtitleSafe)), cue.title);
     // Линия расходится от центра, а ромб появляется последним и чуть крупнее:
     // взгляд успевает пройти по кадру сверху вниз, а не схватить всё сразу.
     const ornament = (y, alpha, width, center = 960, diamond = 1) => {

@@ -58,3 +58,29 @@ test("заголовок и подпись не заходят под занав
   assert.ok(fitFontSize({ size: 96, min: 44, measure },
     textSafeLeft({ curtainVisible: true, curtainWidth: 760 })).size < fit.size);
 });
+
+test("безопасная зона учитывает диагональную кромку ткани по строкам", async () => {
+  const { curtainEdgeAt, textSafeLeft, fitFontSize } = await import("../src/text-safe-area.js");
+  // Кромка диагональная: на высоте заголовка ткань шире, чем на середине кадра,
+  // иначе первая буква заголовка уходила под штору при широком занавесе.
+  const top = curtainEdgeAt(160, 476);
+  const middle = curtainEdgeAt(540, 476);
+  assert.ok(top > 400 && top < 430, `кромка на строке заголовка ${top}`);
+  assert.ok(middle > 140 && middle < 210, `кромка на середине кадра ${middle}`);
+  assert.ok(top > middle, "сверху штора должна быть шире, чем посередине");
+  // Ширина занавеса масштабирует кромку пропорционально.
+  const wide = curtainEdgeAt(160, 600);
+  assert.ok(Math.abs(wide - top * 600 / 476) < 0.01, `масштаб кромки ${wide}`);
+  // Граница для строки заголовка дальше общей «средней» доли ширины.
+  const rowSafe = textSafeLeft({ curtainVisible: true, curtainWidth: 600 }, { atY: 112 });
+  const flatSafe = textSafeLeft({ curtainVisible: true, curtainWidth: 600 });
+  assert.ok(rowSafe > flatSafe, `строковая граница ${rowSafe} не строже общей ${flatSafe}`);
+  // Заголовок на широком занавесе ужимается и остаётся правее ткани с запасом.
+  const measure = (size) => size * 10.4;
+  const fit = fitFontSize({ size: 96, min: 44, measure }, rowSafe);
+  const left = 960 - fit.width / 2;
+  assert.ok(left >= rowSafe + 24 - 1e-6, `левый край ${left} при границе ${rowSafe}`);
+  assert.ok(left > curtainEdgeAt(112, 600), "заголовок заходит под ткань");
+  // Выключенный занавес не ограничивает ни одну строку.
+  assert.equal(textSafeLeft({ curtainVisible: false }, { atY: 112 }), 0);
+});

@@ -174,7 +174,10 @@ export class SponsorScene {
     // Безопасная зона текста считается по ширине занавеса: ткань лежит поверх
     // кадра, и подойти к ней вплотную нельзя. Кегль подбирается так, чтобы
     // строка гарантированно оставалась правее ткани, а не «на глаз».
-    const safe = textSafeLeft(data);
+    // Кромка ткани диагональная, поэтому граница берётся для строки каждой
+    // надписи: на высоте заголовка штора шире «средней» доли, и общая граница
+    // пропускала первую букву под ткань при широкой шторе.
+    const safe = textSafeLeft(data, { atY: 158 - 37 });
     if (cue.title > 0.003) {
       ctx.save();
       ctx.globalAlpha = cue.visible * cue.title;
@@ -207,7 +210,7 @@ export class SponsorScene {
           ctx.font = `400 ${size}px "${displayFont}", serif`;
           return ctx.measureText(text).width;
         },
-      }, safe);
+      }, textSafeLeft(data, { atY: 258 - 22 }));
       ctx.font = `400 ${font.size}px "${displayFont}", serif`;
       ctx.fillStyle = gold;
       ctx.shadowColor = "rgba(0,0,0,.5)"; ctx.shadowBlur = 9; ctx.shadowOffsetY = 3;
@@ -218,7 +221,7 @@ export class SponsorScene {
     if (cue.rule > 0.004) {
       // Ширина линии тоже упирается в безопасную зону: кончик не должен
       // уходить в ткань даже на самом широком кадре.
-      const width = Math.min(300, Math.max(120, 960 - safe - 40)) * cue.rule;
+      const width = Math.min(300, Math.max(120, 960 - textSafeLeft(data, { atY: 318 }) - 40)) * cue.rule;
       ctx.save();
       ctx.globalAlpha = cue.title * cue.visible;
       ctx.strokeStyle = warm; ctx.lineWidth = 1;
