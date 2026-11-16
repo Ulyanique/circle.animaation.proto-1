@@ -2,7 +2,7 @@ import "./styles.css";
 import "./font-assets.js";
 import { loadFabricTexture } from "./fabric-texture.js";
 import { fontName, loadFonts } from "./fonts.js";
-import { loadContourFonts } from "./contour-fonts.js";
+import { loadContourFonts, ensureContourFont, isContourFontLoaded } from "./contour-fonts.js";
 import { parse as parseFont } from "opentype.js";
 import { sources as contourSources } from "./contour-font-assets.js";
 import { refreshContours } from "./contour-preview.js";
@@ -14,14 +14,16 @@ import {
 import { LogoScene } from "./scene.js";
 import { BrandScene } from "./brand-scene.js";
 import { PhotoPauseScene } from "./photo-pause-scene.js";
-import { PartnersScene, loadPartnersBackground } from "./partners-scene.js";
+import { PartnersScene, loadPartnersBackground, preloadPartnerCustomLogos } from "./partners-scene.js";
 import { FinaleScene } from "./finale-scene.js";
 import { createSettingsUI } from "./ui.js";
 import { AnimationRuntime, cycleDuration } from "./runtime.js";
 import { encodeOfflineVideo, frameCount, estimateVideoBytes, videoBitrateFor } from "./offline-video.js";
 import { masterSize, masterId, setMasterPreset, loadMasterPreset } from "./output-profile.js";
 import { transitionDuration, drawOutgoingFrame } from "./scene-transition.js";
-import { OUTPUT, RECORDING_CHAIN, sceneById } from "./scenes/catalog.js";
+import { OUTPUT, sceneById } from "./scenes/catalog.js";
+import { loadRecordingChain, saveRecordingChain, chainBaseFilename } from "./recording-chain.js";
+import { decodeConfigShareHash } from "./scene-snapshots.js";
 import { createOperatorControls, crossedBoundary } from "./operator.js";
 import { loadQuality, saveQuality } from "./quality-presets.js";
 import { loadDelivery, saveDelivery, deliveryOption, deliveryBitrate, deliveryFilename } from "./delivery.js";
@@ -47,6 +49,14 @@ const configs = new Map();
 const storageFailures = new Set();
 for (const id of READY_IDS) {
   configs.set(id, loadSceneConfig(id, sceneById(id).defaults, failedId => storageFailures.add(failedId)));
+}
+// Если открыта ссылка вида ?scene=brand#cfg=<base64url>, накладываем патч на активную сцену
+// только для текущего просмотра (без перезаписи localStorage пользователя).
+const sharedRaw = new URLSearchParams(location.hash.replace(/^#/, "")).get("cfg") ||
+  new URLSearchParams(location.search).get("cfg");
+const sharedPatch = decodeConfigShareHash(sharedRaw);
+if (sharedPatch) {
+  configs.set(sceneId, mergeConfig(sceneById(sceneId).defaults, sharedPatch));
 }
 function configFor(id) {
   id = sceneById(id)?.id || id;
@@ -104,6 +114,16 @@ function activateClasses(id) {
   document.body.classList.toggle("scene-waiting", id === "waiting");
 }
 activateClasses(sceneId);
+function activeFontIds(config = cfg) {
+  const ids = [config?.typography?.font || "cormorant-garamond"];
+  const tl = config?.textLayers;
+  if (tl && typeof tl === "object") {
+    for (let i = 1; i <= 8; i++) {
+      if (tl[`text${i}Present`] && tl[`text${i}Font`]) ids.push(tl[`text${i}Font`]);
+    }
+  }
+  return [...new Set(ids)];
+}
 function applyTypography(force = false) {
   const cap = document.getElementById("caption");
   const font = cfg.typography?.font || "cormorant-garamond";
@@ -122,6 +142,15 @@ function applyTypography(force = false) {
   const signature = `${font}:${sizes.join(":")}:${tracking.join(":")}:${fitted.join(":")}`;
   const changed = cap.dataset.fontSignature !== signature;
   cap.dataset.fontSignature = signature;
+  const needed = activeFontIds(cfg);
+  if (needed.some(id => !isContourFontLoaded(id))) {
+    ensureContourFont(needed).then(loaded => {
+      if (loaded) {
+        refreshContours(cfg.typography?.font || "cormorant-garamond");
+        if (!recording) runtime.renderAt(runtime.time, 1 / OUTPUT.fps);
+      }
+    }).catch(() => {});
+  }
   if (textChanged || changed || force || !cap.classList.contains("contours-ready")) refreshContours(font);
 }
 applyTypography();
@@ -135,6 +164,7 @@ scene.setQuality(loadQuality());
 // Вариант доставки (кодек и глубина) — решение человека, не браузера: он
 // влияет на то, что площадка сможет открыть. По умолчанию H.264.
 let delivery = loadDelivery();
+let activeChain = loadRecordingChain();
 let runtime = new AnimationRuntime(scene, cfg, OUTPUT.fps);
 scene.setCaptionSource(captionSourceFor(sceneId));
 layoutEditorPreview(canvas, document.getElementById("caption"));
@@ -189,7 +219,7 @@ let recording = null; // один цикл текущей сцены, перек
 const operator = createOperatorControls({
   getState: () => ({ id: sceneId, time: runtime.time, config: cfg, cycle: runtime.cycle,
     recording: !!recording, recordingKind: recording?.kind, master: masterId(), quality: scene.quality,
-    delivery }),
+    delivery, chain: activeChain }),
   seek: (value) => { cfg.playback.paused = true; runtime.renderAt(value, 1 / OUTPUT.fps); },
   setDuration: (value) => {
     const tl = cfg.timeline;
@@ -224,6 +254,11 @@ const operator = createOperatorControls({
     if (!saveDelivery(id)) return false;
     delivery = id;
     operator.refresh();
+    return true;
+  },
+  setChain: (list) => {
+    if (recording || transition) return false;
+    activeChain = saveRecordingChain(list);
     return true;
   },
   record: () => startRecording(),
@@ -420,7 +455,7 @@ function startOfflineRecording(kind, download) {
   if (recording || transition) return false;
   let estimatedMiB;
   try {
-    const ids = kind === "sequence" ? RECORDING_CHAIN : [sceneId];
+    const ids = kind === "sequence" ? activeChain : [sceneId];
     const frames = ids.reduce((sum, id) => {
       const timeline = configFor(id).timeline;
       return sum + frameCount(cycleDuration(timeline), timeline.speed, OUTPUT.fps);
@@ -448,8 +483,14 @@ async function runOfflineRecording(job, overlay, download) {
   if (job.kind === "sequence") { window.__sequenceStats = stats; window.__lastSequenceBlob = null; }
   else { window.__recStats = stats; window.__lastVideoBlob = null; }
   try {
-    await Promise.all([fabricReady, partnersReady]); // ассеты не меняются в середине записи
-    const ids = job.kind === "sequence" ? RECORDING_CHAIN : [sceneId];
+    const ids = job.kind === "sequence" ? activeChain : [sceneId];
+    const exportFonts = [...new Set(ids.flatMap(id => activeFontIds(configFor(id))))];
+    await Promise.all([
+      fabricReady,
+      partnersReady,
+      ensureContourFont(exportFonts),
+      ids.includes("partners") ? preloadPartnerCustomLogos(configFor("partners").partners) : null,
+    ]); // ассеты не меняются в середине записи
     const segments = ids.map(id => {
       const sceneConfig = configFor(id);
       const timeline = sceneConfig.timeline;
@@ -463,6 +504,7 @@ async function runOfflineRecording(job, overlay, download) {
     // заставляет браузер выгружать полотно с GPU, и запись идёт в разы дольше.
     const ctx = videoCanvas.getContext("2d", option.bitDepth === 10 ? { willReadFrequently: true } : undefined);
     if (!ctx) throw new Error("Не удалось создать кадр для экспорта");
+    let blurCanvas = null, blurCtx = null;
     let segmentIndex = -1, segmentStart = 0;
     const result = await encodeOfflineVideo({canvas:videoCanvas, fps:OUTPUT.fps, total,
       bitrate:videoBitrateFor(REC_W, REC_H), delivery:option.id,
@@ -491,18 +533,22 @@ async function runOfflineRecording(job, overlay, download) {
           drawCompositeFrame(ctx);
         } else {
           const times = shutterTimes(frameTime, segment.speed / OUTPUT.fps, shutter);
-          const blur = document.createElement("canvas");
-          blur.width = REC_W; blur.height = REC_H;
-          const blurCtx = blur.getContext("2d");
-          for (const sampleTime of times) {
-            runtime.renderAt(sampleTime, 1 / OUTPUT.fps);
+          if (!blurCanvas || blurCanvas.width !== REC_W || blurCanvas.height !== REC_H) {
+            blurCanvas = document.createElement("canvas");
+            blurCanvas.width = REC_W; blurCanvas.height = REC_H;
+            blurCtx = blurCanvas.getContext("2d");
+          }
+          ctx.clearRect(0, 0, REC_W, REC_H);
+          for (let s = 0; s < times.length; s++) {
+            runtime.renderAt(times[s], 1 / OUTPUT.fps);
+            blurCtx.clearRect(0, 0, REC_W, REC_H);
             blurCtx.drawImage(canvas, 0, 0, REC_W, REC_H);
+            ctx.globalAlpha = 1 / (s + 1);
+            ctx.drawImage(blurCanvas, 0, 0);
           }
           // Возвращаем время кадра: дальше по циклу время считается заново, но
           // пауза/переходы не должны увидеть последнюю выборку затвора.
           runtime.renderAt(frameTime, 1 / OUTPUT.fps);
-          ctx.globalAlpha = 1 / times.length;
-          ctx.drawImage(blur, 0, 0);
           ctx.globalAlpha = 1;
         }
         if (job.outgoing) {
@@ -520,7 +566,7 @@ async function runOfflineRecording(job, overlay, download) {
     // Имя файла берёт фактический размер записи: 4K-мастер не должен
     // сохраняться как «1920x1080».
     if (download) saveVideo(result.blob, deliveryFilename(
-      job.kind === "sequence" ? "circle-01-02-08-09" : initialScene === "waiting" ? "intro" : initialScene,
+      job.kind === "sequence" ? chainBaseFilename(ids) : initialScene === "waiting" ? "intro" : initialScene,
       option, REC_W, REC_H));
     completed = true;
     // Формат называем честно: WebM не откроется там, где ждут MP4.
@@ -553,20 +599,25 @@ function frame(now) {
     runtime.advance(elapsed, renderDt);
     if (operator.auto && !cfg.playback.paused && !transition &&
         crossedBoundary(before, runtime.time, cfg.timeline.startDelay, runtime.cycle)) {
-      switchScene(RECORDING_CHAIN[(RECORDING_CHAIN.indexOf(sceneId) + 1) % RECORDING_CHAIN.length]);
+      const idx = activeChain.indexOf(sceneId);
+      switchScene(activeChain[(idx + 1) % activeChain.length]);
     }
   }
   // Не снимаем заставку загрузки до реального WebGL-кадра и готовых шрифтов.
   // Это также защищает титр от вспышки системного шрифта при медленном запуске.
   if (!firstFrameRendered) {
     firstFrameRendered = true;
-    const fonts = Promise.all([loadFonts(), loadContourFonts(contourSources, parseFont)]).catch((error) => console.warn("Не удалось загрузить контуры шрифтов", error));
+    const initialFonts = [...new Set(READY_IDS.flatMap(id => activeFontIds(configFor(id))))];
+    const fonts = Promise.all([loadFonts(), loadContourFonts(contourSources, parseFont, initialFonts)]).catch((error) => console.warn("Не удалось загрузить контуры шрифтов", error));
     Promise.all([fonts, fabricReady, partnersReady]).then(([, fabricLoaded, partnersLoaded]) => {
       applyTypography(true); scene.refreshTextTexture?.();
       if (!recording) runtime.renderAt(runtime.time, 1 / OUTPUT.fps);
       window.__bootReady?.();
       if (!partnersLoaded && sceneId === "partners") toast("Не все изображения спонсоров загрузились; возможны текстовые замены", true);
       if (!fabricLoaded) toast("Текстура камня не загрузилась; используется упрощённый фон", true);
+      // Остальные шрифты подгружаем в простое, чтобы переключение в настройках было мгновенным.
+      const idle = window.requestIdleCallback || ((fn) => setTimeout(fn, 250));
+      idle(() => ensureContourFont(Object.keys(contourSources)).catch(() => {}));
     });
   }
   editor?.refresh();

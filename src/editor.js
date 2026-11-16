@@ -1,8 +1,9 @@
 import { createEditorToolbar } from './editor-toolbar.js';
+import { createEditorContextMenu } from './editor-context-menu.js';
 import * as THREE from 'three';
 import { OUTPUT } from './scenes/catalog.js';
 import { createExtraPropertyControls } from './editor-inspector-controls.js';
-import { captionMaskRange } from './editor-caption-range.js';
+import { captionMaskRange, scenarioCueRange } from './editor-caption-range.js';
 import { timelineCycle, timelineCursor, timelineRange, moveTimelineEdge, moveTimelineRange, timelineEdgeSeconds, movePhaseBoundary, timelineTimecode, timelineStepFrame, timelineCursorFrame, parseTimelineTimecode } from './editor-timeline.js';
 import { canDuplicate, duplicateTarget, duplicatePlan } from './editor-duplicate.js';
 import { DECOR_SLOTS, DECOR_IDS, decorSection } from './brand-decor-config.js';
@@ -853,6 +854,7 @@ export function createFrameEditor({ getState, onEnable, onChange, onSeek, onLayo
     }
     const automatic = document.createElement('button'); automatic.type = 'button'; automatic.className = 'editor-track-auto';
     automatic.textContent = 'По сценарию · задать своё время'; automatic.title = 'Включить собственный интервал';
+    const mask = document.createElement('span'); mask.className = 'editor-track-caption-mask is-cue-bar'; mask.hidden = true;
     const range = document.createElement('div'); range.className = 'editor-track-range';
     range.tabIndex = 0; range.setAttribute('role', 'group'); range.setAttribute('aria-label', `${item.label}: перемещение интервала`); range.title = 'Перетащите интервал целиком; стрелки сдвигают на 1%, Shift — на 5%';
     for (const edge of ['start', 'end']) {
@@ -860,8 +862,8 @@ export function createFrameEditor({ getState, onEnable, onChange, onSeek, onLayo
       grip.dataset.edge = edge; grip.setAttribute('role', 'slider'); grip.setAttribute('aria-label', `${item.label}: ${edge === 'start' ? 'начало' : 'конец'} интервала`);
       range.appendChild(grip);
     }
-    lane.append(automatic, range); row.append(label, lane); trackList.append(row);
-    trackRows[item.id] = {row, label, lane, automatic, range};
+    lane.append(mask, automatic, range); row.append(label, lane); trackList.append(row);
+    trackRows[item.id] = {row, label, lane, automatic, mask, range};
     label.addEventListener('click', () => select(item.id, true));
     range.addEventListener('click', event => { if (!event.target.closest('.editor-track-grip') && !suppressRangeClick) select(item.id, true); });
     automatic.addEventListener('click', () => {
@@ -907,10 +909,12 @@ export function createFrameEditor({ getState, onEnable, onChange, onSeek, onLayo
       if (entry.scenario && !captionCustom) {
         if (entry.range) entry.range.hidden = true;
         entry.scenario.hidden = false;
-        const maskRange = captionMaskRange(state.id, id, cfg);
+        const maskRange = captionMaskRange(state.id, id, cfg) || scenarioCueRange(state.id, id, cfg);
+        const isCaptionBar = isBuiltinCaption(id);
         const hasMask = maskRange && maskRange.end > maskRange.start;
         entry.lane.classList.add('is-scenario');
         entry.mask.hidden = !hasMask;
+        entry.mask.classList.toggle('is-cue-bar', !isCaptionBar);
         entry.lane.classList.toggle('has-caption-mask', Boolean(hasMask));
         if (hasMask) {
           const left = `${maskRange.start / cycle * 100}%`, width = `${(maskRange.end - maskRange.start) / cycle * 100}%`;
@@ -918,13 +922,17 @@ export function createFrameEditor({ getState, onEnable, onChange, onSeek, onLayo
           if (entry.mask.style.width !== width) entry.mask.style.width = width;
           const local = cycle * cursor / 100;
           entry.row.classList.toggle('is-timing-active', visible && state.time >= cfg.timeline.startDelay && local > maskRange.start && local < maskRange.end);
-          const description = `Маска титра: ${maskRange.start.toFixed(2)}–${maskRange.end.toFixed(2)} с цикла; нажмите, чтобы задать своё время`;
+          const description = isCaptionBar
+            ? `Маска титра: ${maskRange.start.toFixed(2)}–${maskRange.end.toFixed(2)} с цикла; нажмите, чтобы задать своё время`
+            : `${maskRange.label || 'Сценарий'}: ${maskRange.start.toFixed(2)}–${maskRange.end.toFixed(2)} с цикла (по сценарию)`;
           if (entry.scenario.title !== description) entry.scenario.title = description;
-          setText(entry.scenario, visible ? 'Маска титра · задать своё время' : 'Скрыт · задать своё время');
+          setText(entry.scenario, isCaptionBar
+            ? (visible ? 'Маска титра · задать своё время' : 'Скрыт · задать своё время')
+            : (visible ? `Сценарий · ${maskRange.start.toFixed(1)}–${maskRange.end.toFixed(1)} с` : 'Скрыт · время по сценарию'));
         } else {
           entry.row.classList.remove('is-timing-active');
-          entry.scenario.title = maskRange ? 'Маска титра не проявляется при текущем сценарии' : 'Время этого элемента определяется сценой и не редактируется на таймлайне';
-          setText(entry.scenario, maskRange ? 'Маска не проявляется · задать своё время' : visible ? 'Сценарий · без правки на шкале' : 'Скрыт · время по сценарию');
+          entry.scenario.title = isCaptionBar && maskRange ? 'Маска титра не проявляется при текущем сценарии' : 'Время этого элемента определяется сценой и не редактируется на таймлайне';
+          setText(entry.scenario, isCaptionBar && maskRange ? 'Маска не проявляется · задать своё время' : visible ? 'Сценарий · без правки на шкале' : 'Скрыт · время по сценарию');
         }
         continue;
       }
@@ -937,7 +945,25 @@ export function createFrameEditor({ getState, onEnable, onChange, onSeek, onLayo
       const custom = values[keys.TimingMode] === 'custom';
       if (entry.automatic && entry.automatic.hidden !== custom) entry.automatic.hidden = custom;
       if (entry.range.hidden === custom) entry.range.hidden = !custom;
-      if (!custom) continue;
+      if (!custom) {
+        const cueRange = scenarioCueRange(state.id, id, cfg);
+        const hasCue = Boolean(cueRange && cueRange.end > cueRange.start);
+        if (entry.mask) {
+          entry.mask.hidden = !hasCue;
+          entry.lane.classList.toggle('has-caption-mask', hasCue);
+          if (hasCue) {
+            const left = `${cueRange.start / cycle * 100}%`, width = `${(cueRange.end - cueRange.start) / cycle * 100}%`;
+            if (entry.mask.style.left !== left) entry.mask.style.left = left;
+            if (entry.mask.style.width !== width) entry.mask.style.width = width;
+            const local = cycle * cursor / 100;
+            entry.row.classList.toggle('is-timing-active', visible && state.time >= cfg.timeline.startDelay && local > cueRange.start && local < cueRange.end);
+          } else {
+            entry.row.classList.remove('is-timing-active');
+          }
+        }
+        continue;
+      }
+      if (entry.mask) { entry.mask.hidden = true; entry.lane.classList.remove('has-caption-mask'); }
       const range = timelineRange(values[keys.Start], values[keys.End]);
       const left = `${range.start}%`, width = `${range.end - range.start}%`;
       if (entry.range.style.left !== left) entry.range.style.left = left;
@@ -1468,6 +1494,7 @@ export function createFrameEditor({ getState, onEnable, onChange, onSeek, onLayo
     }
     if (!enabled) return;
     enabled = false; selected = null; drag = null; layer.hidden = true; menu.hidden = true; empty.hidden = false;
+    contextMenu?.close();
     panDrag = null; panMode = false; resetPreview(); updatePreviewControls(); setHelp(false);
     document.body.classList.remove('editor-on', 'editor-focus');
     previewTools.querySelector('[data-preview=focus]').setAttribute('aria-pressed', 'false');
@@ -1584,7 +1611,16 @@ export function createFrameEditor({ getState, onEnable, onChange, onSeek, onLayo
     });
     box.addEventListener('pointercancel', cancelDrag);
     box.addEventListener('lostpointercapture', () => { if (drag) cancelDrag(); });
-    box.addEventListener('contextmenu', (event) => { event.preventDefault(); select(id, true); });
+    box.addEventListener('contextmenu', (event) => {
+      event.preventDefault();
+      select(id, true);
+      contextMenu.open(id, event.clientX, event.clientY);
+    });
+    rows[id].addEventListener('contextmenu', (event) => {
+      event.preventDefault();
+      select(id, true);
+      contextMenu.open(id, event.clientX, event.clientY);
+    });
     const handleElementKey = (event) => {
       if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); event.stopPropagation(); select(id, true); return; }
       if (layerLocked(getState().config, id) && ['+', '=', '-', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key)) { event.preventDefault(); event.stopPropagation(); return; }
@@ -1617,6 +1653,43 @@ export function createFrameEditor({ getState, onEnable, onChange, onSeek, onLayo
     box.addEventListener('keydown', handleElementKey);
     rows[id].addEventListener('keydown', handleElementKey);
   }
+  const contextMenu = createEditorContextMenu({
+    root: layer,
+    getLayerState(layerId) {
+      const state = getState();
+      const item = EDITOR_LAYERS.find((l) => l.id === layerId);
+      if (!item) return null;
+      const deleteEffect = multiEffects.find((group) => group.ids.includes(layerId));
+      return {
+        name: layerDisplayName(state.config, item),
+        visible: layerVisible(state.config, item),
+        locked: layerLocked(state.config, layerId),
+        hasSize: Boolean(sizeInfo[layerId]),
+        canDuplicate: canDuplicate(layerId),
+        canDuplicateNow: Boolean(duplicateTarget(state.config, layerId)),
+        canDelete: CUSTOM_TEXT_IDS.includes(layerId) || Boolean(deleteEffect),
+      };
+    },
+    onAction(layerId, action) {
+      select(layerId, true);
+      if (action === 'toggle-visible') {
+        visibilityButtons[layerId]?.click();
+        return;
+      }
+      if (action === 'toggle-lock') {
+        lockButtons[layerId]?.click();
+        return;
+      }
+      if (action === 'delete') {
+        const effect = multiEffects.find((group) => group.ids.includes(layerId));
+        const btnKey = CUSTOM_TEXT_IDS.includes(layerId) ? 'delete-text' : effect ? `delete-${effect.button}` : null;
+        if (btnKey) menu.querySelector(`[data-action="${btnKey}"]`)?.click();
+        return;
+      }
+      menu.querySelector(`[data-action="${action}"]`)?.click();
+    },
+  });
+
   menu.addEventListener('click', (event) => {
     const action = event.target.closest('button')?.dataset.action;
     if (!selected || !action) return;

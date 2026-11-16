@@ -51,7 +51,19 @@ export default defineConfig({
   },
   build: {
     target: "es2020",
-    rollupOptions: { input: { main: fileURLToPath(new URL("./index.html", import.meta.url)), archive: fileURLToPath(new URL("./archive.html", import.meta.url)) } },
-    chunkSizeWarningLimit: 1500,
+    rollupOptions: {
+      input: {
+        main: fileURLToPath(new URL("./index.html", import.meta.url)),
+        archive: fileURLToPath(new URL("./archive.html", import.meta.url)),
+      },
+      output: {
+        manualChunks(id) {
+          if (id.includes("node_modules/three") || id.includes("node_modules/postprocessing")) return "vendor-three";
+          if (id.includes("node_modules/mediabunny")) return "vendor-mediabunny";
+          if (id.includes("node_modules/opentype.js")) return "vendor-opentype";
+        },
+      },
+    },
+    chunkSizeWarningLimit: 1000,
   },
 });

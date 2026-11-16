@@ -65,6 +65,74 @@ function drawFrame(ctx,cue) {
   ctx.globalAlpha=cue.visible*cue.frame*cue.motion*.65;ctx.fillStyle=glow;ctx.fillRect(x-75,0,150,117);
   ctx.restore();
 }
+// Fixed seed and fixed coordinates make the ambient glints reproducible for
+// frame-accurate seeks and offline renders.
+let seed = 0xA17B3;
+const AMBER_PARTICLES = Array.from({ length: 74 }, (_, i) => {
+  seed = (seed * 1664525 + 1013904223) >>> 0;
+  const x = 54 + (seed / 0x100000000) * 1812;
+  seed = (seed * 1664525 + 1013904223) >>> 0;
+  const y = 55 + (seed / 0x100000000) * 970;
+  seed = (seed * 1664525 + 1013904223) >>> 0;
+  return { x, y, radius: 0.7 + (seed / 0x100000000) * 1.8, phase: i * 2.3999632297, cycles: 1 + (i % 4) };
+});
+
+/** Warm moving light and subtle amber dust, deterministic at any seek time.
+ * @param {CanvasRenderingContext2D} ctx
+ * @param {number} time
+ * @param {number} [motion]
+ * @param {number} [period]
+ */
+export function drawAmberAtmosphere(ctx, time, motion = 1, period = 20) {
+  const power = clamp(Number.isFinite(motion) ? motion : 1);
+  if (power <= 0) return;
+  const cycle = Math.max(0, time);
+  const duration = Math.max(0.1, period);
+  const angle = Math.PI * 2 * cycle / duration;
+  const x = 960 - 760 * Math.cos(angle);
+  const y = 325 + Math.sin(angle + Math.PI / 3) * 150;
+  ctx.save();
+  const glow = ctx.createRadialGradient(x, y, 12, x, y, 650);
+  glow.addColorStop(0, `rgba(255,190,105,${0.105 * power})`);
+  glow.addColorStop(0.28, `rgba(248,148,75,${0.055 * power})`);
+  glow.addColorStop(1, 'rgba(255,150,70,0)');
+  ctx.fillStyle = glow;
+  ctx.fillRect(0, 0, BASE_FRAME.width, BASE_FRAME.height);
+
+  // A soft narrow ray shifts with the hotspot; low contrast preserves title/logo legibility.
+  ctx.translate(x, y);
+  ctx.rotate(-0.22);
+  const ray = ctx.createLinearGradient(-430, 0, 430, 0);
+  ray.addColorStop(0, 'rgba(255,190,105,0)');
+  ray.addColorStop(0.5, `rgba(255,205,135,${0.025 * power})`);
+  ray.addColorStop(1, 'rgba(255,190,105,0)');
+  ctx.fillStyle = ray;
+  ctx.fillRect(-430, -155, 860, 310);
+  ctx.restore();
+
+  ctx.save();
+  ctx.globalCompositeOperation = 'screen';
+  for (const particle of AMBER_PARTICLES) {
+    const twinkle = 0.18 + 0.82 * (0.5 + 0.5 * Math.sin(angle * particle.cycles + particle.phase));
+    const alpha = twinkle * power * 0.46;
+    const radius = particle.radius * (0.65 + twinkle * 0.65);
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = '#ffd995';
+    ctx.shadowColor = '#ffbe66';
+    ctx.shadowBlur = 5 + radius * 5;
+    ctx.beginPath();
+    ctx.arc(particle.x, particle.y, radius, 0, Math.PI * 2);
+    ctx.fill();
+    if (twinkle > 0.84) {
+      ctx.globalAlpha = (twinkle - 0.84) * power * 1.45;
+      ctx.shadowBlur = 8;
+      ctx.fillRect(particle.x - 3.5, particle.y - 0.45, 7, 0.9);
+      ctx.fillRect(particle.x - 0.45, particle.y - 3.5, 0.9, 7);
+    }
+  }
+  ctx.restore();
+}
+
 export function drawPartnersDecor(ctx,cue,settings) {
   // Ветви и циркуль уже находятся в изображении фона, штора — отдельный PNG.
   if (settings.frameVisible !== false) drawFrame(ctx,cue);

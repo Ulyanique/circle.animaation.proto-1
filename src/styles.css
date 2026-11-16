@@ -494,6 +494,13 @@ body.editor-on #caption { opacity: 1; }
   background: rgba(255,255,255,.07); border-color: rgba(255,255,255,.25); color: #fff;
 }
 .cfg-tools button.on { color: #e9d5ad; background: rgba(198,165,107,.12); border-color: rgba(198,165,107,.45); }
+.cfg-tools button:disabled { opacity: .4; cursor: default; }
+.cfg-slots {
+  grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: 4px;
+  margin-top: 4px; padding-top: 7px; border-top: 1px solid rgba(255,255,255,.07);
+}
+.cfg-slots-label { font-size: 10px; color: #918d84; margin-right: 2px; }
+.cfg-slots button { padding: 5px 7px; font-size: 10.5px; text-align: center; }
 .cfg-io { flex: 0 1 auto; min-height: 0; overflow-y: auto; padding: 12px 16px; border-color: rgba(255,255,255,.09); }
 .cfg-textarea { border-radius: 3px; background: #0e0e0d; border-color: rgba(255,255,255,.14); }
 .cfg-body { min-height: 0; padding: 4px 16px 14px; scrollbar-color: rgba(255,255,255,.2) transparent; }
@@ -551,6 +558,33 @@ body.editor-on #caption { opacity: 1; }
 }
 
 .cfg-text input { width: 100%; max-width: 180px; padding: 6px 8px; background: #20201e; color: #e9e6df; border: 1px solid rgba(255,255,255,.16); border-radius: 3px; font: inherit; }
+.cfg-image-ctl { display: inline-flex; align-items: center; gap: 5px; }
+.cfg-image-ctl button {
+  padding: 5px 9px; border-radius: 3px; border: 1px solid rgba(255,255,255,.16);
+  background: #20201e; color: #e9e6df; font: inherit; font-size: 11px; cursor: pointer;
+}
+.cfg-image-ctl button:hover { border-color: rgba(217,176,97,.5); color: #f4e2bc; }
+
+.operator-chain-picker { position: relative; }
+.operator-chain-picker > summary {
+  list-style: none; padding: 6px 8px; border-radius: 3px;
+  border: 1px solid rgba(255,255,255,.12); color: #bcb8b0; cursor: pointer;
+  font-size: 11px; user-select: none;
+}
+.operator-chain-picker > summary::-webkit-details-marker { display: none; }
+.operator-chain-picker[open] > summary, .operator-chain-picker > summary:hover {
+  background: rgba(255,255,255,.06); color: #f1eee7;
+}
+.operator-chain-menu {
+  position: absolute; right: 0; bottom: calc(100% + 8px); z-index: 30;
+  min-width: 168px; padding: 8px 10px; display: grid; gap: 6px;
+  background: rgba(18,18,17,.98); border: 1px solid rgba(255,255,255,.16);
+  border-radius: 5px; box-shadow: 0 10px 30px rgba(0,0,0,.55);
+}
+.operator-chain-menu label {
+  display: flex; align-items: center; gap: 7px; font-size: 11px; color: #dcd8cf; cursor: pointer; white-space: nowrap;
+}
+.operator-chain-menu input[type="checkbox"] { accent-color: #c6a56b; }
 
 /* Редактор — отдельный интерфейс, не часть экспортного кадра. */
 .editor-toggle {
@@ -957,6 +991,30 @@ body.editor-on.operator-idle:not(.ui-on) .operator-panel { opacity: 1; pointer-e
 .editor-property-group:not([open]) > :not(summary) { display: none; }
 .editor-custom-tracking > span { width: 100%; gap: 8px; }
 
+.editor-context-menu {
+  position: fixed; z-index: 40; min-width: 196px; padding: 6px;
+  background: #202022; border: 1px solid #4d4d52; border-radius: 5px;
+  box-shadow: 0 12px 34px rgba(0, 0, 0, .62); pointer-events: auto;
+  display: grid; gap: 2px; font: 11px/1.35 system-ui, sans-serif; color: #e8e8ea;
+}
+.editor-context-menu[hidden] { display: none; }
+.editor-context-title {
+  padding: 4px 8px 5px; font-size: 10px; font-weight: 600; color: #cbb68f;
+  border-bottom: 1px solid #35353a; margin-bottom: 2px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 220px;
+}
+.editor-context-menu button {
+  border: 0; border-radius: 3px; background: transparent; color: inherit;
+  padding: 6px 8px; text-align: left; font: inherit; cursor: pointer;
+}
+.editor-context-menu button:hover:not(:disabled) { background: #36363c; color: #fff; }
+.editor-context-menu button:disabled { opacity: .42; cursor: default; }
+.editor-context-menu button.is-danger:hover:not(:disabled) { background: rgba(180, 62, 62, .28); color: #ffb8b8; }
+.editor-context-menu hr {
+  border: 0; border-top: 1px solid #35353a; margin: 3px 2px;
+}
+.editor-context-menu hr[hidden], .editor-context-menu button[hidden] { display: none; }
+
 /* Масштаб и рука относятся только к предпросмотру композиции. */
 .editor-preview-clip { position: fixed; inset: 0; z-index: 0; pointer-events: none; }
 .editor-pan-surface { position: fixed; inset: 0; z-index: 5; pointer-events: auto; cursor: grab; touch-action: none; }
@@ -992,8 +1050,11 @@ body.editor-on.operator-idle:not(.ui-on) .operator-panel { opacity: 1; pointer-e
 .editor-track-readout input[data-track-timecode][aria-invalid="true"] { border-color: #ff7676; outline-color: #ff7676; }
 .editor-track-lane.has-caption-mask { background: #18191c; border-color: #353840; }
 .editor-track-caption-mask { position: absolute; top: 2px; bottom: 2px; background: #6d5b40; border-radius: 2px; pointer-events: none; }
+.editor-track-caption-mask.is-cue-bar { background: rgba(120, 128, 145, 0.34); border: 1px dashed rgba(190, 198, 214, 0.35); }
 .editor-track-caption-mask[hidden] { display: none; }
 .editor-track-row.is-timing-active .editor-track-caption-mask { background: #c9a363; }
+.editor-track-row.is-timing-active .editor-track-caption-mask.is-cue-bar { background: rgba(154, 168, 194, 0.48); border-color: rgba(220, 228, 244, 0.55); }
+.editor-track-lane.has-caption-mask .editor-track-auto { position: relative; z-index: 1; text-shadow: 0 1px 2px #101010; }
 .editor-track-row.is-timing-active .editor-track-label { color: #f1d5a2; }
 .editor-track-lane.has-caption-mask .editor-track-scenario { position: relative; z-index: 1; text-shadow: 0 1px 2px #101010; }
 /* Линейка и фазы используют ту же ширину, что дорожки рядом с прокруткой. */

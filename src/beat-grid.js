@@ -18,25 +18,29 @@
 
 export const DEFAULT_BEAT_GRID = Object.freeze({ bpm: 0, offset: 0, beatsPerBar: 4 });
 
-/** Значение BPM из сетки любого вида. */
+/** Значение BPM из сетки любого вида.
+ * @param {BeatGrid | null | undefined} grid */
 function gridBpm(grid) {
   const value = grid?.bpm ?? grid?.beatBpm;
   return Number(value);
 }
 
-/** Фаза сетки (секунды) из сетки любого вида. */
+/** Фаза сетки (секунды) из сетки любого вида.
+ * @param {BeatGrid | null | undefined} grid */
 function gridOffset(grid) {
   return Number(grid?.offset ?? grid?.beatOffset) || 0;
 }
 
-/** Длина доли в секундах; 0 при выключенной сетке. */
+/** Длина доли в секундах; 0 при выключенной сетке.
+ * @param {BeatGrid | null | undefined} grid */
 export function beatDuration(grid) {
   const bpm = gridBpm(grid);
   if (!Number.isFinite(bpm) || bpm <= 0) return 0;
   return 60 / Math.min(300, Math.max(20, bpm));
 }
 
-/** Индекс ближайшей доли к моменту `t` (может быть отрицательным до offset). */
+/** Индекс ближайшей доли к моменту `t` (может быть отрицательным до offset).
+ * @param {number} t @param {BeatGrid | null | undefined} grid */
 export function nearestBeat(t, grid) {
   const beat = beatDuration(grid);
   if (!beat) return 0;
@@ -44,7 +48,8 @@ export function nearestBeat(t, grid) {
   return Math.round((t - offset) / beat);
 }
 
-/** Время ближайшей доли, секунды. При выключенной сетке — само время. */
+/** Время ближайшей доли, секунды. При выключенной сетке — само время.
+ * @param {number} t @param {BeatGrid | null | undefined} grid */
 export function snapToBeat(t, grid) {
   const beat = beatDuration(grid);
   if (!beat) return t;
@@ -52,7 +57,8 @@ export function snapToBeat(t, grid) {
   return offset + nearestBeat(t, grid) * beat;
 }
 
-/** Номер доли в такте (1..beatsPerBar) для подписи в пульте. */
+/** Номер доли в такте (1..beatsPerBar) для подписи в пульте.
+ * @param {number} t @param {BeatGrid | null | undefined} grid */
 export function beatInBar(t, grid) {
   const beat = beatDuration(grid);
   const perBar = Math.max(1, Math.round(Number(grid?.beatsPerBar) || 4));
@@ -86,7 +92,8 @@ export function holdToBars(tl, grid, minHold = 1) {
   return +next.toFixed(6);
 }
 
-/** Список ближайших долей для подсказки в пульте. */
+/** Список ближайших долей для подсказки в пульте.
+ * @param {number} duration @param {BeatGrid | null | undefined} grid */
 export function beatMarkers(duration, grid, limit = 64) {
   const beat = beatDuration(grid);
   if (!beat || !(duration > 0)) return [];
@@ -117,7 +124,10 @@ export function beatEvents(tl, grid) {
     exit,                   // начало ухода
   };
   if (!beat) return { enabled: false, raw, snapped: { ...raw }, shifts: { emerge: 0, caption: 0, exit: 0 } };
-  const snapped = {}, shifts = {};
+  /** @type {Record<string, number>} */
+  const snapped = {};
+  /** @type {Record<string, number>} */
+  const shifts = {};
   for (const [key, value] of Object.entries(raw)) {
     const target = snapToBeat(value, grid);
     const delta = target - value;

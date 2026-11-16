@@ -1,8 +1,11 @@
-import { OUTPUT } from "./scenes/catalog.js";
-import { MASTER_PRESETS } from "./output-profile.js";
+import { OUTPUT, RECORDING_CHAIN } from "./scenes/catalog.js";
+import { MASTER_PRESETS, masterPreset } from "./output-profile.js";
 import { QUALITY_PRESETS } from "./quality-presets.js";
-import { DELIVERY_OPTIONS } from "./delivery.js";
+import { DELIVERY_OPTIONS, probeAllDeliveries } from "./delivery.js";
+import { CHAIN_CANDIDATES } from "./recording-chain.js";
+import { videoBitrateFor } from "./offline-video.js";
 import { beatDuration, beatInBar, beatEvents, nearestBeat } from "./beat-grid.js";
+import { isInteractiveTarget } from "./ui.js";
 
 /** Не реагировать на обычную перемотку; автопереход только при пересечении шва воспроизведением. */
 export function crossedBoundary(before, after, delay, cycle) {
@@ -12,7 +15,7 @@ export function crossedBoundary(before, after, delay, cycle) {
 
 /** Единый пульт для всех готовых видов. В кадр и MP4 не входит. */
 export function createOperatorControls({ getState, seek, setDuration, togglePause, switchScene, setMaster, setQuality,
-  setDelivery, record, recordChain }) {
+  setDelivery, setChain, record, recordChain }) {
   const panel = document.createElement("section");
   panel.className = "operator-panel";
   panel.setAttribute("aria-label", "Пульт заставок");
@@ -54,7 +57,13 @@ export function createOperatorControls({ getState, seek, setDuration, togglePaus
         </select>
       </label>
       <button type="button" data-action="record" title="Записать один цикл текущей заставки">● Цикл</button>
-      <button type="button" data-action="record-chain" title="Записать 01 → 02 → 08 → 09 с переходами одним MP4">● Вся цепочка</button>
+      <button type="button" data-action="record-chain" title="Записать выбранную цепочку сцен с переходами одним файлом">● Вся цепочка</button>
+      <details class="operator-chain-picker">
+        <summary title="Выбрать состав сцен для автопоказа и записи цепочки">Состав</summary>
+        <div class="operator-chain-menu" role="group" aria-label="Сцены в цепочке">
+          ${CHAIN_CANDIDATES.map((c) => `<label><input type="checkbox" data-chain-scene="${c.id}"> ${c.code} ${c.label}</label>`).join("")}
+        </div>
+      </details>
     </div>`;
   document.body.appendChild(panel);
   const range = panel.querySelector('[data-action="seek"]');
@@ -65,6 +74,29 @@ export function createOperatorControls({ getState, seek, setDuration, togglePaus
   const autoButton = panel.querySelector('[data-action="auto"]');
   const pinButton = panel.querySelector('[data-action="pin"]');
   let auto = false, pinned = false, dragging = false, editing = false;
+  let probeToken = 0, lastProbedMaster = null;
+
+  /** Подсветить в селекторе «Файл», какие варианты доставки браузер реально кодирует в текущем разрешении. */
+  async function refreshDeliveryProbe(masterKey) {
+    if (masterKey === lastProbedMaster) return;
+    lastProbedMaster = masterKey;
+    const token = ++probeToken;
+    const size = masterPreset(masterKey);
+    try {
+      const results = await probeAllDeliveries({
+        width: size.width, height: size.height,
+        bitrate: videoBitrateFor(size.width, size.height), fps: OUTPUT.fps,
+      });
+      if (token !== probeToken) return;
+      for (const optionEl of deliverySelect.options) {
+        const option = DELIVERY_OPTIONS[optionEl.value];
+        const status = results[optionEl.value];
+        if (!option || !status) continue;
+        optionEl.textContent = status.ok ? option.label : `${option.label} · недоступно`;
+        optionEl.title = status.ok ? option.description : `${option.description}\nПричина: ${status.reason}`;
+      }
+    } catch (_) { /* в окружении без WebCodecs оставляем исходные подписи */ }
+  }
   let idleTimer;
   function awaken() {
     document.body.classList.remove("operator-idle");
@@ -118,6 +150,7 @@ export function createOperatorControls({ getState, seek, setDuration, togglePaus
     if (!editing) duration.value = state.cycle.toFixed(1);
     masterSelect.value = state.master;
     masterSelect.disabled = state.recording;
+    refreshDeliveryProbe(state.master);
     qualitySelect.value = state.quality;
     qualitySelect.disabled = state.recording;
     deliverySelect.value = state.delivery;
@@ -129,7 +162,16 @@ export function createOperatorControls({ getState, seek, setDuration, togglePaus
     }
     panel.classList.toggle("operator-busy", state.recording);
     panel.querySelector('[data-action="record"]').textContent = state.recordingKind === "single" ? "◉ Запись…" : "● Цикл";
-    panel.querySelector('[data-action="record-chain"]').textContent = state.recordingKind === "sequence" ? "◉ Цепочка…" : "● Вся цепочка";
+    const activeChain = state.chain || RECORDING_CHAIN;
+    const chainCodes = activeChain.map((id) => CHAIN_CANDIDATES.find((c) => c.id === id)?.code || id).join(" → ");
+    for (const cb of panel.querySelectorAll("[data-chain-scene]")) {
+      cb.checked = activeChain.includes(cb.dataset.chainScene);
+      cb.disabled = state.recording || (cb.checked && activeChain.length <= 1);
+    }
+    const chainBtn = panel.querySelector('[data-action="record-chain"]');
+    chainBtn.textContent = state.recordingKind === "sequence" ? "◉ Цепочка…" : "● Вся цепочка";
+    chainBtn.title = `Записать ${chainCodes} с переходами одним файлом`;
+    autoButton.title = `Автоматическая цепочка ${chainCodes}`;
   }
   function jump(value) {
     const state = getState();
@@ -144,6 +186,15 @@ export function createOperatorControls({ getState, seek, setDuration, togglePaus
   masterSelect.addEventListener("change", () => { if (!setMaster(masterSelect.value)) refresh(); });
   qualitySelect.addEventListener("change", () => { if (!setQuality(qualitySelect.value)) refresh(); });
   deliverySelect.addEventListener("change", () => { if (!setDelivery(deliverySelect.value)) refresh(); });
+  panel.addEventListener("change", (event) => {
+    if (!(event.target instanceof HTMLInputElement) || !event.target.dataset.chainScene) return;
+    if (getState().recording) { refresh(); return; }
+    const next = [...panel.querySelectorAll("[data-chain-scene]")]
+      .filter((cb) => cb.checked)
+      .map((cb) => cb.dataset.chainScene);
+    setChain?.(next);
+    refresh();
+  });
   duration.addEventListener("focus", () => { editing = true; });
   duration.addEventListener("blur", () => { editing = false; refresh(); });
   duration.addEventListener("change", () => {
@@ -178,8 +229,8 @@ export function createOperatorControls({ getState, seek, setDuration, togglePaus
     else if (action === "record-chain") recordChain();
   });
   window.addEventListener("keydown", (event) => {
-    if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement || event.target instanceof HTMLSelectElement || event.target.isContentEditable) return;
-    if (event.code === "Space" && getState().id !== "waiting" && !getState().recording) {
+    if (isInteractiveTarget(event.target) || event.ctrlKey || event.metaKey || event.altKey) return;
+    if (event.code === "Space" && !getState().recording) {
       event.preventDefault(); togglePause(); refresh();
     }
     if (event.code === "KeyR") {

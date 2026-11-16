@@ -20,7 +20,10 @@ function storage() {
   try { return typeof localStorage === "undefined" ? null : localStorage; } catch (e) { return null; }
 }
 
-/** @param {unknown} id */
+/**
+ * @param {unknown} id
+ * @returns {id is keyof typeof MASTER_PRESETS}
+ */
 export function isMasterPreset(id) {
   return typeof id === "string" && Object.prototype.hasOwnProperty.call(MASTER_PRESETS, id);
 }
@@ -32,7 +35,7 @@ export function masterId() {
 
 /** @param {string} [id] */
 export function masterPreset(id = active) {
-  return MASTER_PRESETS[isMasterPreset(id) ? id : DEFAULT_MASTER];
+  return isMasterPreset(id) ? MASTER_PRESETS[id] : MASTER_PRESETS[DEFAULT_MASTER];
 }
 
 /** Размер мастер-кадра и частота кадров проекта. */
@@ -56,6 +59,7 @@ export function setMasterPreset(id) {
 
 /** Читает сохранённый профиль один раз при запуске. */
 export function loadMasterPreset() {
+  /** @type {string | null} */
   let saved = null;
   try { saved = storage()?.getItem(MASTER_STORAGE_KEY) ?? null; } catch (e) { saved = null; }
   if (isMasterPreset(saved)) active = saved;

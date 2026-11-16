@@ -13,6 +13,17 @@
   "include": [
     "src/scenes/**/*.js",
     "src/editor-timeline.js",
+    "src/editor-history.js",
+    "src/beat-grid.js",
+    "src/delivery.js",
+    "src/output-profile.js",
+    "src/quality-presets.js",
+    "src/photo-shutter.js",
+    "src/scene-transition.js",
+    "src/recording-chain.js",
+    "src/scene-snapshots.js",
+    "src/archive/session.js",
+    "src/archive/storage.js",
     "src/runtime.js",
     "src/playback.js",
     "src/offline-video.js"

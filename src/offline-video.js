@@ -38,42 +38,47 @@ export function estimateVideoBytes(total, fps, bitrate = DEFAULT_VIDEO_BITRATE) 
  * limited range). 8-битный canvas сам по себе 10 бит не даёт: расширение
  * разрядности без шума не добавляет ничего, но снимает бандинг в кодировщике
  * и в градиентах после цветового преобразования.
- * @param {CanvasRenderingContext2D} ctx @param {ImageData} image @param {number} timestamp @param {number} duration */
-function tenBitFrame(ctx, image, timestamp, duration) {
+ * @param {ImageData} image @param {number} timestamp @param {number} duration @param {Uint16Array} [reusePlanes] */
+function tenBitFrame(image, timestamp, duration, reusePlanes) {
   const { width, height } = image;
   const rgba = image.data;
   const lumaSize = width * height;
   const chromaWidth = Math.ceil(width / 2), chromaHeight = Math.ceil(height / 2);
   const chromaSize = chromaWidth * chromaHeight;
-  const planes = new Uint16Array(lumaSize + chromaSize * 2);
+  const totalSamples = lumaSize + chromaSize * 2;
+  const planes = reusePlanes && reusePlanes.length === totalSamples ? reusePlanes : new Uint16Array(totalSamples);
   // BT.709 limited range: Y' 16..235, Cb/Cr 16..240, в 10 битах — ×4.
   for (let y = 0; y < height; y++) {
+    const rowOffset = y * width;
     for (let x = 0; x < width; x++) {
-      const i = (y * width + x) * 4;
+      const i = (rowOffset + x) * 4;
       const r = rgba[i], g = rgba[i + 1], b = rgba[i + 2];
       const luma = 0.2126 * r + 0.7152 * g + 0.0722 * b;
-      planes[y * width + x] = Math.round((16 + luma / 255 * 219) * 4);
+      planes[rowOffset + x] = Math.round((16 + luma / 255 * 219) * 4);
     }
   }
   // Хрома — среднее по 2×2: цветовой шум на жирном зерне не должен «звенеть».
+  const crOffset = lumaSize + chromaSize;
   for (let y = 0; y < chromaHeight; y++) {
+    const sy0 = y * 2, sy1 = sy0 + 1;
+    const hasSecondRow = sy1 < height;
+    const chromaRow = y * chromaWidth;
     for (let x = 0; x < chromaWidth; x++) {
-      let r = 0, g = 0, b = 0, n = 0;
-      for (let dy = 0; dy < 2; dy++) {
-        const sy = y * 2 + dy;
-        if (sy >= height) break;
-        for (let dx = 0; dx < 2; dx++) {
-          const sx = x * 2 + dx;
-          if (sx >= width) break;
-          const i = (sy * width + sx) * 4;
-          r += rgba[i]; g += rgba[i + 1]; b += rgba[i + 2]; n++;
-        }
+      const sx0 = x * 2, sx1 = sx0 + 1;
+      const hasSecondCol = sx1 < width;
+      const i00 = (sy0 * width + sx0) * 4;
+      let r = rgba[i00], g = rgba[i00 + 1], b = rgba[i00 + 2], n = 1;
+      if (hasSecondCol) { const i01 = i00 + 4; r += rgba[i01]; g += rgba[i01 + 1]; b += rgba[i01 + 2]; n++; }
+      if (hasSecondRow) {
+        const i10 = (sy1 * width + sx0) * 4;
+        r += rgba[i10]; g += rgba[i10 + 1]; b += rgba[i10 + 2]; n++;
+        if (hasSecondCol) { const i11 = i10 + 4; r += rgba[i11]; g += rgba[i11 + 1]; b += rgba[i11 + 2]; n++; }
       }
       r /= n; g /= n; b /= n;
       const cb = -0.1146 * r - 0.3854 * g + 0.5 * b;
       const cr = 0.5 * r - 0.4542 * g - 0.0458 * b;
-      planes[lumaSize + y * chromaWidth + x] = Math.round((128 + cb / 255 * 224) * 4);
-      planes[lumaSize + chromaSize + y * chromaWidth + x] = Math.round((128 + cr / 255 * 224) * 4);
+      planes[lumaSize + chromaRow + x] = Math.round((128 + cb / 255 * 224) * 4);
+      planes[crOffset + chromaRow + x] = Math.round((128 + cr / 255 * 224) * 4);
     }
   }
   const Frame = /** @type {typeof VideoFrame} */ (VideoFrame);
@@ -120,6 +125,9 @@ export async function encodeOfflineVideo({canvas, fps, total, draw, cancelled, p
   output.addVideoTrack(source, {frameRate:fps});
   const context = option.bitDepth === 10 ? canvas.getContext('2d', {willReadFrequently:true}) : null;
   if (option.bitDepth === 10 && !context) throw new Error('Не удалось прочитать кадр для 10-битного экспорта');
+  const planesBuffer = context
+    ? new Uint16Array(canvas.width * canvas.height + Math.ceil(canvas.width / 2) * Math.ceil(canvas.height / 2) * 2)
+    : undefined;
   try {
     await output.start();
     for (let i = 0; i < total; i++) {
@@ -128,7 +136,7 @@ export async function encodeOfflineVideo({canvas, fps, total, draw, cancelled, p
       const stamp = frameTimestamp(i, fps), next = frameTimestamp(i + 1, fps);
       if (context) {
         const image = context.getImageData(0, 0, canvas.width, canvas.height);
-        const sample = tenBitFrame(context, image, stamp, next - stamp);
+        const sample = tenBitFrame(image, stamp, next - stamp, planesBuffer);
         try { await /** @type {VideoSampleSource} */ (source).add(sample); } finally { sample.close(); }
       } else {
         await /** @type {CanvasSource} */ (source).add(stamp, next - stamp);

@@ -1,10 +1,28 @@
 import {
   SCHEMA, cloneDefaults, configToJSON, parseConfigJSON, parseProjectJSON,
 } from "./config.js";
+import {
+  saveSceneSnapshot, loadSceneSnapshot, hasSceneSnapshot, encodeConfigShareHash,
+} from "./scene-snapshots.js";
+
+/** Игнорировать глобальные хоткеи, когда фокус в интерактивном поле или кнопке. */
+export function isInteractiveTarget(target) {
+  if (!(target instanceof Element)) return false;
+  if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement ||
+      target instanceof HTMLSelectElement || target instanceof HTMLButtonElement ||
+      target.isContentEditable) return true;
+  return Boolean(target.closest("button, a[href], select, textarea, input, [contenteditable='true']"));
+}
+
+/** Определить по разобранному JSON, является ли он файлом всего проекта (`{ scenes: ... }`). */
+export function isProjectPayload(data) {
+  return Boolean(data && typeof data === "object" && !Array.isArray(data) &&
+    data.scenes && typeof data.scenes === "object" && !Array.isArray(data.scenes));
+}
 
 /**
  * Панель настроек: у каждой сцены свой набор параметров.
- * Кнопка ⚙ (правый верх) → вкладки 01/02/08/09, экспорт/импорт JSON сцены
+ * Кнопка ⚙ (правый верх) → вкладки 01/02/04/08/09, экспорт/импорт JSON сцены
  * и всего проекта. Экспортированный JSON можно прислать как умолчание.
  */
 export function createSettingsUI({
@@ -47,7 +65,15 @@ export function createSettingsUI({
       <button type="button" data-act="export-project">Экспорт проекта</button>
       <button type="button" data-act="video">Экспорт видео</button>
       <button type="button" data-act="import">Импорт</button>
+      <button type="button" data-act="share-link" title="Скопировать короткую ссылку на текущие настройки сцены">Ссылка на сцену</button>
       <button type="button" data-act="reset">Сброс сцены</button>
+      <div class="cfg-slots" role="group" aria-label="Сравнение вариантов A и B">
+        <span class="cfg-slots-label">Варианты A/B:</span>
+        <button type="button" data-slot-save="A" title="Сохранить текущие настройки в слот A">Запомнить A</button>
+        <button type="button" data-slot-load="A" title="Применить настройки из слота A">A</button>
+        <button type="button" data-slot-save="B" title="Сохранить текущие настройки в слот B">Запомнить B</button>
+        <button type="button" data-slot-load="B" title="Применить настройки из слота B">B</button>
+      </div>
     </div>
     <div class="cfg-io" hidden>
       <p class="cfg-io-hint"></p>
@@ -102,7 +128,7 @@ export function createSettingsUI({
     const current = cfg();
     const defaults = defs();
     for (const section of SCHEMA) {
-      if (editing === "partners" && !["partners", "timeline", "playback", "transition"].includes(section.id)) continue;
+      if (editing === "partners" && !["partners", "typography", "timeline", "playback", "transition"].includes(section.id)) continue;
       if (!current[section.id] || (section.id === "caption" && editing === "photo-pause")) continue;
       const det = document.createElement("details");
       det.className = "cfg-sec";
@@ -113,7 +139,7 @@ export function createSettingsUI({
       det.appendChild(sum);
       if (section.id === "partners") {
         const note = document.createElement("p"); note.className = "cfg-io-hint";
-        note.textContent = "Исходные названия показывают присланные золотые логотипы; изменённые — текст. Ветвь и циркуль являются частью фонового изображения.";
+        note.textContent = "Исходные названия показывают встроенные золотые логотипы; можно загрузить свой SVG/PNG или ввести произвольный текст.";
         det.appendChild(note);
       }
       if (section.id === "caption") {
@@ -137,7 +163,7 @@ export function createSettingsUI({
       for (const f of section.fields) {
         if (!(f.key in current[section.id])) continue;
         if (section.id === "typography" && ((editing === "brand" && /^(subtitle|date)/.test(f.key)) ||
-            (editing === "photo-pause" && f.key !== "font") || (editing === "finale" && f.key.startsWith("date")))) continue;
+            ((editing === "photo-pause" || editing === "partners") && f.key !== "font") || (editing === "finale" && f.key.startsWith("date")))) continue;
         if (section.id === "logo" && (editing === "waiting" || editing === "photo-pause" || editing === "finale") && (f.key === "swayAmount" || f.key === "swaySpeed")) continue;
         if (section.id === "caption" && ((editing === "brand" && /^(subtitle|date)/.test(f.key)) ||
             (editing === "finale" && f.key.startsWith("date")))) continue;
@@ -225,6 +251,54 @@ export function createSettingsUI({
           });
           inputs.push({ set: () => { input.checked = !!holder[f.key]; } });
           row.appendChild(input);
+        } else if (f.type === "image") {
+          const wrap = document.createElement("span");
+          wrap.className = "cfg-ctl cfg-image-ctl";
+          const fileInput = document.createElement("input");
+          fileInput.type = "file";
+          fileInput.accept = "image/svg+xml,image/png,image/webp,image/jpeg";
+          fileInput.hidden = true;
+          fileInput.dataset.key = `${section.id}.${f.key}`;
+          const pickBtn = document.createElement("button");
+          pickBtn.type = "button";
+          const clearBtn = document.createElement("button");
+          clearBtn.type = "button";
+          clearBtn.textContent = "×";
+          clearBtn.title = "Убрать загруженный логотип";
+          const syncButtons = () => {
+            const hasImage = typeof holder[f.key] === "string" && holder[f.key].startsWith("data:image/");
+            pickBtn.textContent = hasImage ? "Заменить…" : "Загрузить…";
+            clearBtn.hidden = !hasImage;
+          };
+          pickBtn.addEventListener("click", (ev) => { ev.preventDefault(); fileInput.click(); });
+          fileInput.addEventListener("change", () => {
+            const file = fileInput.files?.[0];
+            fileInput.value = "";
+            if (!file) return;
+            if (file.size > 1536 * 1024) {
+              onToast?.("Файл логотипа больше 1,5 МБ — используйте компактный SVG или PNG", true);
+              return;
+            }
+            const reader = new FileReader();
+            reader.onload = () => {
+              if (typeof reader.result === "string" && reader.result.startsWith("data:image/")) {
+                holder[f.key] = reader.result;
+                syncButtons();
+                commit(section.id, f.key);
+              }
+            };
+            reader.readAsDataURL(file);
+          });
+          clearBtn.addEventListener("click", (ev) => {
+            ev.preventDefault();
+            holder[f.key] = "";
+            syncButtons();
+            commit(section.id, f.key);
+          });
+          syncButtons();
+          inputs.push({ set: syncButtons });
+          wrap.append(fileInput, pickBtn, clearBtn);
+          row.appendChild(wrap);
         }
         det.appendChild(row);
       }
@@ -242,6 +316,10 @@ export function createSettingsUI({
     }
     inputs.forEach((i) => i.set());
     pauseBtn.classList.toggle("on", !!cfg().playback.paused);
+    for (const slot of ["A", "B"]) {
+      const btnLoad = panel.querySelector(`[data-slot-load="${slot}"]`);
+      if (btnLoad) btnLoad.disabled = !hasSceneSnapshot(editing, slot);
+    }
   }
 
   /** Полная перестройка: смена сцены или применённый JSON. */
@@ -303,15 +381,44 @@ export function createSettingsUI({
   panel.addEventListener("click", async (e) => {
     const act = e.target.closest("[data-act]")?.dataset.act;
     const ioAct = e.target.closest("[data-io]")?.dataset.io;
+    const slotSave = e.target.closest("[data-slot-save]")?.dataset.slotSave;
+    const slotLoad = e.target.closest("[data-slot-load]")?.dataset.slotLoad;
+    if (slotSave === "A" || slotSave === "B") {
+      if (saveSceneSnapshot(editing, slotSave, cfg())) {
+        refresh();
+        onToast?.(`Вариант ${slotSave} сохранён для сцены ${sceneLabel(editing)}`);
+      } else {
+        onToast?.(`Не удалось сохранить вариант ${slotSave}`, true);
+      }
+      return;
+    }
+    if (slotLoad === "A" || slotLoad === "B") {
+      const snap = loadSceneSnapshot(editing, slotLoad);
+      if (!snap) return;
+      onApplyScene?.(editing, snap);
+      rebuild();
+      onToast?.(`Применён вариант ${slotLoad} сцены ${sceneLabel(editing)}`);
+      return;
+    }
     if (act === "pause") {
       onPauseToggle?.();
       refresh();
     } else if (act === "video") {
       onExportVideo?.();
+    } else if (act === "share-link") {
+      const url = new URL(location.href);
+      url.searchParams.set("scene", editing === "waiting" ? "intro" : editing);
+      url.hash = `cfg=${encodeConfigShareHash(cfg(), defs())}`;
+      try {
+        await navigator.clipboard.writeText(url.href);
+        onToast?.("Ссылка на сцену скопирована");
+      } catch (_) {
+        showIO("export", url.href, "Скопируйте ссылку для просмотра этих настроек:");
+      }
     } else if (act === "export") {
       showIO("export", configToJSON(cfg()), `Сцена ${sceneLabel(editing)} — эти значения можно прислать как умолчание.`);
     } else if (act === "export-project") {
-      showIO("export", getProjectJSON?.() || "", "Все четыре сцены одним файлом.");
+      showIO("export", getProjectJSON?.() || "", "Все готовые сцены одним файлом.");
     } else if (act === "import") {
       showIO("import");
     } else if (act === "reset") {
@@ -332,15 +439,17 @@ export function createSettingsUI({
       const blob = new Blob([ta.value], { type: "application/json" });
       const a = document.createElement("a");
       a.href = URL.createObjectURL(blob);
-      a.download = ioMode === "export" && ta.value.includes('"scenes"')
-        ? "circle-scenes.json" : `circle-${editing}.json`;
+      let isProject = false;
+      try { isProject = ioMode === "export" && isProjectPayload(JSON.parse(ta.value)); } catch (_) { /* noop */ }
+      a.download = isProject ? "circle-scenes.json" : `circle-${editing}.json`;
       a.click();
       setTimeout(() => URL.revokeObjectURL(a.href), 1000);
     } else if (ioAct === "apply") {
       try {
         const text = ta.value.trim();
         if (!text) throw new Error("пустой JSON");
-        if (text.includes('"scenes"')) {
+        const parsed = JSON.parse(text);
+        if (isProjectPayload(parsed)) {
           const project = parseProjectJSON(text, scenes.map((s) => s.id));
           if (!confirm("Импорт заменит настройки указанных сцен и очистит их историю. При необходимости сначала скачайте экспорт проекта. Продолжить?")) return;
           onApplyProject?.(project.scenes);
@@ -362,15 +471,10 @@ export function createSettingsUI({
     }
   });
 
-  // горячие клавиши
+  // горячие клавиши: S открывает/закрывает панель; Space централизованно обрабатывается в operator.js
   window.addEventListener("keydown", (e) => {
-    if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+    if (isInteractiveTarget(e.target) || e.ctrlKey || e.metaKey || e.altKey) return;
     if (e.code === "KeyS") toggle();
-    if (e.code === "Space") {
-      e.preventDefault();
-      onPauseToggle?.();
-      refresh();
-    }
   });
 
   /** Сцена переключилась из пульта или по ссылке: панель идёт следом. */

@@ -209,6 +209,13 @@ export function createArchiveScene(canvas) {
   function setFocus(index,x,y) {const panel=panels[index];panel.focusX=x;panel.focusY=y;setFit(index,panel.fit);}
   function resetMedia(index) {panels[index].fit='cover';panels[index].focusX=.5;panels[index].focusY=.5;setMedia(index,placeholder(index+1));}
   function resize() {const bounds=canvas.parentElement.getBoundingClientRect();if(!bounds.width||!bounds.height)return;const ratio=software?Math.min(.65,640/bounds.width,360/bounds.height):Math.min(devicePixelRatio || 1,1.5);renderer.setPixelRatio(ratio);renderer.setSize(bounds.width,bounds.height,false);if(composer){composer.setPixelRatio(ratio);composer.setSize(bounds.width,bounds.height);}camera.aspect=bounds.width/bounds.height;camera.updateProjectionMatrix();}
+  function setExportSize(width, height) {
+    renderer.setPixelRatio(1);
+    renderer.setSize(width, height, false);
+    if(composer){composer.setPixelRatio(1);composer.setSize(width, height);}
+    camera.aspect=width/height;
+    camera.updateProjectionMatrix();
+  }
   function dispose(){scene.traverse(o=>{o.geometry?.dispose(); if(o.material){for(const m of Array.isArray(o.material)?o.material:[o.material]){m.map?.dispose();m.dispose();}}});environment.dispose();composer?.dispose();renderer.dispose();}
-  return {render,resize,setMedia,resetMedia,setFit,setFocus,dispose,projectLight,duration:ARCHIVE_DURATION};
+  return {render,resize,setExportSize,setMedia,resetMedia,setFit,setFocus,dispose,projectLight,duration:ARCHIVE_DURATION};
 }

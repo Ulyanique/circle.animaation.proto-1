@@ -20,10 +20,18 @@ export const SCHEMA = [
     {key:"organizerLabel",label:"Заголовок организатора",type:"text",maxLength:60},
     {key:"coorganizerLabel",label:"Заголовок соорганизатора",type:"text",maxLength:60},
     {key:"organizer1",label:"Организатор 1",type:"text",maxLength:80},
+    {key:"organizer1Logo",label:"Организатор 1: свой логотип",type:"image"},
     {key:"organizer2",label:"Соорганизатор",type:"text",maxLength:80},
+    {key:"organizer2Logo",label:"Соорганизатор: свой логотип",type:"image"},
     {key:"partnerLabel",label:"Заголовок спонсоров",type:"text",maxLength:60},
     {key:"partner1",label:"Партнёр 1",type:"text",maxLength:80},
+    {key:"partner1Logo",label:"Партнёр 1: свой логотип",type:"image"},
     {key:"partner2",label:"Партнёр 2",type:"text",maxLength:80},
+    {key:"partner2Logo",label:"Партнёр 2: свой логотип",type:"image"},
+    {key:"logoStyle",label:"Оформление логотипов",type:"select",options:[
+      {value:"gold",label:"Золотое тиснение"},
+      {value:"original",label:"Исходные цвета файла"},
+    ]},
     {key:"frameVisible",label:"Показывать рамку",type:"bool"},
     {key:"curtainVisible",label:"Показывать занавес",type:"bool"},
     {key:"motion",label:"Движение декора при удержании",type:"range",min:0,max:1,step:.01},
@@ -339,6 +347,10 @@ export function sceneStorageKey(sceneId) {
   return `${STORAGE_PREFIX}:${sceneId}`;
 }
 
+function isSafeDataImageUrl(value) {
+  return typeof value === "string" && (value === "" || (value.startsWith("data:image/") && value.length <= 4 * 1024 * 1024));
+}
+
 function deepMerge(target, source) {
   for (const k of Object.keys(source)) {
     const v = source[k];
@@ -346,7 +358,11 @@ function deepMerge(target, source) {
       if (!target[k] || typeof target[k] !== "object") target[k] = {};
       deepMerge(target[k], v);
     } else if (v !== undefined) {
-      target[k] = v;
+      if (k.endsWith("Logo") && typeof target[k] === "string") {
+        if (isSafeDataImageUrl(v)) target[k] = v;
+      } else {
+        target[k] = v;
+      }
     }
   }
   return target;
@@ -506,7 +522,7 @@ export function configToJSON(cfg) {
   return JSON.stringify(cfg, null, 2);
 }
 
-/** Один файл на все четыре сцены: удобно прислать комплект настроек целиком. */
+/** Один файл на все готовые сцены: удобно прислать комплект настроек целиком. */
 export function projectToJSON(configs, order) {
   const scenes = {};
   for (const id of order) scenes[id] = configs[id];
