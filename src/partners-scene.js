@@ -385,16 +385,70 @@ export class PartnersScene {
     const gold = '#e9ca91', warm = '#d2ac70', ivory = '#f6e4be';
     const title = visible * cue.title;
     const heading = String(data.title ?? '').toLocaleUpperCase('ru-RU');
+    // Заголовок из золотой фольги: вертикальный металлический градиент делает
+    // буквы похожими на тиснение, а по нему раз в цикл проходит свет.
+    // Раньше заголовок был залит ровным цветом и читался как обычный текст.
+    const titleFont = `600 96px "${displayFont}", serif`;
+    const foilGradient = (top, bottom) => {
+      const foil = ctx.createLinearGradient(0, top, 0, bottom);
+      foil.addColorStop(0, '#fff9ea');
+      foil.addColorStop(.28, '#f7e3b7');
+      foil.addColorStop(.52, '#eed4a3');
+      foil.addColorStop(.74, '#d5ae74');
+      foil.addColorStop(.9, '#b98f56');
+      foil.addColorStop(1, '#e6cd9c');
+      return foil;
+    };
+    const drawFoilTitle = (value, x, y, alpha, maxWidth) => {
+      if (alpha <= 0.003) return;
+      const drop = 22 * (1 - cue.title);
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.font = titleFont;
+      ctx.shadowColor = 'rgba(0,0,0,.5)'; ctx.shadowBlur = 9; ctx.shadowOffsetY = 3;
+      // Базовый слой: металл по высоте буквы (от светлого верха к тёмному низу).
+      ctx.fillStyle = foilGradient(y - 48, y + 48);
+      ctx.fillText(value, x, y + drop, maxWidth);
+      // Второй слой — сам блик. Аддитивно, поэтому металл не «выцветает»,
+      // а именно вспыхивает на проходе полосы.
+      const sweep = glintSpan(phase.local, { start: 5.6, span: 1.9, from: -0.12, to: 1.12 });
+      if (sweep != null) {
+        const width = Math.min(maxWidth, ctx.measureText(value).width);
+        const left = x - width / 2, band = width * 0.13;
+        const at = left + width * sweep;
+        const shine = ctx.createLinearGradient(at - band * 2.4, 0, at + band * 2.4, 0);
+        shine.addColorStop(0, 'rgba(255,255,255,0)');
+        shine.addColorStop(.42, 'rgba(255,252,236,.42)');
+        shine.addColorStop(.5, 'rgba(255,255,255,.68)');
+        shine.addColorStop(.58, 'rgba(255,252,236,.42)');
+        shine.addColorStop(1, 'rgba(255,255,255,0)');
+        ctx.shadowColor = 'transparent';
+        ctx.globalCompositeOperation = 'lighter';
+        ctx.fillStyle = shine;
+        ctx.fillText(value, x, y + drop, maxWidth);
+      }
+      ctx.restore();
+    };
     // The upper-right foliage narrows the visual safe area, so the title block
     // sits optically left and stays clear of the leaves rather than filling the frame.
-    text(heading, 900, 160, `600 96px "${displayFont}", serif`, ivory, title, 940, cue.title);
+    drawFoilTitle(heading, 900, 160, title, 940);
     text(data.subtitle, 900, 270, `400 49px "${displayFont}", serif`, gold, title, 1000, cue.title);
-    const ornament = (y, alpha, width, center = 960) => {
+    // Линия расходится от центра, а ромб появляется последним и чуть крупнее:
+    // взгляд успевает пройти по кадру сверху вниз, а не схватить всё сразу.
+    const ornament = (y, alpha, width, center = 960, diamond = 1) => {
+      if (width <= 0.5) return;
       ctx.save(); ctx.globalAlpha = alpha; ctx.strokeStyle = warm; ctx.lineWidth = 1;
       ctx.beginPath(); ctx.moveTo(center - width, y); ctx.lineTo(center - 16, y); ctx.moveTo(center + 16, y); ctx.lineTo(center + width, y); ctx.stroke();
-      ctx.translate(center, y); ctx.rotate(Math.PI / 4); ctx.strokeRect(-4, -4, 8, 8); ctx.restore();
+      if (diamond > 0) {
+        ctx.translate(center, y); ctx.rotate(Math.PI / 4);
+        const size = 4 * (0.55 + 0.45 * diamond);
+        ctx.globalAlpha = alpha * diamond;
+        ctx.strokeRect(-size, -size, size * 2, size * 2);
+      }
+      ctx.restore();
     };
-    ornament(330, title * .7, 280 * cue.title, 900);
+    ornament(330, title * .7, 280 * cue.rule, 900, cue.rule);
     // Разрядка у мелких капсов — типографский приём, который сразу отделяет
     // «дорогую» вёрстку от обычной. letterSpacing поддерживается Chromium;
     // если его нет, подпись просто останется без разрядки.
@@ -503,7 +557,7 @@ export class PartnersScene {
     // Блик идёт очередью уже по «севшему» знаку: 1.69+1.0 с — конец входа.
     company('organizer1', 690, 495, cue.organizer, 2.75, 0);
     company('organizer2', 1230, 495, cue.organizerSecond, 3.25, 1);
-    ornament(613, visible * cue.separator * .55, 420 * cue.separator);
+    ornament(613, visible * cue.separator * .55, 420 * cue.separator, 960, cue.separator);
     label(data.partnerLabel, 960, 690, visible * cue.partnerLabel, cue.partnerLabel);
     company('partner1', 690, 785, cue.partner, 4.45, 2);
     company('partner2', 1230, 785, cue.partnerSecond, 4.95, 3);

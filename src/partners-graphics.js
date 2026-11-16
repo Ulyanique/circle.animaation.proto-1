@@ -23,6 +23,10 @@ export function partnersCues(phase, timeline, motion = 1) {
     organizer:entry(.65,1.03), organizerSecond:entry(.85,1.23),
     partnerLabel:entry(1.12,1.45), partner:entry(1.3,1.68), partnerSecond:entry(1.5,1.88),
     separator:entry(.9,1.25),
+    // Тонкая линия под заголовком чертится ОТДЕЛЬНО от текста и позже него:
+    // раньше она росла вместе с заголовком, и не было ощущения, что кадр
+    // строится слой за слоем.
+    rule:entry(.52,.98),
     light: smooth(.45,1.2,local)*(1-smooth(3.8,5.2,local))*m,
     glint: (.5 + .5*Math.sin(local*.39-1.2))*idle,
     // Яркость блика по знакам: заметен, но не «мигает» — гаснет к уходу сцены.

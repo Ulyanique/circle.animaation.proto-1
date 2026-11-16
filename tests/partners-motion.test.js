@@ -91,3 +91,49 @@ test("расчёты не зависят от текущего времени �
     assert.equal(glintSpan(t, { start: 2, span: 1 }), glintSpan(t, { start: 2, span: 1 }));
   }
 });
+
+// Раскладка событий сцены: вход, блики, удержание. Проверяется численно,
+// потому что «на глаз» легко принять одинаковое проявление за анимацию.
+import { partnersCues } from "../src/partners-graphics.js";
+
+const PARTNERS_TIMELINE = Object.freeze({
+  drawDuration: 2.6, emergeDuration: 2.4, holdDuration: 10.6, fadeDuration: 2.3,
+});
+const cueAt = (local) => partnersCues({ local, beforeStart: false, cycle: 20 }, PARTNERS_TIMELINE, 1);
+
+test("знаки входят очередью, а не все сразу", () => {
+  const at = cueAt(2.9);
+  assert.ok(at.organizer > 0.9, "первый организатор уже на месте");
+  assert.ok(at.organizerSecond < at.organizer, "второй отстаёт от первого");
+  assert.equal(at.partner, 0, "спонсоры ещё не начались");
+});
+
+test("вход решительный: знак появляется за секунду, а не за две", () => {
+  // Окна входа заданы в долях drawDuration (0.65 → 1.03), то есть 1.69–2.68 с.
+  // Считаем от самого таймлайна, а не от магических чисел: если кто-то снова
+  // растянет вход до 2,3 с, тест это поймает.
+  const span = (1.03 - 0.65) * PARTNERS_TIMELINE.drawDuration;
+  assert.ok(span < 1.2, `вход занимает ${span.toFixed(2)} с — это снова «выползание»`);
+
+  const start = 0.65 * PARTNERS_TIMELINE.drawDuration;
+  assert.equal(cueAt(start - 0.4).organizer, 0, "до входа знака нет вовсе");
+  // Середина окна: знак уже заметно проявлен, а не «чуть-чуть».
+  assert.ok(cueAt(start + span / 2).organizer > 0.4, "в середине окна знак уже виден");
+  assert.ok(cueAt(start + span + 0.1).organizer > 0.99, "после окна знак на месте");
+});
+
+test("на удержании есть жизнь: дыхание и второй блик включены", () => {
+  const hold = cueAt(9);
+  assert.ok(hold.idle > 0.9, "дыхание работает — иначе кадр статичен");
+  assert.ok(hold.holdGlint > 0.5, "второй проход блика запланирован");
+  assert.ok(hold.shadow > 0.5, "тень под знаками держится");
+  // Дыхание не должно превращаться в качку.
+  assert.ok(hold.idle <= 1);
+});
+
+test("к уходу сцены движение гаснет вместе с кадром", () => {
+  const exitStart = 2.6 + 2.4 + 10.6;
+  const late = cueAt(exitStart + 2.2);
+  assert.ok(late.visible < 0.05, "сцена ушла");
+  assert.ok(late.idle < 0.05, "движение тоже погасло, а не дёргается на выходе");
+});
