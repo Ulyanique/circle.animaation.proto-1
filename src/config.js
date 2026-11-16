@@ -351,11 +351,19 @@ function isSafeDataImageUrl(value) {
   return typeof value === "string" && (value === "" || (value.startsWith("data:image/") && value.length <= 4 * 1024 * 1024));
 }
 
+// Ключи, через которые JSON может дотянуться до прототипа. JSON.parse создаёт
+// "__proto__" как обычное собственное свойство, поэтому без этого фильтра
+// ссылка #cfg=... или импортированный файл загрязняли бы Object.prototype.
+const UNSAFE_KEYS = new Set(["__proto__", "constructor", "prototype"]);
+
 function deepMerge(target, source) {
   for (const k of Object.keys(source)) {
+    if (UNSAFE_KEYS.has(k)) continue;
     const v = source[k];
     if (v && typeof v === "object" && !Array.isArray(v)) {
-      if (!target[k] || typeof target[k] !== "object") target[k] = {};
+      // hasOwn, а не проверка на истинность: унаследованное значение не должно
+      // подменять создание собственного узла при слиянии.
+      if (!Object.hasOwn(target, k) || !target[k] || typeof target[k] !== "object") target[k] = {};
       deepMerge(target[k], v);
     } else if (v !== undefined) {
       if (k.endsWith("Logo") && typeof target[k] === "string") {

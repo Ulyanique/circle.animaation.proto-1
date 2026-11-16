@@ -22,14 +22,51 @@ const loadImage = url => new Promise(resolve => {
 
 let backgroundCanvas, curtainImage;
 const builtinMarks = {};
+/** Исходные изображения встроенных логотипов: нужны, чтобы доделать второй стиль. */
+const builtinMarkSource = {};
+/** Активный стиль тиснения: его же читает сцена при отрисовке. */
+function activeLogoStyle() {
+  return partnersLogoStyle === 'original' ? 'original' : 'gold';
+}
+let partnersLogoStyle = 'gold';
+
+/** Логотип нужного стиля; второй вариант готовится один раз при первом запросе. */
+function builtinMark(key, style) {
+  const ready = builtinMarks[key];
+  if (!ready) return null;
+  if (ready[style]) return ready[style];
+  const source = builtinMarkSource[key];
+  if (!source) return null;
+  ready[style] = renderPartnerMark(source, style);
+  return ready[style];
+}
+
+/** Сцена сообщает стиль заранее, чтобы первый кадр не платил за подготовку. */
+export function setPartnersLogoStyle(style) {
+  partnersLogoStyle = style === 'original' ? 'original' : 'gold';
+  for (const key of Object.keys(builtinMarks)) {
+    if (builtinMarkSource[key] && !builtinMarks[key][partnersLogoStyle]) {
+      builtinMarks[key][partnersLogoStyle] = renderPartnerMark(builtinMarkSource[key], partnersLogoStyle);
+    }
+  }
+}
+
+// На экране логотип не шире MARK_MAX_WIDTH и не выше MARK_MAX_HEIGHT (см. company()).
+// Готовить его в 1200 px значило держать 14× лишних пикселей и вчетверо больше
+// памяти; масштаб 2× оставляем на смену мастер-профиля и чёткость.
+const MARK_MAX_WIDTH = 440;
+const MARK_MAX_HEIGHT = 105;
+const MARK_SUPERSAMPLE = 2;
 
 // Золотая заливка использует альфу SVG/PNG, а не прямоугольную белую плашку.
 export function renderPartnerMark(image, style = 'gold') {
   const w = Math.max(1, image.naturalWidth || image.width || 600);
   const h = Math.max(1, image.naturalHeight || image.height || 200);
+  // Целевой размер считается тем же правилом, что и при отрисовке кадра.
+  const fit = Math.min(MARK_MAX_WIDTH / w, MARK_MAX_HEIGHT / h);
   const canvas = document.createElement('canvas');
-  canvas.width = 1200;
-  canvas.height = Math.max(1, Math.round(1200 * h / w));
+  canvas.width = Math.max(1, Math.round(w * fit * MARK_SUPERSAMPLE));
+  canvas.height = Math.max(1, Math.round(h * fit * MARK_SUPERSAMPLE));
   const ctx = canvas.getContext('2d');
   ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
   if (style !== 'original') {
@@ -54,13 +91,13 @@ const imageReady = Promise.all([backgroundUrl, curtainUrl, proelectroUrl, proele
     backgroundCanvas.getContext('2d').drawImage(background, (w - dw) / 2, (h - dh) / 2, dw, dh);
   }
   curtainImage = curtain;
+  // Логотип готовится под тот стиль, который выбран в настройках; второй вариант
+  // доделывается при первом обращении (см. builtinMark). Иначе на старте
+  // выполнялась двойная работа и вдвое больше канвасов в памяти.
+  const style = activeLogoStyle();
   ['organizer1', 'organizer2', 'partner1', 'partner2'].forEach((key, i) => {
-    if (marks[i]) {
-      builtinMarks[key] = {
-        gold: renderPartnerMark(marks[i], 'gold'),
-        original: renderPartnerMark(marks[i], 'original'),
-      };
-    }
+    if (marks[i]) builtinMarkSource[key] = marks[i];
+    if (marks[i]) builtinMarks[key] = { [style]: renderPartnerMark(marks[i], style) };
   });
   return images.every(Boolean);
 });
@@ -112,6 +149,8 @@ export class PartnersScene {
     this.cfg = cfg;
     this.isIntro = false;
     this.contourWaves = null;
+    // Стиль известен из настроек сразу: готовим только нужный вариант логотипов.
+    setPartnersLogoStyle(cfg.partners?.logoStyle);
     this._quality = suggestedQuality(masterId());
     this.renderer = new THREE.WebGLRenderer({
       canvas, antialias: false, alpha: false, powerPreference: 'high-performance', stencil: false, depth: false,
@@ -269,6 +308,8 @@ export class PartnersScene {
     };
     const defaults = { organizer1: 'ПРОэлектро', organizer2: 'ПРОэлектрощит', partner1: 'Промрукав', partner2: 'КЭАЗ' };
     const style = data.logoStyle === 'original' ? 'original' : 'gold';
+    // Смена стиля в настройках доготовит нужный вариант один раз, а не каждый кадр.
+    if (style !== partnersLogoStyle) setPartnersLogoStyle(style);
     const company = (key, x, y, entry) => {
       const value = data[key];
       const customLogo = resolveCustomLogo(data[`${key}Logo`], style, () => {
@@ -277,7 +318,7 @@ export class PartnersScene {
         }
       });
       const isDefaultName = String(value ?? '').trim().toLocaleLowerCase('ru') === defaults[key].toLocaleLowerCase('ru');
-      const logo = customLogo || (isDefaultName ? builtinMarks[key]?.[style] : null);
+      const logo = customLogo || (isDefaultName ? builtinMark(key, style) : null);
       if (!logo) {
         text(value, x, y, '600 52px Manrope, sans-serif', ivory, visible * entry, 440, entry);
         return;
