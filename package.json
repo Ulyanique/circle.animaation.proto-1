@@ -14,6 +14,7 @@
     "verify:title-glint": "node scripts/verify-title-glint.cjs",
     "verify:title-landing": "node scripts/verify-title-landing.cjs",
     "verify:cinematic": "node scripts/verify-cinematic.cjs",
+    "verify:gold-material": "node scripts/verify-gold-material.cjs",
     "verify:directed-motion": "node scripts/verify-directed-motion.cjs",
     "verify:intro": "node scripts/verify-intro.cjs",
     "verify:intro-orbit": "node scripts/verify-intro-orbit.cjs",

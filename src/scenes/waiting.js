@@ -148,8 +148,8 @@ export const WAITING_DEFAULTS = {
     topGlow: 10,           // свечение сверху не пересвечивает центр
     keyAngle: 35,
     fillIntensity: 0.35,
-    shadowSoftness: 6,
-    shadowOpacity: 0,      // тень за логотипом выключена
+    shadowSoftness: 11,
+    shadowOpacity: 0.22,   // мягкая контактная тень под знаком, отделяет золото от фона
     envEnabled: true,
     exposure: 1.0,         // множитель всех источников света
   },

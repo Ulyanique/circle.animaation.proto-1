@@ -3,7 +3,7 @@ export function inspectorPropertyGroup(id, {section, field, shared}) {
   if (shared) return 'Общие параметры';
   if (id === 'logo') {
     if (/^outline/.test(field.key)) return 'Контур';
-    if (['depth','bevel','metalness','roughness','clearcoat','facetPolish','envIntensity'].includes(field.key)) return 'Материал';
+    if (['depth','bevel','metalness','roughness','clearcoat','facetPolish','studioRelief','amber','envIntensity'].includes(field.key)) return 'Материал';
     return 'Движение и проявление';
   }
   if (section === 'constructionGuides' || section === 'topIllumination') return 'Вид и свет';

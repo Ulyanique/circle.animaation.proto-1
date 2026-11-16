@@ -98,12 +98,13 @@ export class LogoScene {
     this.background = new Background();
     this.scene.add(this.background.mesh);
 
-    // Тень на задний план (ловит тень логотипа)
+    // Тень на задний план: близкая плоскость даёт мягкую контактную тень
+    // прямо за знаком, а не далёкий силуэт сбоку, спорящий с титром.
     this.shadowPlane = new THREE.Mesh(
       new THREE.PlaneGeometry(60, 60),
       new THREE.ShadowMaterial({ color: 0x000000, opacity: 0.7, transparent: true, depthWrite: false })
     );
-    this.shadowPlane.position.z = -1.3;
+    this.shadowPlane.position.z = -0.32;
     this.shadowPlane.receiveShadow = true;
     this.scene.add(this.shadowPlane);
 
@@ -343,6 +344,11 @@ export class LogoScene {
     m.envMapIntensity = cfg.logo.envIntensity * (cfg.lights.envEnabled ? 1 : 0) * exposure;
     // глубокий золотой оттенок в тенях через emissive
     m.emissive.set(cfg.colors.goldDeep).multiplyScalar(0.12);
+    const amberAmount = THREE.MathUtils.clamp(cfg.logo.amber ?? 0, 0, 1);
+    if (this.logo.amberInset) {
+      this.logo.amberInset.visible = amberAmount > 0.001;
+      this.logo.amberInsetMaterial.envMapIntensity = 0.48 * (cfg.lights.envEnabled ? 1 : 0) * exposure;
+    }
 
     // Изолируем собственный интервал знака от сценария света, фона и титров.
     const logoPhase = logoTimingPhase(t, cfg.timeline, cfg.logoTiming, ph);
@@ -357,7 +363,7 @@ export class LogoScene {
       (1 + opening.strike * 0.55);
     revealUniforms.uGlowColor.value.set(cfg.colors.glowColor);
     revealUniforms.uK.value = this.logo.parsed.K;
-    revealUniforms.uAmber.value = THREE.MathUtils.clamp(cfg.logo.amber ?? 0, 0, 1);
+    revealUniforms.uAmber.value = amberAmount;
 
     // движение: пульсация + покачивание + плавное увеличение во время удержания
     const scaleGrow = THREE.MathUtils.lerp(cfg.logo.holdScaleFrom, cfg.logo.holdScaleTo, easeOutCubic(ph.grow));
@@ -449,7 +455,11 @@ export class LogoScene {
     this.keyLight.position.set(-Math.sin(a) * 6.5, 5.2, Math.cos(a) * 6.5);
     this.keyLight.intensity = cfg.lights.keyIntensity * 1.5 * exposure;
     this.keyLight.shadow.radius = cfg.lights.shadowSoftness;
-    this.shadowPlane.material.opacity = cfg.lights.shadowOpacity;
+    // Во вращении (фотопауза) ребро знака выдаётся назад до половины ширины;
+    // отодвигаем плоскость тени за вылет поворота, чтобы она не рассекала знак.
+    const yawBack = Math.abs(Math.sin(root.rotation.y)) * 1.65 * root.scale.x;
+    this.shadowPlane.position.z = root.position.z - 0.30 - yawBack;
+    this.shadowPlane.material.opacity = cfg.lights.shadowOpacity * logoPhase.reveal;
     this.fillLight.intensity = cfg.lights.fillIntensity * exposure;
     // Один короткий тёплый проход по граням, пока собирается название.
     // На удержании ключевой акцент — текст, а не бегущий по нему блик.
