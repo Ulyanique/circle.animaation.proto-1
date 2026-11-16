@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   easeOutCubic, easeInOutCubic, easeOutBack, easeOutExpo, window01, glintSpan, reveal,
+  framePathMetrics, framePathPoint, frameGlint, frameGold,
 } from "../src/partners-motion.js";
 
 // Кривые движения проверяются числами, а не «на глаз»: от них зависит,
@@ -204,4 +205,113 @@ test("вырожденный случай не роняет раскладку",
   assert.equal(Math.round(single.leftWidth), 440);
   assert.equal(single.fit, 1);
   assert.ok(Number.isFinite(single.rightX));
+});
+
+// --- Рамка: контур, блик и переливание золота -------------------------------
+// Эти проверки закрывают две жалобы: блик читался игрушечным (ездил размытым
+// пятном по верхней кромке), а рамка вообще не переливалась золотом.
+
+test("контур рамки замкнут и не выходит за кадр", () => {
+  const m = framePathMetrics(0);
+  // Периметр рамки габаритом ~1812×996 со скруглением 38.
+  assert.ok(m.total > 5400 && m.total < 5700, `периметр ${m.total}`);
+  const first = framePathPoint(0), last = framePathPoint(1);
+  assert.ok(Math.abs(first.x - last.x) < .01 && Math.abs(first.y - last.y) < .01,
+    `контур не замкнут: ${first.x},${first.y} → ${last.x},${last.y}`);
+  // Ни одна точка не вылезает за пределы базового кадра.
+  for (let i = 0; i <= 400; i++) {
+    const p = framePathPoint(i / 400);
+    assert.ok(p.x >= 53 && p.x <= 1867, `x=${p.x} на ${i / 400}`);
+    assert.ok(p.y >= 41 && p.y <= 1039, `y=${p.y} на ${i / 400}`);
+  }
+});
+
+test("точка контура идёт по периметру монотонно, без скачков", () => {
+  // Скачок означал бы разрыв обхода: блик прыгал бы через полкадра.
+  const steps = 600;
+  let prev = framePathPoint(0);
+  let minStep = Infinity, maxStep = 0;
+  for (let i = 1; i <= steps; i++) {
+    const p = framePathPoint(i / steps);
+    const d = Math.hypot(p.x - prev.x, p.y - prev.y);
+    minStep = Math.min(minStep, d); maxStep = Math.max(maxStep, d);
+    prev = p;
+  }
+  // Средний шаг = периметр / 600 ≈ 9.25 px; допускаем разброс на скруглениях,
+  // но не разрыв в разы.
+  const mean = framePathMetrics(0).total / steps;
+  assert.ok(maxStep < mean * 3, `максимальный шаг ${maxStep.toFixed(2)} при среднем ${mean.toFixed(2)}`);
+  assert.ok(minStep > mean * .1, `минимальный шаг ${minStep.toFixed(2)} при среднем ${mean.toFixed(2)}`);
+});
+
+test("касательная контура повёрнута по сторонам кадра", () => {
+  const m = framePathMetrics(0);
+  // Середина верхней прямой — горизонталь, правой — вертикаль, низа — тоже
+  // горизонталь. По этому углу вытягивается блик, поэтому он обязан меняться.
+  const top = framePathPoint((m.arc + m.top / 2) / m.total);
+  assert.equal(top.angle, 0);
+  const right = framePathPoint((m.arc + m.top + m.arc + m.right / 2) / m.total);
+  assert.equal(right.angle, 90);
+  const bottom = framePathPoint((m.arc + m.top + m.arc + m.right + m.arc + m.bottom / 2) / m.total);
+  assert.equal(bottom.angle, 180);
+});
+
+test("блик обходит весь контур, а не только верхнюю кромку", () => {
+  // Прежний блик жил на верхней кромке (y=42). Теперь путь по всему периметру.
+  const sides = new Set();
+  for (let i = 0; i < 24; i++) {
+    const p = framePathPoint(i / 24);
+    // Относим точку к стороне по её положению.
+    if (p.y < 60) sides.add("верх");
+    else if (p.x > 1855) sides.add("право");
+    else if (p.y > 1020) sides.add("низ");
+    else if (p.x < 65) sides.add("лево");
+  }
+  assert.deepEqual([...sides].sort(), ["верх", "лево", "низ", "право"]);
+});
+
+test("блик самосветится и сжимается на слабой силе", () => {
+  const strong = frameGlint(.25, { strength: 1 });
+  const weak = frameGlint(.25, { strength: .2 });
+  assert.ok(strong.core > weak.core, "сила не влияет на яркость");
+  assert.ok(strong.coreLength > weak.coreLength, "слабый блик должен быть короче");
+  // Ореол всегда мягче и длиннее ядра — иначе блик выглядит наклейкой.
+  assert.ok(strong.haloLength > strong.coreLength * 2);
+  assert.ok(strong.halo < strong.core);
+  // Отрицательная и запредельная сила не ломают геометрию.
+  for (const s of [-5, 0, 5, NaN]) {
+    const g = frameGlint(.5, { strength: s });
+    assert.ok(Number.isFinite(g.x) && Number.isFinite(g.y) && Number.isFinite(g.angle));
+    assert.ok(g.core >= 0 && g.core <= 1);
+  }
+});
+
+test("золото рамки переливается по длине и во времени", () => {
+  // По длине контура в один момент тон обязан различаться — иначе рамка
+  // выглядит залитой одним цветом плашкой.
+  const tones = Array.from({ length: 16 }, (_, i) => frameGold(6, i / 16).tone);
+  assert.ok(Math.max(...tones) - Math.min(...tones) > 1, `разброс тона по контуру ${Math.max(...tones) - Math.min(...tones)}`);
+  // И меняться во времени в одной и той же точке.
+  const over = [4, 6, 8, 10, 12].map(t => frameGold(t, .3).tone);
+  assert.ok(Math.max(...over) - Math.min(...over) > .1, `разброс тона во времени ${Math.max(...over) - Math.min(...over)}`);
+  // Тон ограничен -1…1: за этими пределами цвет уходит в клиппинг.
+  for (let t = 0; t <= 20; t += .5) {
+    for (let at = 0; at <= 1; at += .05) {
+      const g = frameGold(t, at);
+      assert.ok(g.tone >= -1 && g.tone <= 1, `тон ${g.tone}`);
+      assert.ok(g.light > 0 && g.light < 1.3, `свет ${g.light}`);
+    }
+  }
+  // Свет почти не дышит: колебание яркости не больше 13 %, иначе рамка «качает».
+  const lights = Array.from({ length: 40 }, (_, i) => frameGold(i * .5, 0).light);
+  assert.ok(Math.max(...lights) - Math.min(...lights) < .25);
+});
+
+test("переливание и блик детерминированы: один кадр — один результат", () => {
+  // От детерминированности зависит совпадение предпросмотра и экспорта.
+  for (const at of [0, .13, .5, .87]) {
+    assert.equal(frameGold(7.25, at).tone, frameGold(7.25, at).tone);
+    const a = frameGlint(at, { strength: .7 }), b = frameGlint(at, { strength: .7 });
+    assert.deepEqual(a, b);
+  }
 });

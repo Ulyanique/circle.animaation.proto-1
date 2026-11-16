@@ -126,3 +126,128 @@ export function pairLayout({ center, leftWidth, rightWidth, container, gap }) {
     innerGap: container - fLeft - fRight,
   };
 }
+
+/**
+ * Геометрия контура рамки в координатах базового кадра 1920×1080.
+ * Лежит здесь, а не в partners-graphics.js, чтобы её можно было проверить
+ * тестом: блик по контуру считается по той же длине, что и рисуется рамка.
+ * @param {number} inset
+ */
+export function framePathMetrics(inset = 0) {
+  const l = 54 + inset, r = 1866 - inset, t = 42 + inset, b = 1038 - inset, c = 38;
+  // Длины сегментов по обходу: верх, право, низ, лево. Дуги углов берём как
+  // четверть окружности радиуса c — ошибка на скруглении меньше полупикселя.
+  const arc = Math.PI * c / 2;
+  const top = (r - c) - (l + c);
+  const right = (b - c) - (t + c);
+  const bottom = (r - c) - (l + c);
+  const left = (b - c) - (t + c);
+  const total = top + right + bottom + left + 4 * arc;
+  return { l, r, t, b, c, arc, top, right, bottom, left, total };
+}
+
+/** Точка на контуре рамки по доле обхода 0…1. Обход по часовой стрелке от
+ * левого верхнего скругления. Возвращает координаты и направление касательной
+ * в градусах: по нему вытягивается блик — на горизонтальных сторонах он
+ * горизонтален, на вертикальных вертикален, на дугах повёрнут.
+ * @param {number} at @param {number} [inset] */
+export function framePathPoint(at, inset = 0) {
+  const m = framePathMetrics(inset);
+  const { l, r, t, b, c, arc } = m;
+  let d = ((Number.isFinite(at) ? at : 0) % 1 + 1) % 1 * m.total;
+  const step = (length, from, to, run) => {
+    if (d > length) { d -= length; return null; }
+    return run(d / Math.max(1e-6, length));
+  };
+
+  // Верхняя дуга: от левого скругления к началу верхней прямой.
+  let p = step(arc, 0, 1, u => {
+    const a = Math.PI + u * Math.PI / 2;
+    return { x: l + c + Math.cos(a) * c, y: t + c + Math.sin(a) * c, angle: -u * 90 };
+  });
+  if (p) return p;
+  p = step(m.top, 0, 1, u => ({ x: l + c + m.top * u, y: t, angle: 0 }));
+  if (p) return p;
+  // Правый верхний угол.
+  p = step(arc, 0, 1, u => {
+    const a = -Math.PI / 2 + u * Math.PI / 2;
+    return { x: r - c + Math.cos(a) * c, y: t + c + Math.sin(a) * c, angle: 90 + u * 90 };
+  });
+  if (p) return p;
+  p = step(m.right, 0, 1, u => ({ x: r, y: t + c + m.right * u, angle: 90 }));
+  if (p) return p;
+  p = step(arc, 0, 1, u => {
+    const a = u * Math.PI / 2;
+    return { x: r - c + Math.cos(a) * c, y: b - c + Math.sin(a) * c, angle: 180 + u * 90 };
+  });
+  if (p) return p;
+  p = step(m.bottom, 0, 1, u => ({ x: r - c - m.bottom * u, y: b, angle: 180 }));
+  if (p) return p;
+  p = step(arc, 0, 1, u => {
+    const a = Math.PI / 2 + u * Math.PI / 2;
+    return { x: l + c + Math.cos(a) * c, y: b - c + Math.sin(a) * c, angle: 270 + u * 90 };
+  });
+  if (p) return p;
+  p = step(m.left, 0, 1, u => ({ x: l, y: b - c - m.left * u, angle: 270 }));
+  if (p) return p;
+  // Последняя дуга: замкнутый контур. Здесь арифметика может дать чуть больше
+  // остатка из-за округления — возвращаем начало обхода, а не NaN.
+  return (() => {
+    const u = Math.min(1, d / arc);
+    const a = 3 * Math.PI / 2 + u * Math.PI / 2;
+    return { x: l + c + Math.cos(a) * c, y: t + c + Math.sin(a) * c, angle: 360 + u * 90 };
+  })();
+}
+
+/**
+ * Блик, бегущий по контуру рамки. В отличие от прежнего размытого пятна на
+ * верхней кромке, здесь строится узкая полоса поперёк пути: она самосветится,
+ * имеет резкое ядро и мягкий ореол, а на углах поджимается — как отражение на
+ * настоящем металлическом профиле.
+ *
+ * @param {number} at доля обхода контура 0…1
+ * @param {{strength?:number, length?:number, width?:number, inset?:number}} [options]
+ */
+export function frameGlint(at, { strength = 1, length = 210, width = 6, inset = 0 } = {}) {
+  const point = framePathPoint(at, inset);
+  const s = Math.max(0, Math.min(1, Number.isFinite(strength) ? strength : 0));
+  // Ядро: короткая яркая часть. Ореол: втрое длиннее и мягче.
+  return {
+    x: point.x, y: point.y, angle: point.angle,
+    core: s,
+    coreLength: length * (.32 + .68 * s),
+    coreWidth: width * (.5 + .5 * s),
+    halo: s * .38,
+    haloLength: length * 2.6,
+    haloWidth: width * 4.2,
+  };
+}
+
+/**
+ * Переливание золота на рамке. Ровная позолота читается как нарисованная
+ * линия; настоящий профиль меняет тон по длине — от тёмной бронзы к светлому
+ * золоту и обратно, — и это переливание медленно смещается.
+ *
+ * @param {number} tSec абсолютное время сцены
+ * @param {number} at доля обхода контура 0…1
+ * @param {{motion?:number}} [options]
+ * @returns {{tone:number, light:number, sweep:number}}
+ */
+export function frameGold(tSec, at, { motion = 1 } = {}) {
+  const m = Math.max(0, Math.min(1, Number.isFinite(motion) ? motion : 1));
+  const time = Number.isFinite(tSec) ? tSec : 0;
+  const pos = ((Number.isFinite(at) ? at : 0) % 1 + 1) % 1;
+  // Две волны разной длины: одна даёт крупные тёплые пятна, вторая — мелкую
+  // рябь металла. Без второй рамка выглядит как гладкая плашка.
+  const slow = Math.sin(Math.PI * 2 * (pos * 1.35 - time * .035));
+  const fast = Math.sin(Math.PI * 2 * (pos * 3.4 + time * .085 + .31));
+  const tone = m * (0.62 * slow + 0.38 * fast);
+  return {
+    // -1 — тёмная бронза, 0 — базовое золото, +1 — светлое золото
+    tone,
+    // общая яркость профиля: дышит медленно и почти незаметно
+    light: m * (1 + .10 * Math.sin(Math.PI * 2 * (time * .06 + .2))),
+    // где сейчас световой удар по длине контура — едет в обратную сторону от блика
+    sweep: ((pos * 1.6 - time * .11) % 1 + 1) % 1,
+  };
+}

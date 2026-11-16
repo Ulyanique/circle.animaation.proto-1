@@ -1,4 +1,5 @@
 import { BASE_FRAME } from "./scenes/catalog.js";
+import { frameGold, frameGlint, framePathPoint } from "./partners-motion.js";
 // Нарисованные в canvas элементы: никакой декоративной части в фоновой
 // текстуре нет. Все огибающие зависят только от абсолютного времени сцены.
 const clamp = x => Math.max(0, Math.min(1, x));
@@ -44,58 +45,151 @@ export function partnersCues(phase, timeline, motion = 1) {
     foliageSway: idle * Math.sin(local*.35+1)*.012,
     compassSway: idle * Math.sin(local*.30+.4)*.008,
     motion:m,
+    // Абсолютное время сцены: по нему живут золото рамки и бегущий блик.
+    // Раньше графика брала только амплитуды, поэтому переливание построить
+    // было не из чего.
+    local,
   };
 }
 
-function framePath(ctx, inset) {
-  const l=54+inset,r=1866-inset,t=42+inset,b=1038-inset,c=38;
-  ctx.beginPath();ctx.moveTo(l+c,t);ctx.lineTo(r-c,t);
-  ctx.quadraticCurveTo(r-c,t+c,r,t+c);ctx.lineTo(r,b-c);
-  ctx.quadraticCurveTo(r-c,b-c,r-c,b);ctx.lineTo(l+c,b);
-  ctx.quadraticCurveTo(l+c,b-c,l,b-c);ctx.lineTo(l,t+c);
-  ctx.quadraticCurveTo(l+c,t+c,l+c,t);ctx.closePath();
+// Контур рамки строится по точкам framePathPoint(), а не через
+// quadraticCurveTo. Квадратичная кривая на угле заметно отличается от истинной
+// дуги (до 15 px), и золото с кромкой расходились бы между собой.
+function contourPath(ctx, from = 0, to = 1, samples = 480, inset = 0) {
+  ctx.beginPath();
+  for (let i = 0; i <= samples; i++) {
+    const at = from + (to - from) * (i / samples);
+    const p = framePathPoint(at, inset);
+    if (i === 0) ctx.moveTo(p.x, p.y); else ctx.lineTo(p.x, p.y);
+  }
 }
-// Позолота рамки не зависит от времени: градиент создаётся один раз на контекст.
-// Раньше он строился каждый кадр вместе с четырьмя обводками периметра ~5600 px.
-const frameGradients = new WeakMap();
-function frameGradient(ctx) {
-  let gold = frameGradients.get(ctx);
-  if (gold) return gold;
-  gold = ctx.createLinearGradient(0,0,BASE_FRAME.width,BASE_FRAME.height);
-  gold.addColorStop(0,'#805b34');gold.addColorStop(.25,'#d1ac70');
-  gold.addColorStop(.48,'#f4dcaa');gold.addColorStop(.72,'#99703e');gold.addColorStop(1,'#d8b77f');
-  frameGradients.set(ctx, gold);
-  return gold;
+// Обратная совместимость: прежние вызовы framePath(ctx, inset) рисуют весь контур.
+function framePath(ctx, inset) { contourPath(ctx, 0, 1, 480, inset); }
+
+const GOLD_DARK = [167, 121, 66];   // тёмная бронза
+const GOLD_BASE = [226, 187, 124];  // базовое золото
+const GOLD_LIGHT = [255, 243, 214]; // светлое золото
+function goldAt(tone, light = 1) {
+  // tone < 0 тянет к бронзе, tone > 0 — к светлому золоту.
+  const to = tone < 0 ? GOLD_DARK : GOLD_LIGHT;
+  const k = Math.min(1, Math.abs(tone));
+  const mix = [0, 1, 2].map(i =>
+    Math.max(0, Math.min(255, Math.round((GOLD_BASE[i] + (to[i] - GOLD_BASE[i]) * k) * light))));
+  return `rgb(${mix[0]},${mix[1]},${mix[2]})`;
+}
+const rgbOf = (color) => color.match(/\d+/g).map(Number);
+const rgba = (c, a) => `rgba(${c[0]},${c[1]},${c[2]},${Math.max(0, Math.min(1, a)).toFixed(3)})`;
+
+/**
+ * Живое золото: контур режется на сегменты, каждый заливается линейным
+ * градиентом между тонами на своих концах. Цвета на стыках совпадают точно,
+ * поэтому швов не видно, а тон гуляет по всему периметру.
+ * Пунктир тут не подходит: dash считается по длине пути, а длина дуг на углах
+ * не совпадает с расчётной — получались зазоры и наложения.
+ */
+function goldStroke(ctx, tSec, motion, segments = 72) {
+  ctx.lineWidth = 2.5;
+  ctx.lineJoin = 'round';
+  ctx.lineCap = 'butt';
+  const toneAt = (at) => {
+    const g = frameGold(tSec, at, { motion });
+    return rgbOf(goldAt(g.tone, g.light));
+  };
+  const step = 1 / segments;
+  const samples = 8;
+  for (let i = 0; i < segments; i++) {
+    const a0 = i * step, a1 = (i + 1) * step;
+    const c0 = toneAt(a0), c1 = toneAt(a1);
+    // Градиент вдоль хорды сегмента — на таком шаге он читается как вдоль дуги.
+    const p0 = framePathPoint(a0), p1 = framePathPoint(a1);
+    const g = ctx.createLinearGradient(p0.x, p0.y, p1.x, p1.y);
+    g.addColorStop(0, rgba(c0, 1));
+    g.addColorStop(1, rgba(c1, 1));
+    ctx.strokeStyle = g;
+    contourPath(ctx, a0, a1, samples);
+    ctx.stroke();
+  }
 }
 
-function drawFrame(ctx,cue) {
-  ctx.save();ctx.globalAlpha=cue.visible*.82;
-  // Периметр внешнего контура около 5600 px; запас нужен и для
-  // скруглённых углов, иначе последняя часть левой стороны не дорисуется.
-  const frameLength=6000;
-  ctx.setLineDash([Math.max(.001,frameLength*cue.frame),frameLength]);
-  // Позолота с тонкой тёмной кромкой и движущимся отражением.
-  ctx.lineWidth=5;ctx.strokeStyle='rgba(33,13,5,.65)';framePath(ctx,0);ctx.stroke();
-  // Рамка рисуется в координатах базового кадра; контекст уже отмасштабирован
-  // вызывающей стороной, поэтому берём размер из каталога, а не литерал.
-  ctx.strokeStyle=frameGradient(ctx);ctx.lineWidth=2.5;framePath(ctx,0);ctx.stroke();
+function drawFrame(ctx, cue) {
+  if (cue.visible <= 0.003) return;
+  const tSec = Number.isFinite(cue.local) ? cue.local : 0;
+  const motion = Number.isFinite(cue.motion) ? cue.motion : 1;
+  ctx.save();
+  ctx.globalAlpha = cue.visible * .9;
+  // Периметр внешнего контура около 5550 px; запас нужен и для скруглённых
+  // углов, иначе последняя часть левой стороны не дорисуется.
+  const frameLength = 6000;
+  ctx.setLineDash([Math.max(.001, frameLength * cue.frame), frameLength]);
+  // Позолота с тонкой тёмной кромкой: кромка даёт объём, иначе рамка — линия.
+  ctx.lineWidth = 5; ctx.strokeStyle = 'rgba(33,13,5,.65)';
+  framePath(ctx, 0); ctx.stroke();
+  ctx.strokeStyle = 'rgba(255,226,170,.18)'; ctx.lineWidth = 1.2;
+  framePath(ctx, -1.8); ctx.stroke();
+  // Живое золото: тон переливается по контуру и медленно смещается.
+  ctx.setLineDash([]);
+  goldStroke(ctx, tSec, motion);
   // Внутренние кромки видны только когда рамка уже проявилась.
   if (cue.frame > 0.02) {
-    ctx.strokeStyle='rgba(255,239,197,.5)';ctx.lineWidth=.7;framePath(ctx,1.5);ctx.stroke();
-    ctx.globalAlpha=cue.visible*.37;ctx.lineWidth=1;framePath(ctx,10);ctx.stroke();
+    ctx.strokeStyle = 'rgba(255,239,197,.55)'; ctx.lineWidth = .7;
+    framePath(ctx, 1.5); ctx.stroke();
+    ctx.globalAlpha = cue.visible * .4; ctx.lineWidth = 1;
+    framePath(ctx, 10); ctx.stroke();
+    ctx.globalAlpha = cue.visible * .9;
   }
   ctx.setLineDash([]);
-  // Небольшие ювелирные акценты на углах появляются вместе с рамкой.
-  ctx.globalAlpha=cue.visible*cue.frame*.65;ctx.fillStyle='#e8cc96';
-  for(const [x,y] of [[112,42],[1808,42],[112,1038],[1808,1038]]){
-    ctx.save();ctx.translate(x,y);ctx.rotate(Math.PI/4);ctx.fillRect(-3,-3,6,6);ctx.restore();
+
+  // Блик, бегущий по ВСЕМУ контуру. Раньше это было одно размытое пятно на
+  // верхней кромке — оно не двигалось и читалось как игрушка. Здесь полоса
+  // идёт по периметру, самосветится и поворачивается вместе с касательной.
+  // Скорость не постоянная: ровный обход по периметру читается как метроном, и
+  // именно это делало блик игрушечным. Синусоидальная добавка к пути ускоряет и
+  // замедляет его, но производная всюду положительна — блик не откатывается.
+  const run = cue.local * .105 - .022 * Math.sin(cue.local * .52);
+  const pulse = .5 + .5 * Math.sin(1.1 + 1.4 * Math.sin(cue.local * .23));
+  const strength = cue.frame * Math.min(1, cue.motion) * (.4 + .6 * pulse);
+  if (strength > 0.01) {
+    const glint = frameGlint((run % 1 + 1) % 1, { strength, length: 220, width: 8 });
+    drawFrameGlint(ctx, glint, cue.visible);
   }
-  const x=180+1560*cue.glint;
-  const glow=ctx.createRadialGradient(x,42,0,x,42,75);
-  glow.addColorStop(0,'rgba(255,240,196,.32)');glow.addColorStop(1,'rgba(255,230,180,0)');
-  ctx.globalAlpha=cue.visible*cue.frame*cue.motion*.65;ctx.fillStyle=glow;ctx.fillRect(x-75,0,150,117);
+
+  // Небольшие ювелирные акценты на углах появляются вместе с рамкой.
+  ctx.globalAlpha = cue.visible * cue.frame * .7; ctx.fillStyle = '#e8cc96';
+  for (const [x, y] of [[112, 42], [1808, 42], [112, 1038], [1808, 1038]]) {
+    ctx.save(); ctx.translate(x, y); ctx.rotate(Math.PI / 4); ctx.fillRect(-3, -3, 6, 6); ctx.restore();
+  }
   ctx.restore();
 }
+
+/** Один блик: ореол, тело и яркое ядро — всё вытянуто вдоль касательной. */
+function drawFrameGlint(ctx, glint, alpha) {
+  if (alpha <= 0.003) return;
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  ctx.translate(glint.x, glint.y);
+  ctx.rotate(glint.angle * Math.PI / 180);
+  // Ядро намеренно не выводится в чистый белый: длинная полоса 255-го уровня
+  // читается как засветка, а не как отблеск металла. Максимум ~0.72.
+  const layers = [
+    [glint.halo * alpha * .9, glint.haloLength, glint.haloWidth, [255, 198, 128]],
+    [glint.core * alpha * .42, glint.coreLength, glint.coreWidth + 2, [255, 226, 168]],
+    [glint.core * alpha * .3, glint.coreLength * .38, Math.max(1.4, glint.coreWidth * .55), [255, 246, 220]],
+  ];
+  for (const [a, length, width, rgb] of layers) {
+    if (a <= 0.004) continue;
+    const g = ctx.createLinearGradient(-length / 2, 0, length / 2, 0);
+    g.addColorStop(0, rgba(rgb, 0));
+    g.addColorStop(.3, rgba(rgb, a * .5));
+    g.addColorStop(.5, rgba(rgb, a));
+    g.addColorStop(.7, rgba(rgb, a * .5));
+    g.addColorStop(1, rgba(rgb, 0));
+    ctx.fillStyle = g;
+    const half = Math.max(1, width / 2);
+    ctx.fillRect(-length / 2, -half, length, half * 2);
+  }
+  ctx.restore();
+}
+
 // Fixed seed and fixed coordinates make the ambient glints reproducible for
 // frame-accurate seeks and offline renders.
 let seed = 0xA17B3;
