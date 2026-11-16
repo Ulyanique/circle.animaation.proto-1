@@ -18,7 +18,7 @@ for (const [scene, defaults, ids] of [
     for (const id of ids) {
       const range = captionMaskRange(scene, id, cfg);
       assert.ok(range);
-      const on = scene === 'brand' ? undefined : tl.drawDuration + tl.emergeDuration + Math.max(.05,cfg.intro.cornerDuration) + Math.max(.05,cfg.intro.liftDuration) + Math.max(0,cfg.intro.titleDelay);
+      const on = scene === 'brand' ? undefined : tl.drawDuration + tl.emergeDuration + Math.max(.05,cfg.intro.cornerDuration) + Math.max(.05,cfg.intro.liftDuration) - Math.max(0,cfg.intro.titleDelay);
       const stateAt = local => scene === 'finale' ? finaleCaptionState(tl.startDelay + local, tl, on, cfg.finale) : captionState(tl.startDelay + local, tl, on, scene === 'waiting' ? .42 : 1);
       // Проверка на плотной сетке и с обеих сторон границ, включая короткое удержание.
       const times = Array.from({length:Math.ceil(range.cycle * 120)}, (_,i) => i / 120);

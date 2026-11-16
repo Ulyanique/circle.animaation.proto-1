@@ -16,7 +16,9 @@ export const WAITING_DEFAULTS = {
   logoTiming: logoTimingDefaults(),
   editorLocks: editorLockDefaults(),
   effectOrder: effectOrderDefaults(),
-  typography: { font: "cormorant-garamond", titleTracking: 0, subtitleTracking: 0.32, dateTracking: 0.28 },
+  // Подзаголовок: 0,32em разрывал слово на буквы; 0,22em держит группы и
+  // оставляет воздух. Дата чуть плотнее, чтобы длинная строка не «расползалась».
+  typography: { font: "cormorant-garamond", titleTracking: 0, subtitleTracking: 0.22, dateTracking: 0.24 },
   caption: {
     titleText: "Янтарный циркуль", subtitleText: "Вечер ретроспектива", dateText: "20 ноября 2026 года",
     titleColor: null, subtitleColor: null, dateColor: null,
@@ -30,7 +32,8 @@ export const WAITING_DEFAULTS = {
   ...particleCloudDefaults(),
   ...backgroundGlowDefaults(),
   transition: { duration: 0.9 }, // вход в эту сцену при переключении
-  intro: { cornerDuration: 1.1, liftDuration: 1.4, titleDelay: 0.15 },
+  // titleDelay — нахлёст: титр стартует за 0,12 с до конца подъёма знака.
+  intro: { cornerDuration: 1.1, liftDuration: 1.4, titleDelay: 0.12 },
   timeline: {
     // длительности фаз в секундах; цикл повторяется бесконечно
     drawDuration: 2.6,     // прорисовка контура
@@ -41,6 +44,10 @@ export const WAITING_DEFAULTS = {
     startDelay: 0.15,      // короткая разовая пауза перед стартом интро
     ringsIntro: 4.0,       // неторопливое черчение дуг; свет не опережает построение
     speed: 1.0,            // общая скорость (1 = реальное время)
+    // Сетка такта для показа под музыку. 0 — выключена, прежние настройки и
+    // проверки не меняются; см. src/beat-grid.js.
+    beatBpm: 0,
+    beatOffset: 0,
   },
   logo: {
     visible: true,
@@ -72,6 +79,7 @@ export const WAITING_DEFAULTS = {
     outlineWidthPx: 1.6,   // толщина контура в пикселях (1920×1080)
     outlineGlow: 0.35,     // сила свечения контура
     glint: 0.55,           // короткий тёплый блик без потери силуэта
+    amber: 0.4,            // янтарный срез на боковых гранях и мягкая подсветка за знаком
   },
   colors: {
     gold: "#c8962e",       // основной металл
@@ -115,22 +123,22 @@ export const WAITING_DEFAULTS = {
     speed: 0.5,
     spread: 1.0,           // разброс вокруг колец
     brightness: 1.0,
-    dust: 360,             // пыль по всей сцене
+    dust: 220,             // пыль по всей сцене
     rayLift: 1.0,          // насколько пыль подсвечивается световыми лучами
   },
   background: {
     fabricTexture: 0.8,     // каменная фактура; ключ сохранён для старых настроек
     lightSpread: 0.7,     // насколько далеко расходится свет от кругов
-    lightIntensity: 0.65,  // яркость отражённого света на фоне
+    lightIntensity: 0.52,  // яркость отражённого света на фоне
     shimmer: 0.55,         // переливание (шум)
     godRaysEnabled: true, fogEnabled: true, brushedEnabled: true, grainEnabled: true,
     vignetteEnabled: true, lowerShadeEnabled: true, gridEnabled: true,
-    godRays: 0.35,         // световые лучи от кругов
-    fog: 0.7,              // объёмный туман, подсвеченный кругами
+    godRays: 0.22,         // световые лучи от кругов
+    fog: 0.45,             // объёмный туман, подсвеченный кругами
     brushed: 0.35,         // тонкая диагональная текстура
-    grain: 0.012,          // зерно плёнки (тонкое)
-    vignette: 0.85,
-    lowerShade: 0.45,      // затемнение нижнего левого угла (как в референсе)
+    grain: 0.009,          // зерно плёнки (тонкое)
+    vignette: 0.6,
+    lowerShade: 0.28,      // затемнение нижнего левого угла (как в референсе)
     gridOpacity: 0.02,     // чертёжная сетка на фоне (тонкая)
   },
   constructionGuides: { enabled: true, offsetX: 0, offsetY: 0, scale: 1, opacity: 0.12, color: "#d9b268", timingMode: "scene", timingStart: 25, timingEnd: 90, timingFade: 15 },
@@ -140,8 +148,8 @@ export const WAITING_DEFAULTS = {
     topGlow: 10,           // свечение сверху не пересвечивает центр
     keyAngle: 35,
     fillIntensity: 0.35,
-    shadowSoftness: 6,
-    shadowOpacity: 0,      // тень за логотипом выключена
+    shadowSoftness: 11,
+    shadowOpacity: 0.22,   // мягкая контактная тень под знаком, отделяет золото от фона
     envEnabled: true,
     exposure: 1.0,         // множитель всех источников света
   },
@@ -157,8 +165,15 @@ export const WAITING_DEFAULTS = {
     dofStartBlur: 0,     // размытие в начале фазы появления
     chromaticAberration: 0.0003,   // радиальная: сильнее у краёв кадра
     anamorphic: 0.45,       // анаморфный блик вдоль блика по золоту
+    ditherEnabled: true,    // финальный дизеринг против полос на тёмных градиентах
+    dither: 1.0,            // амплитуда в LSB; 0 — выключить
   },
   playback: {
     paused: false,
   },
+  // Камера на удержании: медленный подъезд даёт ощущение съёмки, а не
+  // отрисованной плоскости. Ноль — прежняя неподвижная камера.
+  // Параллакс: фон и пыль чуть смещаются относительно знака (≈2 px при 1080p).
+  // Ноль выключает и возвращает прежнюю «плоскую» картинку.
+  camera: { holdDolly: 0, parallax: 1 },
 };

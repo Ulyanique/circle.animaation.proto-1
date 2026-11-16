@@ -121,6 +121,9 @@ const editor = createFrameEditor({ onLayoutChange: layout, getState: () => state
   }
   editor.refresh();
 }, onSettings: (section) => { state.settingsSection = section; } });
+// drawCaption берёт размер кадра у целевого canvas: экспортная проверка должна
+// рисовать в canvas мастер-формата, а не в пустой 300×150 по умолчанию.
+const exportContext = () => { const c = document.createElement('canvas'); c.width = 1920; c.height = 1080; return c.getContext('2d'); };
 window.editorFixture = { editor, state, createFinaleSettings() {
   const configs = { finale: structuredClone(FINALE_DEFAULTS), brand: structuredClone(BRAND_DEFAULTS) };
   const defaults = { finale: FINALE_DEFAULTS, brand: BRAND_DEFAULTS }; let active = 'finale';
@@ -139,19 +142,19 @@ window.editorFixture = { editor, state, createFinaleSettings() {
   const marker = document.createElement('span'); marker.style.cssText = 'display:inline-block;width:0;height:0;padding:0;margin:0;border:0;vertical-align:baseline;letter-spacing:0'; sub.append(marker);
   const rect = sub.getBoundingClientRect(), capRect = cap.getBoundingClientRect();
   const baseline = marker.getBoundingClientRect().top; marker.remove();
-  const ctx = document.createElement('canvas').getContext('2d'), paints = [], fill = ctx.fillText.bind(ctx);
+  const ctx = exportContext(), paints = [], fill = ctx.fillText.bind(ctx);
   ctx.fillText = (text,x,y) => { paints.push({text,x,y}); fill(text,x,y); };
   drawCaption(ctx, 1, 'finale');
   return {x:(rect.left + rect.width / 2 - capRect.left) / capRect.width,
     y:(rect.top + rect.height / 2 - capRect.top) / capRect.height,
     exportY:paints.find(p => p.text === 'А')?.y, expectedY:(baseline-capRect.top) * 1920 / capRect.width};
 }, setTime(time) { state.time = time; renderCustom(); updateEffects(); editor.refresh(); }, exportedTitle() {
-  const ctx = document.createElement('canvas').getContext('2d');
+  const ctx = exportContext();
   const result = []; const original = ctx.fillText.bind(ctx);
   ctx.fillText = (text, x, y) => { result.push({text, color: ctx.fillStyle, font:ctx.font, transformY: ctx.getTransform().f}); original(text, x, y); };
   drawCaption(ctx, 1, state.id); return result;
 }, measureTitleFont() {
-  const ctx = document.createElement('canvas').getContext('2d');
+  const ctx = exportContext();
   let fontSize = null;
   const original = ctx.fillText.bind(ctx);
   ctx.fillText = (text, x, y) => { fontSize = parseFloat(ctx.font.match(/([\d.]+)px/)[1]); original(text, x, y); };

@@ -21,5 +21,9 @@ export function introTitleLanding(phase, timeline, captionStart, enabled) {
   const exit = timeline.drawDuration + timeline.emergeDuration + timeline.holdDuration;
   const entrance = 1 - smooth((phase.local - captionStart) / .88);
   const beforeExit = 1 - smooth((phase.local - (exit - .2)) / .2);
-  return .75 * entrance * beforeExit;
+  // Ровно в конце посадки смещение обязано быть нулём, а не 1e-15: иначе
+  // проверка «посадка закончилась» ловит плавающий хвост, а сдвиг на тысячную
+  // пикселя всё равно не виден.
+  const value = .75 * entrance * beforeExit;
+  return value < 1e-9 ? 0 : value;
 }

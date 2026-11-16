@@ -133,6 +133,11 @@ export class Plotter {
     }
   }
 
+  /** Ширина ленты задаётся в пикселях кадра — при смене мастера её надо обновить. */
+  setResolution(w, h) {
+    this.uniforms.uRes.value.set(w, h);
+  }
+
   update(phase, cfg, centerY = cfg.logo.offsetY, centerX = cfg.logo.offsetX ?? 0) {
     const directed = this.twoHeads && !this.finale && cfg.logo.directedMotion === true;
     const { sweep, transfer, opacity, head, trace, reverse } = plotSequence(phase, cfg.timeline, { intro: this.twoHeads, finale: this.finale, directed });

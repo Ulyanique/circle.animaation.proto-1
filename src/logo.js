@@ -2,6 +2,9 @@ import * as THREE from "three";
 import { OUTPUT } from "./scenes/catalog.js";
 import { SVGLoader } from "three/examples/jsm/loaders/SVGLoader.js";
 import svgText from "./assets/logo.svg?raw";
+import { createGoldSurfaceMaps, findMedallionHole, LOGO_BEVEL_SEGMENTS, LOGO_BEVEL_WIDTH_RATIO } from "./gold-material-maps.js";
+
+export { LOGO_BEVEL_SEGMENTS, LOGO_BEVEL_WIDTH_RATIO };
 
 /**
  * Логотип: SVG → экструзия с фасками (золото), проявление из тени
@@ -25,6 +28,10 @@ export const revealUniforms = {
   uStudioRelief: { value: 0 },
   uCinematicGold: { value: 0 },
   uCinematicTime: { value: 0 },
+  // Мягкая куполообразность лицевой плоскости: плоская грань иначе отражает
+  // окружение одной точкой и выглядит заливкой.
+  uDome: { value: 0.12 },
+  uAmber: { value: 0.4 },
 };
 
 const REVEAL_GLSL_COMMON = /* glsl */ `
@@ -42,6 +49,8 @@ const REVEAL_GLSL_COMMON = /* glsl */ `
   uniform float uStudioRelief;
   uniform float uCinematicGold;
   uniform float uCinematicTime;
+  uniform float uDome;
+  uniform float uAmber;
   float rvHash(vec2 p){ p = fract(p*vec2(123.34,456.21)); p += dot(p,p+45.32); return fract(p.x*p.y); }
   float rvNoise(vec2 p){
     vec2 i = floor(p), f = fract(p);
@@ -69,6 +78,15 @@ function patchRevealMaterial(material, withEmission) {
          if (rvF > uReveal || uReveal <= 0.0) discard;`
       );
     if (withEmission) {
+      // Лицо знака — почти плоскость. Слегка «выпуклый» нормаль даёт мягкое
+      // скольжение отражения софтбокса по металлу вместо равномерной заливки.
+      shader.fragmentShader = shader.fragmentShader.replace(
+        "#include <normal_fragment_begin>",
+        `#include <normal_fragment_begin>
+         float rvFaceMask = smoothstep(0.55, 0.95, abs(vLocalNormal.z));
+         vec2 rvDome = vLocalPos.xy * uDome;
+         normal = normalize(normal + vec3(rvDome, 0.0) * rvFaceMask);`
+      );
       shader.fragmentShader = shader.fragmentShader.replace(
         "#include <emissivemap_fragment>",
         `#include <emissivemap_fragment>
@@ -85,7 +103,8 @@ function patchRevealMaterial(material, withEmission) {
          // На боковых гранях сохраняем естественное отражение окружения.
          float rvFront = smoothstep(0.55, 0.92, abs(vLocalNormal.z));
          float rvShade = smoothstep(-1.45, 1.35, vLocalPos.x + vLocalPos.y * 0.22);
-         vec3 rvFaceTone = mix(vec3(0.98, 0.95, 0.88), vec3(0.66, 0.71, 0.73), rvShade);
+         // Тень остаётся тёплой: золото не должно уходить в серый пластик.
+         vec3 rvFaceTone = mix(vec3(0.98, 0.95, 0.88), vec3(0.74, 0.66, 0.54), rvShade);
          outgoingLight *= mix(vec3(1.0), rvFaceTone, rvFront);
          // Широкий мягкий градиент отражения на лицевой плоскости и
          // отдельный акцент скоса. Он усиливает объём без новой геометрии,
@@ -101,9 +120,15 @@ function patchRevealMaterial(material, withEmission) {
          float rvCard = exp(-pow((rvCardCoord + 0.52) * 1.35, 2.0));
          float rvDarkCard = exp(-pow((rvCardCoord - 0.55) * 1.35, 2.0));
          float rvEdgeCard = exp(-pow((rvCardCoord + 0.05) * 5.0, 2.0));
-         float rvStudio = 0.43 + 0.72 * rvCard - 0.16 * rvDarkCard;
+         // Основа карточки больше не уводит теневую сторону в чёрный:
+         // настоящие отражения окружения уже дают объём.
+         float rvStudio = 0.84 + 0.36 * rvCard - 0.05 * rvDarkCard;
          outgoingLight *= mix(1.0, rvStudio, rvFront * uCinematicGold);
          outgoingLight += vec3(0.17, 0.075, 0.018) * (rvCard * rvBevel + 0.32 * rvEdgeCard * rvFront) * uCinematicGold;
+         // Янтарный срез: тонкий тёплый свет на боковых гранях, как у полированного
+         // камня. Ноль возвращает чистое золото.
+         float rvAmberSide = 1.0 - smoothstep(0.06, 0.40, abs(normalize(vLocalNormal).z));
+         outgoingLight += vec3(0.26, 0.095, 0.014) * rvAmberSide * clamp(uAmber, 0.0, 1.0);
          // Настоящие нормали скоса: широкая студийная карточка освещает
          // верхние кромки, противоположные остаются глубоким металлом.
          // Ноль сохраняет прежний материал; плоское лицо не получает полосу.
@@ -163,7 +188,76 @@ function patchRevealDepth(material) {
   return material;
 }
 
-/** Разбор SVG → набор подконтуров (для прорисовки) и шейп'ов (для экструзии) */
+function patchAmberInsetMaterial(material) {
+  material.onBeforeCompile = (shader) => {
+    Object.assign(shader.uniforms, revealUniforms);
+    shader.vertexShader = shader.vertexShader
+      .replace("#include <common>", "#include <common>\nvarying vec3 vLocalPos;\nvarying vec3 vLocalNormal;\nuniform float uK;")
+      .replace("#include <begin_vertex>", "#include <begin_vertex>\nvLocalPos = position * uK;\nvLocalNormal = normal;");
+    shader.fragmentShader = shader.fragmentShader
+      .replace("#include <common>", "#include <common>\n" + REVEAL_GLSL_COMMON)
+      .replace(
+        "#include <clipping_planes_fragment>",
+        `#include <clipping_planes_fragment>
+         float rvF = rvField(vLocalPos.xy);
+         if (rvF > uReveal || uReveal <= 0.0 || uAmber <= 0.001) discard;`
+      )
+      .replace(
+        "#include <emissivemap_fragment>",
+        `#include <emissivemap_fragment>
+         float rvEdge = 1.0 - smoothstep(0.0, 0.14, uReveal - rvF);
+         // Внутреннее свечение янтарного кабошона: тёплое ядро, каустические прожилки
+         // смолы и золотистый кант у оправы, затухающий к нулю при uAmber == 0.
+         float ambAmt = clamp(uAmber, 0.0, 1.0);
+         float ambGain = smoothstep(0.0, 0.55, ambAmt) * 0.78 + ambAmt * 0.52;
+         vec2 ambP = (vLocalPos.xy - vec2(-0.0023, -0.9461)) / 0.218;
+         float ambR = clamp(length(ambP), 0.0, 1.0);
+         // Смещённая каустика снизу-справа (свет проходит сквозь толщу смолы)
+         float ambCaustic = exp(-pow(length(ambP - vec2(0.22, 0.24)) * 1.45, 2.0));
+         float ambCore = pow(max(0.0, 1.0 - ambR * ambR), 1.05);
+         float ambRim = smoothstep(0.60, 0.96, ambR) * (1.0 - smoothstep(0.96, 1.02, ambR));
+         float ambVein = rvNoise(ambP * 3.8 + vec2(1.7, 4.1)) * 0.65 + rvNoise(ambP * 8.5 - vec2(2.3, 0.9)) * 0.35;
+         vec3 ambDeep = vec3(0.32, 0.055, 0.003);
+         vec3 ambHoney = vec3(1.55, 0.42, 0.018);
+         vec3 ambBezel = vec3(1.65, 0.76, 0.09);
+         vec3 ambGlow = mix(ambDeep, ambHoney, clamp(ambCore * (0.55 + 0.55 * ambVein) + ambCaustic * 0.55, 0.0, 1.0)) + ambBezel * ambRim * 0.55;
+         totalEmissiveRadiance += ambGlow * ambGain + uGlowColor * uRevealGlow * rvEdge * ambAmt;`
+      )
+      .replace(
+        "#include <opaque_fragment>",
+        `outgoingLight = outgoingLight / (1.0 + outgoingLight / vec3(1.25, 0.62, 0.24));
+         #include <opaque_fragment>`
+      );
+  };
+  material.customProgramCacheKey = () => "reveal-amber-inset";
+  return material;
+}
+
+/**
+ * Приводит UV экструзии к мировым координатам знака, чтобы процедурные карты
+ * шероховатости и микрорельефа ложились без растяжений SVG-масштаба.
+ * @param {THREE.BufferGeometry} geo
+ * @param {number} K
+ */
+function normalizeLogoUVs(geo, K) {
+  const pos = geo.getAttribute("position");
+  const nrm = geo.getAttribute("normal");
+  const uv = geo.getAttribute("uv");
+  if (!pos || !uv) return;
+  const tileScale = 1.15;
+  for (let i = 0; i < pos.count; i++) {
+    const wx = pos.getX(i) * K;
+    const wy = pos.getY(i) * K;
+    const wz = pos.getZ(i) * K;
+    const nz = nrm ? Math.abs(nrm.getZ(i)) : 1;
+    // На лицевой грани — плоская развёртка (wx, wy); на фаске и боковине
+    // добавляем z, чтобы микрошлифовка не тянулась полосами вдоль толщины.
+    const u = (wx + (1 - nz) * wz * 0.85) * tileScale;
+    const v = (wy + (1 - nz) * wz * 0.45) * tileScale;
+    uv.setXY(i, u, v);
+  }
+  uv.needsUpdate = true;
+}
 function parseLogo() {
   const data = new SVGLoader().parse(svgText);
   const shapes = [];
@@ -199,11 +293,17 @@ export class Logo {
     this.body.scale.set(this.parsed.K, -this.parsed.K, this.parsed.K);
     this.root.add(this.body);
 
+    this.surfaceMaps = createGoldSurfaceMaps(256);
+    this.medallionHole = findMedallionHole(this.parsed);
+
     this.material = patchRevealMaterial(
       new THREE.MeshPhysicalMaterial({
         color: 0xc8962e,
         metalness: 1,
         roughness: 0.22,
+        roughnessMap: this.surfaceMaps.roughnessMap,
+        normalMap: this.surfaceMaps.normalMap,
+        normalScale: new THREE.Vector2(0.038, 0.038),
         clearcoat: 0.6,
         clearcoatRoughness: 0.15,
         envMapIntensity: 1.25,
@@ -211,11 +311,24 @@ export class Logo {
       }),
       true
     );
+    this.amberInsetMaterial = patchAmberInsetMaterial(
+      new THREE.MeshPhysicalMaterial({
+        color: 0x3b1202,
+        metalness: 0.0,
+        roughness: 0.09,
+        clearcoat: 1.0,
+        clearcoatRoughness: 0.04,
+        reflectivity: 0.95,
+        envMapIntensity: 0.48,
+        emissive: 0x000000,
+      })
+    );
     this.depthMaterial = patchRevealDepth(
       new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking })
     );
 
     this.mesh = null;
+    this.amberInset = null;
     this.outline = null;
     this.outlineMat = null;
     this.outlineCopies = [];
@@ -233,6 +346,11 @@ export class Logo {
       this.body.remove(this.mesh);
       this.mesh.geometry.dispose();
     }
+    if (this.amberInset) {
+      this.body.remove(this.amberInset);
+      this.amberInset.geometry.dispose();
+      this.amberInset = null;
+    }
     const { shapes, K } = this.parsed;
     const depthSvg = Math.max(0.001, cfg.logo.depth / K);
     const bevelSvg = Math.max(0, cfg.logo.bevel / K);
@@ -240,18 +358,35 @@ export class Logo {
       depth: depthSvg,
       bevelEnabled: bevelSvg > 0,
       bevelThickness: bevelSvg,
-      bevelSize: bevelSvg * 0.8,
+      bevelSize: bevelSvg * LOGO_BEVEL_WIDTH_RATIO,
       bevelOffset: 0,
-      bevelSegments: 6,
+      bevelSegments: LOGO_BEVEL_SEGMENTS,
       curveSegments: 40,
     });
     geo.computeVertexNormals();
     // центрируем геометрию (x,y по bbox, z — по середине экструзии)
     geo.translate(-this.parsed.cx, -this.parsed.cy, -depthSvg / 2);
+    normalizeLogoUVs(geo, K);
     this.mesh = new THREE.Mesh(geo, this.material);
     this.mesh.castShadow = true;
     this.mesh.customDepthMaterial = this.depthMaterial;
     this.body.add(this.mesh);
+
+    // Янтарная вставка в окне оголовка циркуля: выпуклый кабошон внутри
+    // золотой оправы, за внутренней эмблемой, поэтому золото знака остаётся сверху.
+    if (this.medallionHole) {
+      const { cx, cy, rx, ry } = this.medallionHole;
+      const radius = Math.min(rx, ry) * 0.994;
+      const insetGeo = new THREE.SphereGeometry(radius, 36, 20);
+      const halfThick = Math.max(0.0005, depthSvg * 0.44);
+      insetGeo.scale(rx / radius, ry / radius, halfThick / radius);
+      insetGeo.translate(cx, cy, 0);
+      this.amberInset = new THREE.Mesh(insetGeo, this.amberInsetMaterial);
+      this.amberInset.castShadow = false;
+      this.amberInset.customDepthMaterial = this.depthMaterial;
+      this.body.add(this.amberInset);
+    }
+
     this.depthSvg = depthSvg;
     this.frontZ = depthSvg / 2 + bevelSvg;
     // контур лежит на лицевой грани (поверх скоса)
@@ -380,7 +515,11 @@ export class Logo {
     this.outlineMat?.dispose();
     this.outlineGlowMat?.dispose();
     this.mesh?.geometry.dispose();
+    this.amberInset?.geometry.dispose();
+    this.surfaceMaps?.roughnessMap.dispose();
+    this.surfaceMaps?.normalMap.dispose();
     this.material.dispose();
+    this.amberInsetMaterial?.dispose();
     this.depthMaterial.dispose();
   }
 }

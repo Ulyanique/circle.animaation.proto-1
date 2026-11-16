@@ -32,7 +32,7 @@ export const SCHEMA = [
   { id: "intro", title: "Последовательность интро", fields: [
     { key: "cornerDuration", label: "Прорисовка боковых кругов", type: "range", min: 0.2, max: 4, step: 0.05 },
     { key: "liftDuration", label: "Подъём логотипа", type: "range", min: 0.2, max: 3, step: 0.05 },
-    { key: "titleDelay", label: "Пауза до надписей", type: "range", min: 0, max: 3, step: 0.05 },
+    { key: "titleDelay", label: "Нахлёст надписей (сек)", type: "range", min: 0, max: 1.5, step: 0.01 },
   ] },
   ...DECOR_SLOTS.map(({section}, index) => ({ id: section, title: `Построительная окружность ${index + 1}`, fields: [
     { key: "present", label: "Добавить окружность в сцену", type: "bool" },
@@ -147,12 +147,16 @@ export const SCHEMA = [
       { key: "startDelay", label: "Задержка старта", type: "range", min: 0, max: 5, step: 0.05 },
       { key: "ringsIntro", label: "Появление кругов", type: "range", min: 0.1, max: 6, step: 0.05 },
       { key: "speed", label: "Скорость", type: "range", min: 0.1, max: 3, step: 0.01 },
+      // Сетка такта: 0 BPM — выключена и ничего не меняет в прежних настройках.
+      { key: "beatBpm", label: "Сетка такта: BPM (0 — выкл.)", type: "range", min: 0, max: 200, step: 1 },
+      { key: "beatOffset", label: "Сетка такта: фаза (сек)", type: "range", min: 0, max: 5, step: 0.01 },
     ]
   },
   {
     id: "logo", title: "Логотип", fields: [
       { key: "visible", label: "Показывать логотип", type: "bool" },
       { key: "cinematic", label: "Кинематографичный свет и металл", type: "bool" },
+      { key: "amber", label: "Янтарный срез и подсветка", type: "range", min: 0, max: 1, step: 0.01 },
       { key: "directedMotion", label: "Интро: режиссёрская подача движения", type: "bool" },
       { key: "scale", label: "Размер", type: "range", min: 0.3, max: 2.5, step: 0.01 },
       { key: "offsetX", label: "Положение по горизонтали", type: "range", min: -2, max: 2, step: 0.01 },
@@ -180,6 +184,12 @@ export const SCHEMA = [
       { key: "outlineWidthPx", label: "Толщина контура (px)", type: "range", min: 0.5, max: 12, step: 0.1 },
       { key: "outlineGlow", label: "Свечение контура", type: "range", min: 0, max: 1, step: 0.01 },
       { key: "glint", label: "Блик по золоту", type: "range", min: 0, max: 3, step: 0.01 },
+    ]
+  },
+  {
+    id: "camera", title: "Камера", fields: [
+      { key: "holdDolly", label: "Подъезд на удержании (доля кадра)", type: "range", min: 0, max: 0.06, step: 0.001 },
+      { key: "parallax", label: "Параллакс слоёв", type: "range", min: 0, max: 3, step: 0.01 },
     ]
   },
   {
@@ -309,6 +319,8 @@ export const SCHEMA = [
       { key: "dofStartBlur", label: "Размытие на старте", type: "range", min: 0, max: 8, step: 0.05 },
       { key: "chromaticAberration", label: "Хроматическая аберрация", type: "range", min: 0, max: 0.004, step: 0.0001 },
       { key: "anamorphic", label: "Анаморфный блик", type: "range", min: 0, max: 2, step: 0.01 },
+      { key: "ditherEnabled", label: "Дизеринг: включён", type: "bool" },
+      { key: "dither", label: "Дизеринг (против полос)", type: "range", min: 0, max: 2, step: 0.05 },
     ]
   },
 ];

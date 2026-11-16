@@ -1,4 +1,7 @@
-import { Output, Mp4OutputFormat, BufferTarget, CanvasSource, canEncodeVideo, Input, BufferSource, ALL_FORMATS, EncodedPacketSink } from 'mediabunny';
+import { Output, Mp4OutputFormat, WebMOutputFormat, BufferTarget, CanvasSource, VideoSampleSource, VideoSample,
+  canEncodeVideo, Input, BufferSource, ALL_FORMATS, EncodedPacketSink } from 'mediabunny';
+import { BASE_PIXELS } from "./scenes/catalog.js";
+import { deliveryOption, deliveryBitrate, codecString, deliveryLabel } from "./delivery.js";
 
 /** A frame samples one cycle at an exact output index. Playback speed changes video duration, not sampling accuracy.
  * @param {number} cycle @param {number} speed @param {number} fps */
@@ -11,6 +14,16 @@ export function frameCount(cycle, speed, fps) {
 export function frameTimestamp(index, fps) { return Math.round(index * 1000000 / fps) / 1000000; }
 
 export const DEFAULT_VIDEO_BITRATE = 40000000;
+export const MAX_VIDEO_BITRATE = 120000000;
+
+/** Битрейт растёт вместе с площадью кадра: 4K требует вчетверо больше данных.
+ * @param {number} width @param {number} height */
+export function videoBitrateFor(width, height) {
+  if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0)
+    throw new Error('Некорректный размер кадра для оценки битрейта');
+  const scaled = DEFAULT_VIDEO_BITRATE * (width * height) / BASE_PIXELS;
+  return Math.round(Math.min(MAX_VIDEO_BITRATE, Math.max(DEFAULT_VIDEO_BITRATE, scaled)));
+}
 
 /** Rough encoded payload estimate, not peak memory or a guaranteed file size.
  * @param {number} total @param {number} fps @param {number} bitrate */
@@ -20,30 +33,106 @@ export function estimateVideoBytes(total, fps, bitrate = DEFAULT_VIDEO_BITRATE) 
   return total / fps * bitrate / 8;
 }
 
-/** Offline WebCodecs: render and encode every frame, await backpressure, and verify the resulting MP4.
- * No real-time capture fallback: unsupported codecs and encoder failures are reported to the caller.
+/**
+ * Кадр 10-битного варианта собирается из RGBA-полотна в I420P10 (BT.709,
+ * limited range). 8-битный canvas сам по себе 10 бит не даёт: расширение
+ * разрядности без шума не добавляет ничего, но снимает бандинг в кодировщике
+ * и в градиентах после цветового преобразования.
+ * @param {CanvasRenderingContext2D} ctx @param {ImageData} image @param {number} timestamp @param {number} duration */
+function tenBitFrame(ctx, image, timestamp, duration) {
+  const { width, height } = image;
+  const rgba = image.data;
+  const lumaSize = width * height;
+  const chromaWidth = Math.ceil(width / 2), chromaHeight = Math.ceil(height / 2);
+  const chromaSize = chromaWidth * chromaHeight;
+  const planes = new Uint16Array(lumaSize + chromaSize * 2);
+  // BT.709 limited range: Y' 16..235, Cb/Cr 16..240, в 10 битах — ×4.
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const i = (y * width + x) * 4;
+      const r = rgba[i], g = rgba[i + 1], b = rgba[i + 2];
+      const luma = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+      planes[y * width + x] = Math.round((16 + luma / 255 * 219) * 4);
+    }
+  }
+  // Хрома — среднее по 2×2: цветовой шум на жирном зерне не должен «звенеть».
+  for (let y = 0; y < chromaHeight; y++) {
+    for (let x = 0; x < chromaWidth; x++) {
+      let r = 0, g = 0, b = 0, n = 0;
+      for (let dy = 0; dy < 2; dy++) {
+        const sy = y * 2 + dy;
+        if (sy >= height) break;
+        for (let dx = 0; dx < 2; dx++) {
+          const sx = x * 2 + dx;
+          if (sx >= width) break;
+          const i = (sy * width + sx) * 4;
+          r += rgba[i]; g += rgba[i + 1]; b += rgba[i + 2]; n++;
+        }
+      }
+      r /= n; g /= n; b /= n;
+      const cb = -0.1146 * r - 0.3854 * g + 0.5 * b;
+      const cr = 0.5 * r - 0.4542 * g - 0.0458 * b;
+      planes[lumaSize + y * chromaWidth + x] = Math.round((128 + cb / 255 * 224) * 4);
+      planes[lumaSize + chromaSize + y * chromaWidth + x] = Math.round((128 + cr / 255 * 224) * 4);
+    }
+  }
+  const Frame = /** @type {typeof VideoFrame} */ (VideoFrame);
+  const frame = new (/** @type {any} */ (Frame))(planes, {
+    format: 'I420P10', codedWidth: width, codedHeight: height, timestamp, duration,
+    colorSpace: { primaries: 'bt709', transfer: 'bt709', matrix: 'bt709', fullRange: false },
+  });
+  return new VideoSample(frame, { timestamp, duration });
+}
+
+/**
+ * Оффлайн WebCodecs: рендер и кодирование каждого кадра, ожидание backpressure,
+ * проверка получившегося файла. Реального времени нет: неподдерживаемый кодек и
+ * сбой кодировщика сообщаются вызывающему, а не превращаются в тихую деградацию.
  * @param {{canvas:HTMLCanvasElement, fps:number, total:number, draw:(index:number)=>void, cancelled:()=>boolean,
- * progress?:(done:number,total:number)=>void, bitrate?:number}} options */
-export async function encodeOfflineVideo({canvas, fps, total, draw, cancelled, progress, bitrate = DEFAULT_VIDEO_BITRATE}) {
+ * progress?:(done:number,total:number)=>void, bitrate?:number, delivery?:string}} options */
+export async function encodeOfflineVideo({canvas, fps, total, draw, cancelled, progress,
+  bitrate = DEFAULT_VIDEO_BITRATE, delivery = 'h264'}) {
   if (!Number.isInteger(total) || total < 1) throw new Error('Нет кадров для экспорта');
   if (typeof VideoEncoder === 'undefined' || typeof VideoFrame === 'undefined')
     throw new Error('Браузер не поддерживает покадровый экспорт WebCodecs. Откройте проект в актуальном Chrome или Edge по HTTPS.');
-  const codec = 'avc'; // H.264 in MP4 is widely supported by players and editors.
-  if (!await canEncodeVideo(codec, {width:canvas.width, height:canvas.height, bitrate, frameRate:fps, latencyMode:'quality'}))
-    throw new Error('Браузер не поддерживает кодирование H.264 для MP4 в этом разрешении. Попробуйте актуальный Chrome или Edge.');
+  const option = deliveryOption(delivery);
   const target = new BufferTarget();
-  const output = new Output({format:new Mp4OutputFormat(), target});
+  const format = option.container === 'webm' ? new WebMOutputFormat() : new Mp4OutputFormat();
+  const output = new Output({format, target});
+  /** @type {import('mediabunny').VideoEncodingConfig} */
+  const encoding = {codec:option.codec, bitrate:deliveryBitrate(option.id, bitrate), latencyMode:'quality'};
+  // Для 10 бит строка кодека должна требовать Main 10 — иначе браузер молча
+  // отдаст 8 бит и мы получим полосы, ради которых всё и делалось.
+  if (option.bitDepth === 10) encoding.fullCodecString = codecString(option);
+  const supported = await canEncodeVideo(option.codec, {width:canvas.width, height:canvas.height,
+    bitrate:encoding.bitrate, frameRate:fps, ...(encoding.fullCodecString ? {fullCodecString:encoding.fullCodecString} : {})});
+  if (!supported)
+    throw new Error(`${deliveryLabel(option)} не поддерживается в этом браузере для ${canvas.width}×${canvas.height}. `
+      + 'Выберите H.264 или другой разрешённый вариант доставки.');
   /** @type {number[]} */
   const timestamps = [];
-  const source = new CanvasSource(canvas, {codec, bitrate, latencyMode:'quality', onEncodedPacket: packet => timestamps.push(packet.timestamp)});
+  /** @param {{timestamp:number}} packet */
+  const onEncodedPacket = packet => { timestamps.push(packet.timestamp); };
+  // 10 бит требуют готовых I420P10-сэмплов: CanvasSource всегда отдаёт 8 бит.
+  const source = option.bitDepth === 10
+    ? new VideoSampleSource({...encoding, onEncodedPacket})
+    : new CanvasSource(canvas, {...encoding, onEncodedPacket});
   output.addVideoTrack(source, {frameRate:fps});
+  const context = option.bitDepth === 10 ? canvas.getContext('2d', {willReadFrequently:true}) : null;
+  if (option.bitDepth === 10 && !context) throw new Error('Не удалось прочитать кадр для 10-битного экспорта');
   try {
     await output.start();
     for (let i = 0; i < total; i++) {
       if (cancelled()) throw new DOMException('Экспорт отменён', 'AbortError');
       draw(i);
       const stamp = frameTimestamp(i, fps), next = frameTimestamp(i + 1, fps);
-      await source.add(stamp, next - stamp);
+      if (context) {
+        const image = context.getImageData(0, 0, canvas.width, canvas.height);
+        const sample = tenBitFrame(context, image, stamp, next - stamp);
+        try { await /** @type {VideoSampleSource} */ (source).add(sample); } finally { sample.close(); }
+      } else {
+        await /** @type {CanvasSource} */ (source).add(stamp, next - stamp);
+      }
       progress?.(i + 1, total);
       // Yield to input/painting; slow machines or background tabs simply take longer.
       if (i % 4 === 3) await new Promise(resolve => setTimeout(resolve, 0));
@@ -66,12 +155,35 @@ export async function encodeOfflineVideo({canvas, fps, total, draw, cancelled, p
       for await (const packet of sink.packets()) packetTimes.push(packet.timestamp);
       packetTimes.sort((a, b) => a - b);
       if (packetTimes.length !== total) throw new Error(`В файле ${packetTimes.length} кадров вместо ${total}; файл не сохранён.`);
-      if (packetTimes.some((timestamp, i) => Math.abs(timestamp - frameTimestamp(i, fps)) > .0001))
+      // WebM/Matroska хранит время в миллисекундах, MP4 — точнее. Допуск берём
+      // по контейнеру: это округление таймкода, а не потеря кадра (число кадров
+      // проверено выше).
+      const tolerance = option.container === 'webm' ? .0005 : .0001;
+      if (packetTimes.some((timestamp, i) => Math.abs(timestamp - frameTimestamp(i, fps)) > tolerance))
         throw new Error('В видео нарушена последовательность кадров; файл не сохранён.');
+      // Глубина — не обещание, а факт: читаем строку кодека из самого файла.
+      const actual = await track.getCodecParameterString();
+      const actualDepth = codecBitDepth(actual);
+      if (option.bitDepth === 10 && actualDepth !== 10)
+        throw new Error(`Кодировщик выдал ${actualDepth ?? '?'}-битный поток (${actual ?? 'без строки кодека'}); `
+          + '10-битный файл не сохранён, чтобы не выдать 8 бит за 10.');
     } finally { input.dispose(); }
-    return {blob:new Blob([target.buffer], {type:'video/mp4'}), codec, frames:total};
+    return {blob:new Blob([target.buffer], {type:option.container === 'webm' ? 'video/webm' : 'video/mp4'}),
+      codec:option.codec, delivery:option.id, bitDepth:option.bitDepth, frames:total};
   } catch (error) {
     if (output.state !== 'finalized' && output.state !== 'canceled') await output.cancel().catch(() => {});
     throw error;
   }
+}
+
+/**
+ * Глубина потока по строке кодека, если её видно. `vp09.PP.LL.DD` — поле DD
+ * задаёт битность; у H.264 и HEVC глубина в строке не указывается, поэтому
+ * получаем `null` и не делаем вид, что знаем больше.
+ * @param {string|null} parameterString */
+export function codecBitDepth(parameterString) {
+  if (typeof parameterString !== 'string') return null;
+  const vp9 = /^vp09\.\d{2}\.\d{2}\.(08|10|12)/.exec(parameterString);
+  if (vp9) return Number(vp9[1]);
+  return null;
 }

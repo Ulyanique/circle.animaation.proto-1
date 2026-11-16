@@ -151,24 +151,46 @@ if (OUT) fs.mkdirSync(OUT, { recursive: true });
 
     const expectedResetScale = 0.58;
     const expectedResetY = 0;
-    const failed =
-      errors.length > 0 ||
-      closed.display === "none" || closed.open ||
-      !opened.open || opened.tabs.join(",") !== "waiting,brand,partners,photo-pause,finale" ||
-      opened.active !== "waiting" || opened.heading !== "01" ||
-      !brandPanel.open || brandPanel.active !== "brand" ||
-      Number(brandPanel.scale) !== 0.58 || Number(brandPanel.offsetY) !== 0 ||
-      edited.live !== 0.62 || edited.stored !== 0.62 ||
-      isolation.introScale !== 0.47 || isolation.brandScale !== 0.62 || isolation.introStored !== null ||
-      !exported.sceneKeys.includes("logo") || !exported.sceneKeys.includes("timeline") ||
-      exported.scenes.sort().join(",") !== "brand,finale,photo-pause,waiting" || exported.version !== 2 ||
-      importedScene.scale !== 0.54 || importedScene.offsetY !== 1.24 ||
-      importedScene.stored !== 0.54 || !importedScene.closed ||
-      importedProject.brand !== 0.66 || importedProject.intro !== 0.54 ||
-      reset.scale !== expectedResetScale || reset.offsetY !== expectedResetY ||
-      panelClosed.uiOn || panelClosed.open ||
-      idle.display === "none" || idle.opacity > 0.8 || idle.opacity < 0.3;
-    if (failed) process.exitCode = 1;
+    // Каждое условие с именем: молчаливый exit 1 ничего не говорит о причине.
+    const checks = {
+      "нет ошибок страницы": errors.length === 0,
+      "кнопка настроек видна": closed.display !== "none",
+      "панель закрыта при старте": !closed.open,
+      "панель открывается": opened.open,
+      "вкладки всех сцен": opened.tabs.join(",") === "waiting,brand,partners,photo-pause,finale",
+      "активная вкладка — интро": opened.active === "waiting",
+      "заголовок панели 01": opened.heading === "01",
+      "вкладка «Фон» открыта": brandPanel.open && brandPanel.active === "brand",
+      "масштаб знака из настроек сцены": Number(brandPanel.scale) === 0.58,
+      "смещение знака из настроек сцены": Number(brandPanel.offsetY) === 0,
+      "правка применяется сразу": edited.live === 0.62,
+      "правка сохраняется": edited.stored === 0.62,
+      "интро не меняется от правки «Фона»": isolation.introScale === 0.47,
+      "«Фон» сохраняет свою правку": isolation.brandScale === 0.62,
+      "интро не получило чужое сохранение": isolation.introStored === null,
+      "JSON сцены содержит logo и timeline": exported.sceneKeys.includes("logo") && exported.sceneKeys.includes("timeline"),
+      // Готовых ролей теперь пять: к 01/02/08/09 добавились «Спонсоры» (04).
+      "JSON проекта содержит все готовые сцены": exported.scenes.sort().join(",") === "brand,finale,partners,photo-pause,waiting",
+      "версия проекта 2": exported.version === 2,
+      "импорт сцены меняет масштаб": importedScene.scale === 0.54,
+      "импорт сцены меняет смещение": importedScene.offsetY === 1.24,
+      "импорт сцены сохраняется": importedScene.stored === 0.54,
+      "импорт закрывает панель": importedScene.closed,
+      "импорт проекта: «Фон»": importedProject.brand === 0.66,
+      "импорт проекта: интро": importedProject.intro === 0.54,
+      "сброс масштаба": reset.scale === expectedResetScale,
+      "сброс смещения": reset.offsetY === expectedResetY,
+      "в простое панель закрыта": !panelClosed.uiOn && !panelClosed.open,
+      "кнопка в простое видна": idle.display !== "none",
+      "кнопка в простое приглушена, но кликабельна": idle.opacity <= 0.8 && idle.opacity >= 0.3,
+    };
+    const failed = Object.entries(checks).filter(([, ok]) => !ok).map(([name]) => name);
+    if (failed.length) {
+      console.error(`FAIL: ${failed.join("; ")}`);
+      process.exitCode = 1;
+    } else {
+      console.log("Настройки сцен, изоляция, JSON и простое — OK");
+    }
   } finally {
     await browser.close();
   }

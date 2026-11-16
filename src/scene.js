@@ -8,11 +8,11 @@ import { captionTimedLine } from "./caption-timing.js";
 import { customTextAnimation, customTextVisual } from "./custom-text.js";
 import { applyEffectOrder } from "./effect-order.js";
 import * as THREE from "three";
-import { OUTPUT } from "./scenes/catalog.js";
 import {
   EffectComposer,
   RenderPass,
   EffectPass,
+  ShaderPass,
   BloomEffect,
   SMAAEffect,
   SMAAPreset,
@@ -22,7 +22,21 @@ import {
   ToneMappingEffect,
   ToneMappingMode,
 } from "postprocessing";
-import { RoomEnvironment } from "three/examples/jsm/environments/RoomEnvironment.js";
+import { createStudioEnvironment } from "./studio-environment.js";
+import { masterSize, masterId } from "./output-profile.js";
+import { applyQualityPreset, qualityPostOverrides, suggestedQuality, parallaxAmount, DEFAULT_QUALITY, isQualityPreset } from "./quality-presets.js";
+
+/**
+ * MSAA выбранного пресета: пресет может только выключать сэмплы, но не
+ * добавлять их сверх авторской настройки сцены.
+ * @param {any} post
+ * @param {string} qualityId
+ */
+function effectiveMsaa(post, qualityId) {
+  return Math.min(Number(post.msaaSamples) || 0, qualityPostOverrides(qualityId).msaaSamples);
+}
+import { DitherEffect } from "./dither-effect.js";
+import { CaptionLayer, CAPTION_SHADER } from "./caption-layer.js";
 import { BACKGROUND_GLOW_IDS } from "./background-glow-config.js";
 import { BackgroundGlow } from "./background-glow.js";
 import { PARTICLE_CLOUD_IDS } from "./particle-cloud-config.js";
@@ -37,7 +51,7 @@ import { Plotter } from "./plotter.js";
 import { SolarBokeh } from "./bokeh.js";
 import { captionState, finaleCaptionState, captionAccent, glyphReveal } from "./caption.js";
 import { captionDrift, introTitleLanding } from "./caption-layout.js";
-import { computePhase, compositionFocus, heroGlint, seamCurtainOpacity, logoDrawFinish } from "./timeline.js";
+import { computePhase, compositionFocus, heroGlint, seamCurtainOpacity, layerParallax, logoDrawFinish } from "./timeline.js";
 import { introCues, introSequence, introOutro, introCornerEnvelopes, finaleCues } from "./scenes/cues.js";
 
 const FOV = 30;
@@ -77,21 +91,20 @@ export class LogoScene {
     this.camera = new THREE.PerspectiveCamera(FOV, 1, 0.1, 100);
     this.camera.position.set(0, 0, CAM_Z);
 
-    // Окружение: студийный HDR-подобный env для реалистичных металлических бликов
-    const pmrem = new THREE.PMREMGenerator(this.renderer);
-    this.envTexture = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
-    pmrem.dispose();
+    // Окружение: собственные софтбоксы под бренд, а не стандартная комната three.js.
+    this.envTexture = createStudioEnvironment(this.renderer);
 
     // Фон и свет из углов
     this.background = new Background();
     this.scene.add(this.background.mesh);
 
-    // Тень на задний план (ловит тень логотипа)
+    // Тень на задний план: близкая плоскость даёт мягкую контактную тень
+    // прямо за знаком, а не далёкий силуэт сбоку, спорящий с титром.
     this.shadowPlane = new THREE.Mesh(
       new THREE.PlaneGeometry(60, 60),
       new THREE.ShadowMaterial({ color: 0x000000, opacity: 0.7, transparent: true, depthWrite: false })
     );
-    this.shadowPlane.position.z = -1.3;
+    this.shadowPlane.position.z = -0.32;
     this.shadowPlane.receiveShadow = true;
     this.scene.add(this.shadowPlane);
 
@@ -156,6 +169,15 @@ export class LogoScene {
     this.topGlow.position.set(0, 1.5, -0.6);
     this.topGlow.scale.setScalar(9);
     this.scene.add(this.topGlow);
+    // Мягкая янтарная подсветка за знаком: тёплый акцент, который отделяет
+    // металл от коричневого фона и напоминает о названии бренда.
+    this.amberGlow = new THREE.Sprite(new THREE.SpriteMaterial({
+      map: this.corners.glowTex, color: 0xc06c1e, transparent: true, depthWrite: false,
+      blending: THREE.AdditiveBlending, opacity: 0,
+    }));
+    this.amberGlow.position.set(0, 0.2, -0.7);
+    this.amberGlow.scale.set(3.6, 3.6, 1);
+    this.scene.add(this.amberGlow);
     this.scene.add(this.particles.group);
 
     // Полноэкранная заслонка внутри WebGL: одинаково действует на превью,
@@ -170,7 +192,15 @@ export class LogoScene {
     this.seamCurtain.frustumCulled = false;
     this.scene.add(this.seamCurtain);
 
-    this._msaaSig = String(cfg.post.msaaSamples);
+    // Титр — отдельный проход композитора: общий тон, SMAA и дизеринг без
+    // блума, аберрации и DoF, которые размывают буквы на большом экране.
+    this.captionLayer = new CaptionLayer();
+    this._captionVisible = true;
+    this._captionOverride = false;
+    this._captionSource = null;
+
+    this._quality = suggestedQuality(masterId());
+    this._msaaSig = String(effectiveMsaa(cfg.post, this._quality));
     this._setupComposer();
     this.resize();
     this.applyStatic();
@@ -179,7 +209,7 @@ export class LogoScene {
   _setupComposer() {
     const cfg = this.cfg;
     this.composer = new EffectComposer(this.renderer, {
-      multisampling: cfg.post.msaaSamples,
+      multisampling: effectiveMsaa(cfg.post, this._quality),
       frameBufferType: THREE.HalfFloatType,
     });
     this.composer.addPass(new RenderPass(this.scene, this.camera));
@@ -198,18 +228,38 @@ export class LogoScene {
       radius: 0.8,
     });
     this.chroma = new ChromaticAberrationEffect();
-    this.vignette = new VignetteEffect({ darkness: 0.45, offset: 0.35 });
+    this.vignette = new VignetteEffect({ darkness: 0.28, offset: 0.45 });
+    // Финальный дизеринг: полосы на тёмных градиентах заметнее всего на большом экране.
+    this.dither = new DitherEffect();
     this.tone = new ToneMappingEffect({ mode: ToneMappingMode.ACES_FILMIC });
     this.smaa = new SMAAEffect({ preset: SMAAPreset.ULTRA });
 
+    this.captionPass = new ShaderPass(new THREE.ShaderMaterial({
+      uniforms: {
+        inputBuffer: { value: null },
+        uCaption: { value: this.captionLayer.texture },
+        uOpacity: { value: 1 },
+      },
+      ...CAPTION_SHADER,
+      depthTest: false,
+      depthWrite: false,
+    }));
+    this.captionPass.enabled = false;
+
     this.composer.addPass(new EffectPass(this.camera, this.dof));
-    this.composer.addPass(new EffectPass(this.camera, this.bloom, this.chroma, this.vignette, this.tone));
+    this.composer.addPass(new EffectPass(this.camera, this.bloom, this.chroma, this.vignette));
+    // Титр садится в кадр до тонмаппинга: тот же грейд, что у всего кадра.
+    this.composer.addPass(this.captionPass);
+    this.composer.addPass(new EffectPass(this.camera, this.tone));
     this.composer.addPass(new EffectPass(this.camera, this.smaa));
+    this.composer.addPass(new EffectPass(this.camera, this.dither));
   }
 
   resize() {
-    // внутренний рендер фиксирован 1920×1080 (pixelRatio = 1); на экран кадр масштабируется с letterbox
-    const RW = OUTPUT.width, RH = OUTPUT.height, ASPECT = RW / RH;
+    // Внутренний рендер следует профилю мастера (умолчание — 1920×1080),
+    // на экран кадр масштабируется с letterbox.
+    const { width: RW, height: RH } = masterSize();
+    const ASPECT = RW / RH;
     // Внутренний рендер неизменен при перемещении и масштабе интерфейса.
     if (this._w !== RW || this._h !== RH) {
       this.renderer.setPixelRatio(1);
@@ -235,6 +285,8 @@ export class LogoScene {
     this.background.mesh.scale.set((bgH * this.camera.aspect) / 2 * 1.3, bgH / 2 * 1.3, 1);
     this.background.mesh.position.z = -3.5;
     this.logo.setResolution(RW * pr, RH * pr);
+    this.plotter.setResolution?.(RW * pr, RH * pr);
+    this.captionLayer.setSize(RW, RH);
   }
 
   /** Статичные вещи, которые не меняются каждый кадр (но могут меняться от настроек). */
@@ -252,10 +304,15 @@ export class LogoScene {
     const introExit = this.isIntro ? introOutro(ph, cfg.timeline) : null;
     if (introExit) ph = { ...ph, ...introExit };
     const finale = cfg.finale ? finaleCues(ph, cfg.timeline, cfg.finale) : null;
+    // Состояние финальной последовательности доступно проверкам кадра.
+    this._finaleState = finale;
     if (finale?.active && ph.name === "fade") {
       ph = { ...ph, reveal: finale.reveal, fill: finale.reveal, outline: finale.outline, draw: finale.draw };
     }
     const opening = this.introStyle && !finale?.active ? introCues(ph, cfg.timeline) : { beams: 0, strike: 0, approach: 0 };
+    // Такт стартовой вспышки доступен проверкам кадра: uIntroLight принадлежит
+    // общему слою верхних лучей и в фоновых сценах не равен нулю.
+    this._openingBeams = opening.beams;
     const sequencePhase = finale?.active
       ? computePhase(cfg.timeline.startDelay + cfg.timeline.drawDuration + cfg.timeline.emergeDuration + cfg.timeline.holdDuration - 1e-6, cfg.timeline) : ph;
     const sequence = this.introStyle ? introSequence(sequencePhase, cfg.timeline, cfg.intro) : null;
@@ -266,7 +323,7 @@ export class LogoScene {
     this.applyStatic();
 
     // MSAA задаётся при создании composer → пересоздаём при смене значения
-    const msaaSig = String(cfg.post.msaaSamples);
+    const msaaSig = String(effectiveMsaa(cfg.post, this._quality));
     if (msaaSig !== this._msaaSig) {
       this._msaaSig = msaaSig;
       this.composer.dispose();
@@ -287,6 +344,11 @@ export class LogoScene {
     m.envMapIntensity = cfg.logo.envIntensity * (cfg.lights.envEnabled ? 1 : 0) * exposure;
     // глубокий золотой оттенок в тенях через emissive
     m.emissive.set(cfg.colors.goldDeep).multiplyScalar(0.12);
+    const amberAmount = THREE.MathUtils.clamp(cfg.logo.amber ?? 0, 0, 1);
+    if (this.logo.amberInset) {
+      this.logo.amberInset.visible = amberAmount > 0.001;
+      this.logo.amberInsetMaterial.envMapIntensity = 0.48 * (cfg.lights.envEnabled ? 1 : 0) * exposure;
+    }
 
     // Изолируем собственный интервал знака от сценария света, фона и титров.
     const logoPhase = logoTimingPhase(t, cfg.timeline, cfg.logoTiming, ph);
@@ -301,6 +363,7 @@ export class LogoScene {
       (1 + opening.strike * 0.55);
     revealUniforms.uGlowColor.value.set(cfg.colors.glowColor);
     revealUniforms.uK.value = this.logo.parsed.K;
+    revealUniforms.uAmber.value = amberAmount;
 
     // движение: пульсация + покачивание + плавное увеличение во время удержания
     const scaleGrow = THREE.MathUtils.lerp(cfg.logo.holdScaleFrom, cfg.logo.holdScaleTo, easeOutCubic(ph.grow));
@@ -358,7 +421,15 @@ export class LogoScene {
     if (cinematic) for (const points of [this.particles.left, this.particles.right, this.particles.dust]) {
       if (points) points.material.uniforms.uBright.value *= 0.42;
     }
+    // Параллакс слоёв: фон, кольца и пыль сдвигаются на 1–3 px относительно
+    // знака. Знак и титр стоят на месте — глубина появляется без DOF.
+    // Смещение периодично по циклу, поэтому шов не меняется.
+    const par = layerParallax(t, cfg.timeline, parallaxAmount(cfg.camera?.parallax ?? 0, masterSize()));
     this.background.update(t, cfg);
+    this.background.mesh.position.x = -par.x;
+    this.background.mesh.position.y = -par.y;
+    this.corners.group.position.set(par.x * 0.7, par.y * 0.7, 0);
+    this.particles.group.position.set(par.x * 1.5, par.y * 1.5, 0);
     this.background.uniforms.uEnvL.value = cornerEnv * (cinematic ? 0.42 : 1) * (ringSideVisible(cfg.rings, "left") ? 1 : 0);
     this.background.uniforms.uEnvR.value = sideEnv.right * (1 - 0.44 * focus) * (cinematic ? 0.42 : 1) * (ringSideVisible(cfg.rings, "right") ? 1 : 0);
     updateUpperRays(this.background, ph, cfg, this.introStyle, opening.beams, t);
@@ -384,7 +455,11 @@ export class LogoScene {
     this.keyLight.position.set(-Math.sin(a) * 6.5, 5.2, Math.cos(a) * 6.5);
     this.keyLight.intensity = cfg.lights.keyIntensity * 1.5 * exposure;
     this.keyLight.shadow.radius = cfg.lights.shadowSoftness;
-    this.shadowPlane.material.opacity = cfg.lights.shadowOpacity;
+    // Во вращении (фотопауза) ребро знака выдаётся назад до половины ширины;
+    // отодвигаем плоскость тени за вылет поворота, чтобы она не рассекала знак.
+    const yawBack = Math.abs(Math.sin(root.rotation.y)) * 1.65 * root.scale.x;
+    this.shadowPlane.position.z = root.position.z - 0.30 - yawBack;
+    this.shadowPlane.material.opacity = cfg.lights.shadowOpacity * logoPhase.reveal;
     this.fillLight.intensity = cfg.lights.fillIntensity * exposure;
     // Один короткий тёплый проход по граням, пока собирается название.
     // На удержании ключевой акцент — текст, а не бегущий по нему блик.
@@ -412,7 +487,6 @@ export class LogoScene {
         : captionState(t, cfg.timeline, sequence?.captionStart, this.isIntro ? 0.42 : 1);
       setStyleIfChanged(capEl, "--finale-subtitle-y", `${79 - 29 * (finale?.subtitleCenter ?? 0)}%`);
       const k = THREE.MathUtils.smoothstep(progress, 0.0, 0.8);
-      capEl.style.opacity = "1";
       capEl.style.setProperty("--drift", `${captionDrift(k, finale?.subtitleCenter ?? 0, parseFloat(capEl.style.height) || window.innerHeight).toFixed(3)}px`);
       capEl.style.transform = "translate(-50%, calc(-50% + var(--drift)))";
       const u = parseFloat(capEl.style.getPropertyValue("--u")) || 19.2;
@@ -463,16 +537,35 @@ export class LogoScene {
       }
     }
 
+    // Титр обновляется после всех CSS-переменных кадра: один путь для превью
+    // и экспорта. В редакторе показываем DOM-слой, чтобы работали рамки.
+    // Текст перерисовывается только когда он виден, но проход остаётся в цепочке
+    // с нулевой непрозрачностью: кадр с титром и без него идёт по одному пути,
+    // поэтому эталон compositeFrameAt(..., false) совпадает побитово.
+    const caption = this._captionSource ? this._captionSource() : null;
+    const captionShown = Boolean(caption) && this._captionVisible &&
+      (this._captionOverride || !document.body.classList.contains("editor-on"));
+    if (captionShown) this.captionLayer.update(caption.sceneId, caption.alpha ?? 1, true);
+    this.captionPass.fullscreenMaterial.uniforms.uOpacity.value = captionShown ? (caption.alpha ?? 1) : 0;
+    this.captionPass.enabled = Boolean(caption);
+
     // Камера интро плавно подъезжает к знаку; остальные ролики сохраняют общую композицию.
     const camK = finale?.active ? 0 : (1 - ph.reveal) * 0.6;
-    this.camera.position.set(this.introStyle ? 0 : -0.6 * camK, this.introStyle ? 0 : 0.35 * camK, CAM_Z + 1.2 * opening.approach);
+    // Долгий подъезд на удержании (настройка «Камера»). Считается по объёму
+    // удержания, поэтому не зависит от частоты кадров и не ломает seek.
+    const dolly = this._holdDolly(ph, cfg);
+    this.camera.position.set(this.introStyle ? 0 : -0.6 * camK, this.introStyle ? 0 : 0.35 * camK,
+      CAM_Z + 1.2 * opening.approach + dolly);
     this.camera.lookAt(0, 0, 0);
     this.camera.updateMatrixWorld();
     this._introCenter.copy(root.position).project(this.camera);
-    this.background.uniforms.uIntroCenter.value.set(this._introCenter.x * OUTPUT.width / OUTPUT.height, this._introCenter.y);
+    this.background.uniforms.uIntroCenter.value.set(this._introCenter.x * this.camera.aspect, this._introCenter.y);
 
     // верхнее свечение: появляется вместе с логотипом
     updateTopIllumination(this.topLight, this.topGlow, cfg, ph.reveal, exposure);
+    this.amberGlow.position.set(root.position.x, root.position.y + 0.15, root.position.z - 0.7);
+    this.amberGlow.scale.setScalar(3.2 + 0.4 * scaleGrow);
+    this.amberGlow.material.opacity = (cfg.logo.amber ?? 0) * 0.18 * ph.reveal * (cinematic ? 1 : 0.6);
     // Уменьшаем только видимую дымку, не мощность источника на металле.
     if (this.introStyle && cfg.logo.cinematic === true) {
       this.topGlow.material.opacity *= 0.48;
@@ -493,7 +586,9 @@ export class LogoScene {
   }
 
   _applyPost(ph, cfg, t) {
-    const p = cfg.post;
+    // Пресет качества (черновик/превью/мастер) накладывается поверх настроек
+    // сцены, не переписывая их: сцена остаётся источником правды.
+    const p = applyQualityPreset(cfg.post, this._quality);
     this.smaa.blendMode.opacity.value = p.smaa ? 1 : 0;
     this.dof.blendMode.opacity.value = p.dofEnabled ? 1 : 0;
     // размытие уходит в ноль, пока проявляется логотип (контур в начале остаётся чётким)
@@ -503,13 +598,72 @@ export class LogoScene {
     this.bloom.luminanceMaterial.threshold = p.bloomThreshold;
     this.bloom.radius = p.bloomRadius;
     this.chroma.offset.set(p.chromaticAberration, p.chromaticAberration);
+    this.dither.strength = p.ditherEnabled === false ? 0 : (p.dither ?? 1);
   }
 
   render(dt) {
     this.composer.render(dt);
   }
 
+  /** Текущий пресет качества кадра. */
+  get quality() {
+    return this._quality;
+  }
+
+  /**
+   * Переключение пресета качества. Кадр меняется только по стоимости
+   * сглаживания и блума, композиция и тайминги остаются прежними.
+   * @param {string} id
+   */
+  setQuality(id) {
+    const next = isQualityPreset(id) ? id : DEFAULT_QUALITY;
+    if (next === this._quality) return false;
+    this._quality = next;
+    const sig = String(effectiveMsaa(this.cfg.post, next));
+    if (sig !== this._msaaSig) {
+      this._msaaSig = sig;
+      this.composer.dispose();
+      this._setupComposer();
+      this.composer.setSize(this._w, this._h);
+    }
+    return true;
+  }
+
+  /**
+   * Смещение камеры за время удержания: медленный подъезд на несколько
+   * процентов, без ускорения на границах фазы.
+   * @param {{name:string, local:number, beforeStart:boolean}} ph
+   * @param {any} cfg
+   * @returns {number}
+   */
+  _holdDolly(ph, cfg) {
+    const amount = Number(cfg.camera?.holdDolly) || 0;
+    if (amount <= 0 || ph.beforeStart) return 0;
+    const tl = cfg.timeline;
+    const holdStart = tl.drawDuration + tl.emergeDuration;
+    const p = THREE.MathUtils.clamp((ph.local - holdStart) / Math.max(tl.holdDuration, 1e-4), 0, 1);
+    // ease-out-quint: движение начинается сразу и мягко тормозит к уходу.
+    const eased = 1 - Math.pow(1 - p, 5);
+    return amount * eased;
+  }
+
+  /** Источник титра: возвращает {sceneId, alpha} или null, когда титра нет. */
+  setCaptionSource(source) {
+    this._captionSource = source;
+  }
+
+  /** Принудительно запечь титр в кадр — экспорт при открытом редакторе. */
+  setCaptionOverride(on) {
+    this._captionOverride = on === true;
+  }
+
+  /** Скрыть/показать титр без изменения настроек — для проверок кадра. */
+  setCaptionVisible(visible) {
+    this._captionVisible = visible !== false;
+  }
+
   dispose() {
+    this.captionLayer.dispose();
     this.contourWaves?.dispose();
     for (const cloud of Object.values(this.particleClouds)) cloud.dispose();
     this.logo.dispose();

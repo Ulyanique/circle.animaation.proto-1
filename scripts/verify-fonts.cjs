@@ -14,6 +14,12 @@ const { launchBrowser } = require('./browser.cjs');
       window.__logo.renderAt(8);
       document.querySelector('.cfg-toggle').click();
       document.querySelector('.cfg-select').closest('details').open = true;
+      // Раскрываем раздел типографики и подводим его к кадру, как это делает
+      // инспектор: иначе снимок панели показывает только блок действий.
+      window.__logo.settings.openSection('typography');
+      document.querySelector('[data-section="typography"]')
+        .scrollIntoView({ block: 'start', behavior: 'instant' });
+      await new Promise(r => setTimeout(r, 400));
       const input = document.querySelector('select[data-key="typography.font"]');
       const values = [...input.options].map(o => o.value);
       const fonts = [];
@@ -41,6 +47,17 @@ const { launchBrowser } = require('./browser.cjs');
       input.dispatchEvent(new Event('change', {bubbles:true}));
       return {values, fonts, other: window.__logo.getSceneConfig('brand').typography.font};
     });
+    // Кадр документации снимаем на высоком окне: на 540 px панель обрезает
+    // раздел типографики, и снимок перестаёт показывать то, что проверяет тест.
+    await page.setViewport({width: 1280, height: 720, deviceScaleFactor: 1});
+    await page.evaluate(() => {
+      window.__logo.settings.openSection('typography');
+      const section = document.querySelector('[data-section="typography"]');
+      const body = section?.parentElement;
+      if (body && section) body.scrollTop = section.offsetTop - body.offsetTop - 8;
+      window.__logo.renderAt(8);
+    });
+    await new Promise((resolve) => setTimeout(resolve, 600));
     await page.screenshot({path:'docs/font-settings.jpg',type:'jpeg',quality:85});
     console.log(JSON.stringify({result, errors}, null, 2));
     assert.equal(result.values.length, 6);

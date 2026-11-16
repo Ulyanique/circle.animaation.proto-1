@@ -1,3 +1,4 @@
+import { BASE_FRAME } from "./scenes/catalog.js";
 // Нарисованные в canvas элементы: никакой декоративной части в фоновой
 // текстуре нет. Все огибающие зависят только от абсолютного времени сцены.
 const clamp = x => Math.max(0, Math.min(1, x));
@@ -44,7 +45,9 @@ function drawFrame(ctx,cue) {
   ctx.setLineDash([Math.max(.001,frameLength*cue.frame),frameLength]);
   // Позолота с тонкой тёмной кромкой и движущимся отражением.
   ctx.lineWidth=5;ctx.strokeStyle='rgba(33,13,5,.65)';framePath(ctx,0);ctx.stroke();
-  const gold=ctx.createLinearGradient(0,0,1920,1080);
+  // Рамка рисуется в координатах базового кадра; контекст уже отмасштабирован
+  // вызывающей стороной, поэтому берём размер из каталога, а не литерал.
+  const gold=ctx.createLinearGradient(0,0,BASE_FRAME.width,BASE_FRAME.height);
   gold.addColorStop(0,'#805b34');gold.addColorStop(.25,'#d1ac70');
   gold.addColorStop(.48,'#f4dcaa');gold.addColorStop(.72,'#99703e');gold.addColorStop(1,'#d8b77f');
   ctx.strokeStyle=gold;ctx.lineWidth=2.5;framePath(ctx,0);ctx.stroke();

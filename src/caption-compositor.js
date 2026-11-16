@@ -3,8 +3,8 @@ import { OUTPUT } from "./scenes/catalog.js";
 import { contourShape } from "./contour-fonts.js";
 import { glyphReveal } from "./caption.js";
 
-const REC_W = OUTPUT.width, REC_H = OUTPUT.height;
-
+// Размер берём у целевого canvas: титр должен совпадать с мастером кадра,
+// а не с единственным форматом 1920×1080.
 /** Регистр тот же, что задаёт CSS для каждой графемы в предпросмотре. */
 export function transformGlyph(glyph, transform, language = "ru") {
   const text = glyph === "\u00a0" ? " " : glyph;
@@ -23,7 +23,9 @@ function scratchContext(width, height) {
   if (!textScratch) textScratch = document.createElement('canvas');
   if (textScratch.width !== width) textScratch.width = width;
   if (textScratch.height !== height) textScratch.height = height;
-  return textScratch.getContext('2d');
+  // Программный растр: полупрозрачная строка должна давать одинаковые пиксели
+  // при любом порядке кадров, иначе экспорт перестаёт быть детерминированным.
+  return textScratch.getContext('2d', { willReadFrequently: true });
 }
 if (typeof document !== "undefined") {
   document.fonts?.addEventListener?.("loadingdone", () => { baselines = new WeakMap(); });
@@ -57,7 +59,9 @@ function capVal(sel, name) {
 }
 
 export function drawCaption(ctx, alpha, sceneId) {
-  const W = REC_W, H = REC_H, u = W / 100;
+  const W = ctx.canvas?.width || OUTPUT.width;
+  const H = ctx.canvas?.height || OUTPUT.height;
+  const u = W / 100;
   const cap = document.getElementById("caption");
   const scale = W / (parseFloat(cap?.style.width) || W);
   const drift = parseFloat(cap?.style.getPropertyValue("--drift")) || 0;
@@ -138,7 +142,7 @@ export function drawCaption(ctx, alpha, sceneId) {
       if (glyph !== " " && reveal.fill > 0.001) {
         ctx.save();
         ctx.beginPath(); ctx.rect(x, 0, width * reveal.fill, H); ctx.clip();
-        if (o.shadow) { ctx.shadowColor = "rgba(0,0,0,0.7)"; ctx.shadowBlur = 0.5 * u; ctx.shadowOffsetY = 0.2 * u; }
+        if (o.shadow) { ctx.shadowColor = "rgba(0,0,0,0.5)"; ctx.shadowBlur = 0.26 * u; ctx.shadowOffsetY = 0.10 * u; }
         ctx.fillStyle = typeof o.fill === "function" ? o.fill(centerY, parseFloat(glyphElements[i].style.getPropertyValue("--title-shine")) || 0) : o.fill;
         paint("fillText");
         ctx.restore();
@@ -213,12 +217,14 @@ export function drawCaption(ctx, alpha, sceneId) {
   const color = (name) => getComputedStyle(cap).getPropertyValue(`--${name}-color`).trim() || null;
   const titleColor = color("title"), subtitleColor = color("subtitle"), dateColor = color("date");
   const tSize = fontSize(".cap-title", (photo ? 6.7 : finale ? 6.6 : 7.2) * u);
-  const subSize = fontSize(".cap-sub", (finale ? 2.55 : 2.4) * u);
-  const dateSize = fontSize(".cap-date", 1.5 * u);
+  const subSize = fontSize(".cap-sub", (finale ? 2.55 : 2.6) * u);
+  const dateSize = fontSize(".cap-date", 1.95 * u);
   const titleGrad = (y) => {
     const g = ctx.createLinearGradient(0, y - tSize / 2, 0, y + tSize / 2);
-    g.addColorStop(0, "#fff3cc"); g.addColorStop(0.4, "#f0cc78");
-    g.addColorStop(0.75, "#c08c36"); g.addColorStop(1, "#e8c06a");
+    // Те же мягкие стопы, что у CSS-градиента по умолчанию.
+    g.addColorStop(0, "#fff4d8"); g.addColorStop(0.22, "#f7e2b4");
+    g.addColorStop(0.44, "#e6c184"); g.addColorStop(0.58, "#cfa260");
+    g.addColorStop(0.76, "#e9cb8d"); g.addColorStop(0.9, "#d3a65f"); g.addColorStop(1, "#bf8f4c");
     return g;
   };
   // У интро три строки, поэтому название остаётся выше; в фоновых сценах титр
@@ -232,7 +238,7 @@ export function drawCaption(ctx, alpha, sceneId) {
   const titlePosition = linePosition(".cap-title", (brand || photo || finale) ? 0.65 * H : 0.55 * H);
   if (!photo) builtinTextLine(".cap-title", {
     ...titlePosition,
-    weight: 600, size: tSize, ls: 0, stroke: titleColor || "#e0b25a", sw: 0.08 * u, shadow: true,
+    weight: 600, size: tSize, ls: 0, stroke: titleColor || "#e0b25a", sw: 0.055 * u, shadow: true,
     fill: titleColor || (cap.dataset.titleMetallic === "true" ? (y, shine) => metallicTitleGradient(ctx, y, tSize, shine) : titleGrad),
   });
   if (finale) {
@@ -243,9 +249,9 @@ export function drawCaption(ctx, alpha, sceneId) {
   }
   if (!brand && !photo && !finale) {
     rule(".r1", 0.66 * H);
-    rule(".r2", 0.79 * H);
+    rule(".r2", 0.787 * H);
     builtinTextLine(".cap-sub", {
-      ...linePosition(".cap-sub", 0.72 * H), weight: 400, size: subSize, ls: 0.32 * subSize, stroke: subtitleColor || "#d9b061", sw: 0.04 * u, fill: subtitleColor || "#ecd08c",
+      ...linePosition(".cap-sub", 0.72 * H), weight: 400, size: subSize, ls: 0.22 * subSize, stroke: subtitleColor || "#d9b061", sw: 0.04 * u, fill: subtitleColor || "#ecd08c",
     });
     builtinTextLine(".cap-date", {
       ...linePosition(".cap-date", 0.84 * H), weight: 400, size: dateSize, ls: 0.28 * dateSize, stroke: dateColor || "#d9b061", sw: 0.035 * u, fill: dateColor || "#d9b061",

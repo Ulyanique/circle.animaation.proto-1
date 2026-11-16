@@ -18,14 +18,19 @@ import { PartnersScene, loadPartnersBackground } from "./partners-scene.js";
 import { FinaleScene } from "./finale-scene.js";
 import { createSettingsUI } from "./ui.js";
 import { AnimationRuntime, cycleDuration } from "./runtime.js";
-import { encodeOfflineVideo, frameCount, estimateVideoBytes } from "./offline-video.js";
+import { encodeOfflineVideo, frameCount, estimateVideoBytes, videoBitrateFor } from "./offline-video.js";
+import { masterSize, masterId, setMasterPreset, loadMasterPreset } from "./output-profile.js";
 import { transitionDuration, drawOutgoingFrame } from "./scene-transition.js";
 import { OUTPUT, RECORDING_CHAIN, sceneById } from "./scenes/catalog.js";
-import { drawCaption } from "./caption-compositor.js";
 import { createOperatorControls, crossedBoundary } from "./operator.js";
+import { loadQuality, saveQuality } from "./quality-presets.js";
+import { loadDelivery, saveDelivery, deliveryOption, deliveryBitrate, deliveryFilename } from "./delivery.js";
+import { photoShutterSamples, shutterTimes } from "./photo-shutter.js";
 import { createFrameEditor } from "./editor.js";
 import { layoutEditorPreview } from "./editor-layout.js";
 
+// Профиль мастера читаем до создания сцены: рендерер сразу получает нужный размер.
+loadMasterPreset();
 const fabricReady = loadFabricTexture();
 const partnersReady = loadPartnersBackground();
 
@@ -124,7 +129,14 @@ applyTypography();
 const adapters = { waiting: LogoScene, brand: BrandScene,
   "partners": PartnersScene, "photo-pause": PhotoPauseScene, finale: FinaleScene };
 let scene = new adapters[sceneId](canvas, cfg);
+// Пресет качества запоминаем между запусками: на площадке важно не искать его
+// заново. Значение по умолчанию — полный кадр превью.
+scene.setQuality(loadQuality());
+// Вариант доставки (кодек и глубина) — решение человека, не браузера: он
+// влияет на то, что площадка сможет открыть. По умолчанию H.264.
+let delivery = loadDelivery();
 let runtime = new AnimationRuntime(scene, cfg, OUTPUT.fps);
+scene.setCaptionSource(captionSourceFor(sceneId));
 layoutEditorPreview(canvas, document.getElementById("caption"));
 applyTypography(true); // теперь известны реальные размеры рамки после resize сцены
 let editor;
@@ -176,7 +188,8 @@ document.addEventListener("visibilitychange", () => {
 let recording = null; // один цикл текущей сцены, переключение на время записи заблокировано
 const operator = createOperatorControls({
   getState: () => ({ id: sceneId, time: runtime.time, config: cfg, cycle: runtime.cycle,
-    recording: !!recording, recordingKind: recording?.kind }),
+    recording: !!recording, recordingKind: recording?.kind, master: masterId(), quality: scene.quality,
+    delivery }),
   seek: (value) => { cfg.playback.paused = true; runtime.renderAt(value, 1 / OUTPUT.fps); },
   setDuration: (value) => {
     const tl = cfg.timeline;
@@ -196,6 +209,23 @@ const operator = createOperatorControls({
     settings.refresh();
   },
   switchScene: (id) => switchScene(id),
+  setMaster: (id) => applyMaster(id),
+  setQuality: (id) => {
+    if (recording || transition) { toast("Во время записи или перехода качество менять нельзя", true); return false; }
+    scene.setQuality(id);
+    saveQuality(scene.quality);
+    runtime.renderAt(runtime.time, 1 / OUTPUT.fps);
+    operator.refresh();
+    return true;
+  },
+  setDelivery: (id) => {
+    if (recording || transition) { toast("Во время записи или перехода вариант файла менять нельзя", true); return false; }
+    if (delivery === id) return true;
+    if (!saveDelivery(id)) return false;
+    delivery = id;
+    operator.refresh();
+    return true;
+  },
   record: () => startRecording(),
   recordChain: () => startSequenceRecording(),
 });
@@ -225,23 +255,42 @@ editor = createFrameEditor({
   onHistoryConflict: () => toast("Настройка изменилась вне редактора; история сцены очищена", true),
 });
 
-const REC_W = OUTPUT.width, REC_H = OUTPUT.height;
+// Размер мастер-кадра. Композитор титров и экспорт читают его же, а не OUTPUT.
+let REC_W = masterSize().width, REC_H = masterSize().height;
+function syncMasterSize() {
+  const size = masterSize();
+  REC_W = size.width; REC_H = size.height;
+}
 
-// Одна и та же сборка WebGL + типографики для экспорта и контроля PNG.
-function drawCompositeFrame(ctx, includeCaption = true) {
-  ctx.drawImage(canvas, 0, 0, REC_W, REC_H);
-  const cap = document.getElementById("caption");
-  const op = includeCaption && cap ? parseFloat(getComputedStyle(cap).opacity) : 0;
-  if (op > 0.001 && activeScene.id !== "partners") drawCaption(ctx, op, activeScene.id);
+// Титр рисуется внутри сцены (см. CaptionLayer), поэтому композит — это кадр
+// WebGL целиком: превью и экспорт совпадают пиксель в пиксель.
+function captionSourceFor(id) {
+  return () => {
+    if (id === "partners" || !document.getElementById("caption")) return null;
+    return { sceneId: id, alpha: 1 };
+  };
+}
+
+function drawCompositeFrame(ctx) {
+  ctx.drawImage(canvas, 0, 0, ctx.canvas.width, ctx.canvas.height);
 }
 
 /** Тот же композит, что записывается в видео; includeCaption=false — эталон для теста. */
 function compositeFrameAt(time, dt = 1 / OUTPUT.fps, includeCaption = true) {
-  runtime.renderAt(time, dt);
-  const frame = document.createElement("canvas");
-  frame.width = REC_W; frame.height = REC_H;
-  drawCompositeFrame(frame.getContext("2d"), includeCaption);
-  return frame;
+  scene.setCaptionVisible(includeCaption);
+  // В редакторе DOM-титр остаётся видимым для рамок, но кадр всё равно
+  // собирается с запечённым в WebGL текстом — так экспорт не теряет надпись.
+  scene.setCaptionOverride(true);
+  try {
+    runtime.renderAt(time, dt);
+    const frame = document.createElement("canvas");
+    frame.width = REC_W; frame.height = REC_H;
+    drawCompositeFrame(frame.getContext("2d"));
+    return frame;
+  } finally {
+    scene.setCaptionVisible(true);
+    scene.setCaptionOverride(false);
+  }
 }
 
 // Склейка без перезагрузки: последний композит старого вида (WebGL + DOM-титры)
@@ -286,6 +335,7 @@ function switchScene(id, source) {
   cfg = nextCfg;
   scene = nextScene;
   runtime = new AnimationRuntime(scene, cfg, OUTPUT.fps);
+  scene.setCaptionSource(captionSourceFor(id));
   activateClasses(id);
   layoutEditorPreview(canvas, document.getElementById("caption"));
   applyTypography(true);
@@ -308,6 +358,21 @@ function switchScene(id, source) {
       }, duration * 1000 + 150);
     });
   }
+  operator.refresh();
+  return true;
+}
+
+/**
+ * Переключение мастер-разрешения. Композиция задана в долях кадра, поэтому
+ * меняется только пиксельная сетка: рендерер, композитор, титры и экспорт.
+ */
+function applyMaster(id) {
+  if (recording || transition) { toast("Во время записи или перехода формат менять нельзя", true); return false; }
+  if (!setMasterPreset(id)) return false;
+  syncMasterSize();
+  scene.resize();
+  applyTypography(true);
+  runtime.renderAt(runtime.time, 1 / OUTPUT.fps);
   operator.refresh();
   return true;
 }
@@ -360,7 +425,8 @@ function startOfflineRecording(kind, download) {
       const timeline = configFor(id).timeline;
       return sum + frameCount(cycleDuration(timeline), timeline.speed, OUTPUT.fps);
     }, 0);
-    estimatedMiB = Math.ceil(estimateVideoBytes(frames, OUTPUT.fps) / 1024 ** 2);
+    const bitrate = deliveryBitrate(delivery, videoBitrateFor(REC_W, REC_H));
+    estimatedMiB = Math.ceil(estimateVideoBytes(frames, OUTPUT.fps, bitrate) / 1024 ** 2);
   } catch (error) { toast(`Ошибка экспорта: ${error.message}`, true); return false; }
   if (download && estimatedMiB >= 256 && !confirm(`Ориентировочный размер MP4 — ${estimatedMiB} МиБ. Видео собирается в памяти браузера; потребуется больше памяти, а итоговый размер может отличаться. Продолжить?`)) return false;
   editor?.disable();
@@ -375,8 +441,10 @@ async function runOfflineRecording(job, overlay, download) {
   const initialTime = runtime.time;
   const initialScene = sceneId;
   let completed = false;
+  const option = deliveryOption(delivery);
   const stats = { scenes: [], transitions: [], frames: 0, blendedFrames: 0,
-    resolution: [REC_W, REC_H], mime: "video/mp4" };
+    resolution: [REC_W, REC_H], delivery: option.id, bitDepth: option.bitDepth,
+    mime: option.container === "webm" ? "video/webm" : "video/mp4" };
   if (job.kind === "sequence") { window.__sequenceStats = stats; window.__lastSequenceBlob = null; }
   else { window.__recStats = stats; window.__lastVideoBlob = null; }
   try {
@@ -391,10 +459,13 @@ async function runOfflineRecording(job, overlay, download) {
     const total = segments.reduce((sum, segment) => sum + segment.count, 0);
     const videoCanvas = document.createElement("canvas");
     videoCanvas.width = REC_W; videoCanvas.height = REC_H;
-    const ctx = videoCanvas.getContext("2d");
+    // 10 бит требуют чтения пикселей в JS: без willReadFrequently каждый кадр
+    // заставляет браузер выгружать полотно с GPU, и запись идёт в разы дольше.
+    const ctx = videoCanvas.getContext("2d", option.bitDepth === 10 ? { willReadFrequently: true } : undefined);
     if (!ctx) throw new Error("Не удалось создать кадр для экспорта");
     let segmentIndex = -1, segmentStart = 0;
     const result = await encodeOfflineVideo({canvas:videoCanvas, fps:OUTPUT.fps, total,
+      bitrate:videoBitrateFor(REC_W, REC_H), delivery:option.id,
       cancelled:() => job.cancelled,
       progress:(done, count) => overlay.progress(done, count),
       draw(index) {
@@ -411,8 +482,29 @@ async function runOfflineRecording(job, overlay, download) {
         }
         const segment = segments[segmentIndex];
         const localIndex = index - segmentStart;
-        runtime.renderAt(segment.start + localIndex * segment.speed / OUTPUT.fps, 1 / OUTPUT.fps);
-        drawCompositeFrame(ctx);
+        const frameTime = segment.start + localIndex * segment.speed / OUTPUT.fps;
+        // Затвор: только вращение кольцевой надписи в «Фотопаузе». Один кадр —
+        // один рендер в остальных сценах, поэтому стоимость не меняется.
+        const shutter = photoShutterSamples(configFor(segment.id), { id: segment.id, fps: OUTPUT.fps, speed: segment.speed });
+        if (shutter <= 1) {
+          runtime.renderAt(frameTime, 1 / OUTPUT.fps);
+          drawCompositeFrame(ctx);
+        } else {
+          const times = shutterTimes(frameTime, segment.speed / OUTPUT.fps, shutter);
+          const blur = document.createElement("canvas");
+          blur.width = REC_W; blur.height = REC_H;
+          const blurCtx = blur.getContext("2d");
+          for (const sampleTime of times) {
+            runtime.renderAt(sampleTime, 1 / OUTPUT.fps);
+            blurCtx.drawImage(canvas, 0, 0, REC_W, REC_H);
+          }
+          // Возвращаем время кадра: дальше по циклу время считается заново, но
+          // пауза/переходы не должны увидеть последнюю выборку затвора.
+          runtime.renderAt(frameTime, 1 / OUTPUT.fps);
+          ctx.globalAlpha = 1 / times.length;
+          ctx.drawImage(blur, 0, 0);
+          ctx.globalAlpha = 1;
+        }
         if (job.outgoing) {
           if (!drawOutgoingFrame(ctx, job.outgoing, localIndex, OUTPUT.fps, segment.transition, REC_W, REC_H)) job.outgoing = null;
           else {
@@ -425,9 +517,15 @@ async function runOfflineRecording(job, overlay, download) {
     stats.bytes = result.blob.size; stats.codec = result.codec; stats.expectedFrames = total;
     if (job.kind === "sequence") window.__lastSequenceBlob = result.blob;
     else window.__lastVideoBlob = result.blob;
-    if (download) saveVideo(result.blob, job.kind === "sequence" ? "circle-01-02-08-09-1920x1080.mp4" : `${initialScene === "waiting" ? "intro" : initialScene}-1920x1080.mp4`);
+    // Имя файла берёт фактический размер записи: 4K-мастер не должен
+    // сохраняться как «1920x1080».
+    if (download) saveVideo(result.blob, deliveryFilename(
+      job.kind === "sequence" ? "circle-01-02-08-09" : initialScene === "waiting" ? "intro" : initialScene,
+      option, REC_W, REC_H));
     completed = true;
-    toast(job.kind === "sequence" ? "Вся цепочка сохранена одним MP4" : "Видео сохранено (MP4)");
+    // Формат называем честно: WebM не откроется там, где ждут MP4.
+    const name = option.container === "webm" ? `${option.bitDepth}-битный WebM` : `${option.bitDepth}-битный MP4`;
+    toast(job.kind === "sequence" ? `Вся цепочка сохранена (${name})` : `Видео сохранено (${name})`);
   } catch (error) {
     stats.error = error.message;
     toast(error.name === "AbortError" ? "Экспорт отменён" : `Ошибка экспорта: ${error.message}`, error.name !== "AbortError");

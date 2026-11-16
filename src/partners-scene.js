@@ -3,7 +3,8 @@ import backgroundUrl from './assets/partners-texture.jpg';
 import {partnersCues, drawPartnersDecor} from './partners-graphics.js';
 import { LogoScene } from './scene.js';
 import { computePhase } from './timeline.js';
-import { OUTPUT } from './scenes/catalog.js';
+import { BASE_FRAME, OUTPUT } from './scenes/catalog.js';
+import { masterSize } from './output-profile.js';
 
 const image = new Image();
 let backgroundCanvas;
@@ -36,9 +37,14 @@ export class PartnersScene extends LogoScene {
   update(t) {
     // После загрузки canvas в WebGL создаём новый буфер: повторное использование
     // может оставлять устаревшие пиксели в некоторых реализациях Chromium.
-    this.card = document.createElement('canvas'); this.card.width=OUTPUT.width; this.card.height=OUTPUT.height;
+    const master = masterSize();
+    this.card = document.createElement('canvas'); this.card.width=master.width; this.card.height=master.height;
     this.cardCtx=this.card.getContext('2d'); this.cardTexture.image=this.card;
-    const ctx=this.cardCtx, w=OUTPUT.width,h=OUTPUT.height, cfg=this.cfg, tl=cfg.timeline;
+    // Координаты макета — базовый кадр (1920×1080) из каталога, не литерал.
+    const ctx=this.cardCtx, w=BASE_FRAME.width,h=BASE_FRAME.height, cfg=this.cfg, tl=cfg.timeline;
+    // Макет нарисован в координатах 1920×1080; при 4K-мастере масштабируем
+    // контекст, а не пересчитываем сотни координат.
+    ctx.setTransform(master.width / w, 0, 0, master.height / h, 0, 0);
     const phase=computePhase(t,tl), data=cfg.partners;
     const cue=partnersCues(phase,tl,data.motion ?? 1), visible=cue.visible;
 

@@ -33,7 +33,7 @@ const { launchBrowser } = require("./browser.cjs");
       canvasCount: document.querySelectorAll("#stage").length,
       samePage: location.search.includes("scene=brand"),
       brandTitle: document.querySelector(".cap-title").textContent.replaceAll("\u00a0", " "),
-      hasWaves: !!window.__logo.scene.contourWaves && !window.__logo.scene.isIntro,
+      brandNotIntro: !window.__logo.scene.isIntro && Boolean(window.__logo.scene.circularText),
     }));
     await page.waitForFunction(() => !document.querySelector(".transition-frame"), { timeout: 180000 });
     const edit = await page.evaluate(() => {
@@ -100,16 +100,43 @@ const { launchBrowser } = require("./browser.cjs");
     const awakened = await page.evaluate(() => window.__awakened);
     const result = { first, crossfade, edit, auto, finalState, returnState, idle, awakened, errors };
     console.log(result);
-    if (errors.length || first.cursor !== "auto" || !first.panel || !first.settings ||
-        !first.label.includes("Интро") || !first.isIntro ||
-        !crossfade.overlay || crossfade.canvasCount !== 1 || !crossfade.samePage || !crossfade.hasWaves ||
-        crossfade.brandTitle !== "Янтарный циркуль" || edit.cycle !== 30 ||
-        !edit.paused || Math.abs(edit.time - 15) > 0.01 || !auto ||
-        finalState.title !== "Янтарный циркуль" ||
-        finalState.phrase !== "История продолжается" ||
-        finalState.stage.join("x") !== "1920x1080" ||
-        returnState.title !== "Янтарный циркуль" || !returnState.settings || !returnState.isIntro || !returnState.introUrl ||
-        idle.cursor !== "auto" || Number(idle.buttonOpacity) > 0.8 || Number(idle.buttonOpacity) < 0.3 ||
-        Number(idle.panelOpacity) > 0.01 || !awakened) process.exitCode = 1;
+    // Именованные условия: молчаливый exit 1 не подсказывает, что сломалось.
+    const checks = {
+      "нет ошибок страницы": errors.length === 0,
+      "курсор виден": first.cursor === "auto",
+      "пульт на месте": Boolean(first.panel),
+      "кнопка настроек видна": Boolean(first.settings),
+      "подпись ролика — интро": first.label.includes("Интро"),
+      "стартовали с интро": first.isIntro,
+      "переход рисуется оверлеем": crossfade.overlay,
+      "в кадре один canvas": crossfade.canvasCount === 1,
+      "переход без перезагрузки": crossfade.samePage,
+      // Волны контура — особенность «Фотопаузы», а не «Фона»: у фонового ролика
+      // своя композиция (круговая надпись), поэтому здесь проверяем только смену
+      // сцены без перезагрузки и без потери canvas.
+      "переход не включает интро-режим": crossfade.brandNotIntro,
+      "название после перехода": crossfade.brandTitle === "Янтарный циркуль",
+      "длительность цикла 30 с": edit.cycle === 30,
+      "пауза включена": Boolean(edit.paused),
+      "перемотка на середину": Math.abs(edit.time - 15) <= 0.01,
+      "автоцепочка включена": Boolean(auto),
+      "название в финале": finalState.title === "Янтарный циркуль",
+      "фраза в финале": finalState.phrase === "История продолжается",
+      "кадр 1920×1080": finalState.stage.join("x") === "1920x1080",
+      "возврат к интро": returnState.title === "Янтарный циркуль" && Boolean(returnState.isIntro),
+      "кнопка настроек после возврата": Boolean(returnState.settings),
+      "URL остался интро": Boolean(returnState.introUrl),
+      "курсор в простое": idle.cursor === "auto",
+      "кнопка в простое приглушена": Number(idle.buttonOpacity) <= 0.8 && Number(idle.buttonOpacity) >= 0.3,
+      "пульт в простое скрыт": Number(idle.panelOpacity) <= 0.01,
+      "движение мыши возвращает пульт": Boolean(awakened),
+    };
+    const failed = Object.entries(checks).filter(([, ok]) => !ok).map(([name]) => name);
+    if (failed.length) {
+      console.error(`FAIL: ${failed.join("; ")}`);
+      process.exitCode = 1;
+    } else {
+      console.log("Пульт, переход, автоцепочка и простой — OK");
+    }
   } finally { await browser.close(); }
 })().catch((e) => { console.error("FAIL", e); process.exitCode = 1; });

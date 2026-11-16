@@ -44,10 +44,9 @@ const glyphs = (text) => [...segmenter.segment(text)].map(({ segment }) => segme
         } finally {
           for (const [method, original] of Object.entries(originals)) prototype[method] = original;
         }
-        // Второе копирование того же WebGL-кадра без титра, без повторного рендера сцены.
-        const background = document.createElement("canvas");
-        background.width = 1920; background.height = 1080;
-        background.getContext("2d").drawImage(document.querySelector("#stage"), 0, 0, 1920, 1080);
+        // Тот же export-кадр без титра: титр теперь рисуется внутри WebGL-прохода,
+        // поэтому эталон — compositeFrameAt(..., false), а не сырой canvas сцены.
+        const background = L.compositeFrameAt(time, 1 / 60, false);
         const changedPixels = (x, y, width, height) => {
           const a = frame.getContext("2d").getImageData(x, y, width, height).data;
           const b = background.getContext("2d").getImageData(x, y, width, height).data;
@@ -89,6 +88,39 @@ const glyphs = (text) => [...segmenter.segment(text)].map(({ segment }) => segme
         datePixels: result.datePixels, backgroundPixels: result.backgroundPixels,
         measuredGlyphs: result.calls.measure.length, paintedGlyphs: result.calls.fill.length });
       await page.close();
+    }
+
+    // Экспорт при открытом редакторе: DOM-титр нужен для рамок, но кадр обязан
+    // получить запечённый текст, иначе запись теряет надпись.
+    const editorPage = await browser.newPage();
+    try {
+      await editorPage.goto(`${URL_}?scene=waiting`, { waitUntil: "networkidle0", timeout: 120000 });
+      await editorPage.waitForFunction(() => document.body.classList.contains("boot-ready"), { timeout: 240000 });
+      const baked = await editorPage.evaluate(async () => {
+        await document.fonts.ready;
+        const L = window.__logo;
+        L.cfg.playback.paused = true;
+        window.requestAnimationFrame = () => 0;
+        document.querySelector(".editor-toggle").click();
+        const tl = L.cfg.timeline;
+        const time = tl.startDelay + tl.drawDuration + tl.emergeDuration + tl.holdDuration * 0.55;
+        const withCaption = L.compositeFrameAt(time);
+        const without = L.compositeFrameAt(time, 1 / 60, false);
+        const a = withCaption.getContext("2d").getImageData(450, 725, 1020, 110).data;
+        const b = without.getContext("2d").getImageData(450, 725, 1020, 110).data;
+        let changed = 0;
+        for (let i = 0; i < a.length; i += 4) {
+          if (Math.abs(a[i] - b[i]) + Math.abs(a[i + 1] - b[i + 1]) + Math.abs(a[i + 2] - b[i + 2]) > 30) changed++;
+        }
+        const editorOn = document.body.classList.contains("editor-on");
+        document.querySelector(".editor-toggle").click();
+        return { changed, editorOn, editorStillOn: document.body.classList.contains("editor-on") };
+      });
+      assert.ok(baked.editorOn && !baked.editorStillOn, "режим редактора не переключился");
+      assert.ok(baked.changed > 500, "экспорт при открытом редакторе потерял титр");
+      console.log({ sceneId: "waiting", editorOn: true, subtitlePixels: baked.changed });
+    } finally {
+      await editorPage.close();
     }
   } finally {
     await browser.close();
