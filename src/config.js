@@ -356,7 +356,18 @@ function isSafeDataImageUrl(value) {
 // ссылка #cfg=... или импортированный файл загрязняли бы Object.prototype.
 const UNSAFE_KEYS = new Set(["__proto__", "constructor", "prototype"]);
 
+// Сцена — плоский конфиг (умолчания не глубже 2 уровней). Присланный JSON
+// может быть вложенным на десятки тысяч уровней: рекурсия deepMerge падала с
+// RangeError прямо из #cfg=... при загрузке страницы. Глубже этого — не данные
+// сцены, а мусор.
+const MAX_MERGE_DEPTH = 32;
+
 function deepMerge(target, source) {
+  return mergeObject(target, source, 0);
+}
+
+function mergeObject(target, source, depth) {
+  if (depth > MAX_MERGE_DEPTH) return target;
   for (const k of Object.keys(source)) {
     if (UNSAFE_KEYS.has(k)) continue;
     const v = source[k];
@@ -364,7 +375,7 @@ function deepMerge(target, source) {
       // hasOwn, а не проверка на истинность: унаследованное значение не должно
       // подменять создание собственного узла при слиянии.
       if (!Object.hasOwn(target, k) || !target[k] || typeof target[k] !== "object") target[k] = {};
-      deepMerge(target[k], v);
+      mergeObject(target[k], v, depth + 1);
     } else if (v !== undefined) {
       if (k.endsWith("Logo") && typeof target[k] === "string") {
         if (isSafeDataImageUrl(v)) target[k] = v;

@@ -63,3 +63,36 @@ test("легитимное поле с именем prototype в данных н
   assert.equal(merged.caption.titleText, "Ссылка");
   assert.equal(({}).prototype, undefined);
 });
+
+// Присланный JSON может быть вложенным на десятки тысяч уровней: раньше
+// рекурсивный deepMerge падал с RangeError прямо при загрузке страницы
+// из ссылки #cfg=..., то есть приложение не открывалось вовсе.
+function nestedPayload(depth) {
+  let nested = "1";
+  for (let i = 0; i < depth; i++) nested = `{"a":${nested}}`;
+  return `{"photoScale":${nested}}`;
+}
+
+test("глубоко вложенный JSON не роняет разбор", () => {
+  for (const depth of [1_000, 20_000]) {
+    assert.doesNotThrow(() => parseConfigJSON(nestedPayload(depth)), `глубина ${depth}`);
+    assert.doesNotThrow(() => mergeConfig(WAITING_DEFAULTS, JSON.parse(nestedPayload(depth))), `слияние, глубина ${depth}`);
+  }
+});
+
+test("глубоко вложенный JSON из ссылки #cfg не роняет загрузку", () => {
+  // Ссылку можно собрать и вручную, не через encodeConfigShareHash: тогда
+  // строку JSON в base64url пишет кто угодно, в том числе вложенную на 20k.
+  const encoded = Buffer.from(nestedPayload(20_000), "utf8").toString("base64url");
+  const decoded = decodeConfigShareHash(encoded);
+  assert.ok(decoded, "патч должен разбираться");
+  assert.doesNotThrow(() => mergeConfig(WAITING_DEFAULTS, decoded));
+  assert.equal(typeof mergeConfig(WAITING_DEFAULTS, decoded).photoScale, "object");
+});
+
+test("сверхглубокое слияние не теряет обычные поля рядом", () => {
+  const deep = nestedPayload(5_000).slice('{"photoScale":'.length, -1);
+  const merged = mergeConfig(WAITING_DEFAULTS, JSON.parse(`{"photoScale":${deep},"editorOpen":true}`));
+  assert.equal(merged.editorOpen, true);
+  assert.ok(merged.timeline);
+});
