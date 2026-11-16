@@ -476,3 +476,41 @@ test('глиттер — это россыпь мелких искр, а не з
   const second = new Set(calls.filter(([k]) => k === 'drawImage').map(([, [x, y]]) => `${Math.round(x)},${Math.round(y)}`));
   assert.notDeepEqual([...first], [...second], 'искры не мерцают');
 });
+
+test("дыхание фона: цикличность на шве, запас масштаба и дрейфа", async () => {
+  const { drawBreathingBackground } = await import("../src/partners-graphics.js");
+  const calls = [];
+  const ctx = {
+    fillStyle: "",
+    fillRect: (...a) => calls.push(["fill", ...a]),
+    drawImage: (...a) => calls.push(["draw", ...a]),
+  };
+  const bg = { width: 1920, height: 1080 };
+  const shot = (local) => {
+    calls.length = 0;
+    drawBreathingBackground(ctx, bg, 1920, 1080, local, 26);
+    const [, , x, y, dw, dh] = calls[0];
+    return { x, y, dw, dh };
+  };
+  // Без фото — непрозрачная базовая подложка, иначе прошлый кадр просвечивает.
+  calls.length = 0;
+  drawBreathingBackground(ctx, null, 1920, 1080, 5, 26);
+  assert.equal(calls[0][0], "fill");
+  assert.equal(ctx.fillStyle, "#22070b");
+  // На шве кадр совпадает с первым: фаза берётся по длине цикла.
+  const seamA = shot(0), seamB = shot(26);
+  // sin(2π) даёт машинный хвост, поэтому сравниваем с эпсилоном, а не побитово.
+  for (const key of ["x", "y", "dw", "dh"]) {
+    assert.ok(Math.abs(seamA[key] - seamB[key]) < 1e-9, `шов по ${key}: ${seamA[key]} vs ${seamB[key]}`);
+  }
+  // Масштаб всегда больше единицы с запасом над дрейфом: кромка не оголяется.
+  for (let local = 0; local < 26; local += 0.5) {
+    const { x, y, dw, dh } = shot(local);
+    assert.ok(dw > 1920 && dh > 1080, `масштаб меньше кадра на ${local}`);
+    const marginY = (dh - 1080) / 2;
+    assert.ok(Math.abs(y - (1080 - dh) / 2) <= marginY, `дрейф оголил кромку на ${local}`);
+    assert.ok(dw < 1920 * 1.03, "наезд заметен невооружённым глазом");
+  }
+  // Половина цикла даёт противоположную фазу: фон действительно движется.
+  assert.notEqual(shot(6.5).dw, shot(19.5).dw);
+});

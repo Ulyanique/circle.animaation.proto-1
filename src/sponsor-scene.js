@@ -3,7 +3,7 @@ import { computePhase } from "./timeline.js";
 import { sponsorCues, markBox, markGlintAt, markScaleFor, MARK_CENTER_Y, MARK_KEYS } from "./sponsor-motion.js";
 import { textSafeLeft, fitFontSize } from "./text-safe-area.js";
 import { easeOutBack, glintSpan } from "./partners-motion.js";
-import { drawPartnersDecor, drawAmberAtmosphere } from "./partners-graphics.js";
+import { drawPartnersDecor, drawAmberAtmosphere, drawBreathingBackground } from "./partners-graphics.js";
 import { partnersMark, partnersAssets, partnerDefaults, drawMarkGlint, loadPartnersBackground } from "./partners-scene.js";
 import { DEFAULT_QUALITY, isQualityPreset, suggestedQuality } from "./quality-presets.js";
 import { masterId, masterSize } from "./output-profile.js";
@@ -101,8 +101,7 @@ export class SponsorScene {
     layer.width = master.width; layer.height = master.height;
     const ctx = layer.getContext("2d");
     ctx.setTransform(master.width / w, 0, 0, master.height / h, 0, 0);
-    if (background) ctx.drawImage(background, 0, 0, w, h);
-    else { ctx.fillStyle = "#22070b"; ctx.fillRect(0, 0, w, h); }
+    // Фото не запекается: его ведёт drawBreathingBackground отдельным слоем.
     const light = ctx.createRadialGradient(720, 90, 20, 850, 400, 900);
     light.addColorStop(0, "rgba(255,190,139,.13)");
     light.addColorStop(.45, "rgba(197,97,76,.035)");
@@ -148,6 +147,7 @@ export class SponsorScene {
     const assets = partnersAssets();
     const staticLayer = this._buildStaticLayer(master, assets.background);
     ctx.save(); ctx.globalAlpha = cue.visible;
+    drawBreathingBackground(ctx, assets.background, w, h, phase.local, phase.cycle);
     ctx.drawImage(staticLayer, 0, 0, w, h);
     ctx.restore();
     // Свет живёт по своей огибающей: входит вместе с кадром, но уходит

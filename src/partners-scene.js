@@ -5,7 +5,7 @@ import proelectroUrl from './assets/partners/proelectro.svg';
 import proelectroschitUrl from './assets/partners/proelectroschit.svg';
 import promrukavUrl from './assets/partners/promrukav.svg';
 import keazUrl from './assets/partners/keaz.svg';
-import { partnersCues, drawPartnersDecor, drawAmberAtmosphere } from './partners-graphics.js';
+import { partnersCues, drawPartnersDecor, drawAmberAtmosphere, drawBreathingBackground } from './partners-graphics.js';
 import { glintSpan, reveal, easeOutBack, pairLayout } from './partners-motion.js';
 import { computePhase } from './timeline.js';
 import { BASE_FRAME } from './scenes/catalog.js';
@@ -350,9 +350,11 @@ export class PartnersScene {
   }
 
   /**
-   * Фон и постоянный градиент света не меняются за цикл и не зависят от времени.
-   * Раньше они перерисовывались каждый кадр: уменьшение фото 2752×1536 до 1920
-   * и полноэкранный градиент стоят дороже всей анимации вместе.
+   * Постоянный градиент света не меняется за цикл и не зависит от времени.
+   * Раньше они перерисовывались каждый кадр: полноэкранный градиент стоит
+   * дороже всей анимации вместе. Фото сюда больше не запекается: оно живёт
+   * отдельным слоем с «дыханием» (drawBreathingBackground), а готовый холст
+   * 1920×1080 масштабируется за кадр дёшево.
    */
   _buildStaticLayer(master, background) {
     // Ключ обязан учитывать наличие фона: первые кадры могут пройти до загрузки
@@ -365,8 +367,6 @@ export class PartnersScene {
     layer.width = master.width; layer.height = master.height;
     const ctx = layer.getContext("2d");
     ctx.setTransform(master.width / w, 0, 0, master.height / h, 0, 0);
-    if (background) ctx.drawImage(background, 0, 0, w, h);
-    else { ctx.fillStyle = "#22070b"; ctx.fillRect(0, 0, w, h); }
     const light = ctx.createRadialGradient(720, 90, 20, 850, 400, 900);
     light.addColorStop(0, "rgba(255,190,139,.13)");
     light.addColorStop(.45, "rgba(197,97,76,.035)");
@@ -417,6 +417,7 @@ export class PartnersScene {
     // полноэкранный градиент выполняются один раз, а не 60 раз в секунду.
     const staticLayer = this._buildStaticLayer(master, backgroundCanvas);
     ctx.save(); ctx.globalAlpha = visible;
+    drawBreathingBackground(ctx, backgroundCanvas, w, h, phase.local, phase.cycle);
     ctx.drawImage(staticLayer, 0, 0, w, h);
     ctx.restore();
     // Зоны защиты: заголовок с подзаголовком сверху и оба яруса знаков.

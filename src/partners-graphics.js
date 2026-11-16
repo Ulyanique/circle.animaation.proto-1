@@ -369,6 +369,22 @@ export function drawAmberAtmosphere(ctx, time, motion = 1, period = 20, protect 
  * перекрывает позолоту — так и должно быть: это передний план.
  * Ширина и амплитуда качания задаются настройками сцены.
  */
+/**
+ * «Дыхание» фона: медленный циклический наезд ±0.8 % и вертикальный дрейф
+ * 3 px за круг. Фаза берётся по длине цикла, поэтому на шве значения совпадают
+ * с первым кадром, а seek остаётся детерминированным. Запас масштаба больше
+ * дрейфа, поэтому кромка фото не оголяется ни на одной фазе.
+ */
+export function drawBreathingBackground(ctx, background, w, h, local, cycle) {
+  if (!background) { ctx.fillStyle = "#22070b"; ctx.fillRect(0, 0, w, h); return; }
+  const period = Number.isFinite(cycle) && cycle > 0 ? cycle : 26;
+  const angle = (Math.PI * 2 * (Number.isFinite(local) ? local : 0)) / period;
+  const breath = 1.014 + 0.008 * Math.sin(angle);
+  const drift = 3 * Math.sin(angle + 1.1);
+  const dw = w * breath, dh = h * breath;
+  ctx.drawImage(background, (w - dw) / 2, (h - dh) / 2 + drift, dw, dh);
+}
+
 function drawCurtain(ctx, cue, image, settings) {
   if (cue.curtain <= 0.003) return;
   const width = Number.isFinite(settings.curtainWidth) ? settings.curtainWidth : 476;
