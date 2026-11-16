@@ -222,14 +222,16 @@ export class PartnersScene {
     const gold = '#e9ca91', warm = '#d2ac70', ivory = '#f6e4be';
     const title = visible * cue.title;
     const heading = String(data.title ?? '').toLocaleUpperCase('ru-RU');
-    text(heading, 960, 154, `600 104px "${displayFont}", serif`, ivory, title, 1200, cue.title);
-    text(data.subtitle, 960, 270, `400 49px "${displayFont}", serif`, gold, title, 1100, cue.title);
-    const ornament = (y, alpha, width) => {
+    // The upper-right foliage narrows the visual safe area, so the title block
+    // sits optically left and stays clear of the leaves rather than filling the frame.
+    text(heading, 900, 160, `600 96px "${displayFont}", serif`, ivory, title, 940, cue.title);
+    text(data.subtitle, 900, 270, `400 49px "${displayFont}", serif`, gold, title, 1000, cue.title);
+    const ornament = (y, alpha, width, center = 960) => {
       ctx.save(); ctx.globalAlpha = alpha; ctx.strokeStyle = warm; ctx.lineWidth = 1;
-      ctx.beginPath(); ctx.moveTo(960 - width, y); ctx.lineTo(944, y); ctx.moveTo(976, y); ctx.lineTo(960 + width, y); ctx.stroke();
-      ctx.translate(960, y); ctx.rotate(Math.PI / 4); ctx.strokeRect(-4, -4, 8, 8); ctx.restore();
+      ctx.beginPath(); ctx.moveTo(center - width, y); ctx.lineTo(center - 16, y); ctx.moveTo(center + 16, y); ctx.lineTo(center + width, y); ctx.stroke();
+      ctx.translate(center, y); ctx.rotate(Math.PI / 4); ctx.strokeRect(-4, -4, 8, 8); ctx.restore();
     };
-    ornament(330, title * .7, 300 * cue.title);
+    ornament(330, title * .7, 280 * cue.title, 900);
     const label = (value, x, y, alpha, entry) => {
       text(value, x, y, '600 24px Manrope, sans-serif', warm, alpha, 460, entry);
     };

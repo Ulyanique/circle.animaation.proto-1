@@ -114,8 +114,10 @@ export function drawAmberAtmosphere(ctx, time, motion = 1, period = 20) {
   ctx.globalCompositeOperation = 'screen';
   for (const particle of AMBER_PARTICLES) {
     const twinkle = 0.18 + 0.82 * (0.5 + 0.5 * Math.sin(angle * particle.cycles + particle.phase));
-    const alpha = twinkle * power * 0.46;
-    const radius = particle.radius * (0.65 + twinkle * 0.65);
+    const dx = (particle.x - x) / 470, dy = (particle.y - y) / 330;
+    const beamCatch = Math.exp(-0.5 * (dx * dx + dy * dy));
+    const alpha = power * twinkle * (0.26 + beamCatch * 0.48);
+    const radius = particle.radius * (0.65 + twinkle * 0.65 + beamCatch * 0.35);
     ctx.globalAlpha = alpha;
     ctx.fillStyle = '#ffd995';
     ctx.shadowColor = '#ffbe66';
