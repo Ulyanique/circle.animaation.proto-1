@@ -20,7 +20,7 @@ import { FinaleScene } from "./finale-scene.js";
 import { createSettingsUI } from "./ui.js";
 import { AnimationRuntime, cycleDuration } from "./runtime.js";
 import { frameCount, estimateVideoBytes, videoBitrateFor } from "./video-math.js";
-import { deliveryOption as deliveryOptionLight } from "./delivery-light.js";
+import { deliveryOption as deliveryOptionLight, deliveryFilename } from "./delivery-light.js";
 import { masterSize, masterId, setMasterPreset, loadMasterPreset } from "./output-profile.js";
 import { transitionDuration, drawOutgoingFrame } from "./scene-transition.js";
 import { OUTPUT, sceneById } from "./scenes/catalog.js";

@@ -80,3 +80,24 @@ test('глубина читается из строки кодека, когда
   assert.equal(codecBitDepth(undefined), null);
   assert.equal(codecBitDepth(42), null);
 });
+
+test("main.js не ссылается на функции доставки без импорта", async () => {
+  // Переезд кодировщика вне критического пути уже оставлял в main.js голые
+  // deliveryOption и deliveryFilename: запись падала ReferenceError только
+  // на живой кнопке, потому что проверки дёргают кодировщик напрямую.
+  // Здесь статическая страховка: каждое использованное имя семейства
+  // delivery обязано быть импортированным (возможно, под алиасом).
+  const fs = await import("node:fs");
+  const path = await import("node:path");
+  const source = fs.readFileSync(path.join(process.cwd(), "src/main.js"), "utf8");
+  const light = await import("../src/delivery-light.js");
+  const importBlocks = [...source.matchAll(/import\s*{([^}]*)}\s*from\s*"\.\/delivery-light\.js"/g)];
+  assert.ok(importBlocks.length, "main.js обязан импортировать лёгкий модуль доставки");
+  const imported = new Set(importBlocks.flatMap((block) => block[1].split(",")
+    .map((part) => part.trim().split(/\s+as\s+/).pop())));
+  for (const name of Object.keys(light)) {
+    if (name === "default") continue;
+    const used = new RegExp(`(?<![\\w$.])${name}\\s*\\(`).test(source);
+    if (used) assert.ok(imported.has(name), `${name} используется в main.js без импорта`);
+  }
+});
