@@ -53,7 +53,8 @@
     "verify:logo:timing": "node scripts/verify-logo-timing.cjs",
     "verify:custom-timing:video": "node scripts/verify-custom-timing-video.cjs",
     "verify:archive": "node scripts/verify-archive.cjs",
-    "verify:stale-editor": "node scripts/verify-stale-editor-module.cjs"
+    "verify:stale-editor": "node scripts/verify-stale-editor-module.cjs",
+    "verify:export:viewer": "node scripts/verify-export-viewer.cjs"
   },
   "dependencies": {
     "mediabunny": "^1.65.2",

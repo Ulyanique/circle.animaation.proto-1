@@ -684,15 +684,30 @@ async function runOfflineRecording(job, overlay, download) {
     stats.bytes = result.blob.size; stats.codec = result.codec; stats.expectedFrames = total;
     if (job.kind === "sequence") window.__lastSequenceBlob = result.blob;
     else window.__lastVideoBlob = result.blob;
-    // Имя файла берёт фактический размер записи: 4K-мастер не должен
-    // сохраняться как «1920x1080».
-    if (download) saveVideo(result.blob, deliveryFilename(
-      job.kind === "sequence" ? chainBaseFilename(ids) : initialScene === "waiting" ? "intro" : initialScene,
-      option, REC_W, REC_H));
     completed = true;
     // Формат называем честно: WebM не откроется там, где ждут MP4.
     const name = option.container === "webm" ? `${option.bitDepth}-битный WebM` : `${option.bitDepth}-битный MP4`;
-    toast(job.kind === "sequence" ? `Вся цепочка сохранена (${name})` : `Видео сохранено (${name})`);
+    if (download) {
+      // Имя файла берёт фактический размер записи: 4K-мастер не должен
+      // сохраняться как «1920x1080».
+      const filename = deliveryFilename(
+        job.kind === "sequence" ? chainBaseFilename(ids) : initialScene === "waiting" ? "intro" : initialScene,
+        option, REC_W, REC_H);
+      // Готовое видео открывается поверх всего кадра: посмотреть, сохранить
+      // кнопкой с этим именем или через «Сохранить видео как…», развернуть
+      // на весь экран, закрыть Esc. Молчаливое скачивание убрано: файл было
+      // не найти, а результат — не проверить.
+      const { openExportViewer } = await import("./export-viewer.js");
+      openExportViewer({
+        blob: result.blob,
+        filename,
+        meta: `${REC_W}×${REC_H} · ${OUTPUT.fps} fps · ${stats.frames} кадров · ${(result.blob.size / 1048576).toFixed(1)} МиБ · ${name}`,
+        onDownload: () => saveVideo(result.blob, filename),
+      });
+      toast(job.kind === "sequence" ? `Цепочка готова (${name}) — просмотр и сохранение` : `Видео готово (${name}) — просмотр и сохранение`);
+    } else {
+      toast(job.kind === "sequence" ? `Цепочка готова (${name})` : `Видео готово (${name})`);
+    }
   } catch (error) {
     stats.error = error.message;
     toast(error.name === "AbortError" ? "Экспорт отменён" : `Ошибка экспорта: ${error.message}`, error.name !== "AbortError");

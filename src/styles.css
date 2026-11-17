@@ -1317,3 +1317,36 @@ body.scene-partners .editor-toggle { display: none; }
     scroll-behavior: auto !important;
   }
 }
+
+/* ── Просмотр готового экспорта: диалог поверх всего кадра. ── */
+.export-viewer {
+  position: fixed; inset: 0; z-index: 120;
+  display: flex; flex-direction: column; gap: 10px;
+  padding: 14px; background: rgba(5, 3, 2, .96);
+}
+.export-viewer:fullscreen { padding: 22px; gap: 14px; background: #000; }
+.export-viewer-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.export-viewer-title { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.export-viewer-title strong {
+  font: 600 15px/1.25 system-ui, sans-serif; color: #ffe7a6;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.export-viewer-title span { font: 11px/1.3 system-ui, sans-serif; color: rgba(233, 220, 192, .72); }
+.export-viewer-actions { display: flex; align-items: center; gap: 8px; flex: none; }
+.export-viewer-actions button {
+  background: transparent; color: #e9dcc0; border: 1px solid rgba(217, 176, 97, .35);
+  border-radius: 6px; padding: 6px 11px; cursor: pointer; font: inherit; font-size: 13px;
+}
+.export-viewer-actions button:hover, .export-viewer-actions button:focus-visible { border-color: #d9b061; color: #ffe7a6; }
+.export-viewer-actions [data-viewer="close"] { font-size: 20px; line-height: 1; padding: 2px 9px; border: 0; }
+.export-viewer video {
+  flex: 1; min-height: 0; width: 100%;
+  object-fit: contain; background: #000;
+  border: 1px solid #3a3126; border-radius: 8px;
+}
+.export-viewer-hint { margin: 0; color: rgba(233, 220, 192, .55); font: 11px/1.4 system-ui, sans-serif; text-align: center; }
+@media (max-width: 640px) {
+  .export-viewer { padding: 8px; gap: 8px; }
+  .export-viewer-head { flex-wrap: wrap; }
+  .export-viewer-actions button { padding: 5px 8px; font-size: 12px; }
+}
