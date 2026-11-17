@@ -592,7 +592,11 @@ async function runOfflineRecording(job, overlay, download) {
   const initialTime = runtime.time;
   const initialScene = sceneId;
   let completed = false;
-  const option = deliveryOption(delivery);
+  // Метаданные доставки берём из лёгкого модуля: тяжёлый delivery.js тянет
+  // mediabunny и приходит вместе с кодировщиком ниже. Прямая ссылка на
+  // deliveryOption осталась здесь с переезда кодировщика вне критического
+  // пути и роняла экспорт ReferenceError ещё на «Подготовке…».
+  const option = deliveryOptionLight(delivery);
   const stats = { scenes: [], transitions: [], frames: 0, blendedFrames: 0,
     resolution: [REC_W, REC_H], delivery: option.id, bitDepth: option.bitDepth,
     mime: option.container === "webm" ? "video/webm" : "video/mp4" };
