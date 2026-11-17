@@ -428,7 +428,8 @@ export class PartnersScene {
     // Занавес рисуется внутри декора, после рамки: ткань — передний план и
     // должна перекрывать позолоту, а не лежать под ней.
     drawPartnersDecor(ctx, cue, data, curtainImage);
-    const displayFont = fontName(cfg.typography?.font || 'cormorant-garamond');
+    const displayFont = fontName(cfg.typography?.titleFont || cfg.typography?.font || 'cormorant-garamond');
+    const captionFont = fontName(cfg.typography?.captionFont || cfg.typography?.font || 'cormorant-garamond');
     const text = (value, x, y, font, color, alpha, maxWidth, entry = 1) => {
       ctx.save(); ctx.globalAlpha = alpha; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.font = font; ctx.fillStyle = color;
       ctx.shadowColor = 'rgba(0,0,0,.5)'; ctx.shadowBlur = 9; ctx.shadowOffsetY = 3;
@@ -505,7 +506,7 @@ export class PartnersScene {
     }, safe);
     drawFoilTitle(heading, CONTENT_CENTER, 160, title, titleFit.size);
     const subtitleSafe = textSafeLeft(data, { atY: 270 - 25 });
-    text(data.subtitle, CONTENT_CENTER, 270, `400 49px "${displayFont}", serif`, gold, title,
+    text(data.subtitle, CONTENT_CENTER, 270, `400 49px "${captionFont}", serif`, gold, title,
       Math.min(1080, 2 * (960 - subtitleSafe)), cue.title);
     // Линия расходится от центра, а ромб появляется последним и чуть крупнее:
     // взгляд успевает пройти по кадру сверху вниз, а не схватить всё сразу.

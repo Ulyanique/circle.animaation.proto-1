@@ -137,7 +137,9 @@ function activateClasses(id) {
 }
 activateClasses(sceneId);
 function activeFontIds(config = cfg) {
-  const ids = [config?.typography?.font || "cormorant-garamond"];
+  // Контуры нужны только строкам титра: название и подпись могут быть разными.
+  const ids = [config?.typography?.titleFont, config?.typography?.captionFont,
+    config?.typography?.font].filter(Boolean);
   const tl = config?.textLayers;
   if (tl && typeof tl === "object") {
     for (let i = 1; i <= 8; i++) {
@@ -149,6 +151,9 @@ function activeFontIds(config = cfg) {
 function applyTypography(force = false) {
   const cap = document.getElementById("caption");
   const font = cfg.typography?.font || "cormorant-garamond";
+  // Название и подпись живут разными шрифтами: по умолчанию Prata и Forum.
+  const titleFont = cfg.typography?.titleFont || font;
+  const captionFont = cfg.typography?.captionFont || font;
   const sizes = ["title", "subtitle", "date"].map(name => cfg.caption?.[`${name}Scale`] ?? 1);
   const tracking = ["title", "subtitle", "date"].map(name => cfg.typography?.[`${name}Tracking`]);
   const textChanged = syncCaptionContent(cap, cfg.caption, cfg.textLayers);
@@ -158,22 +163,29 @@ function applyTypography(force = false) {
     if (Number.isFinite(value)) cap.style.setProperty(`--${name}-tracking`, `${Math.max(0, Math.min(.6, value))}em`);
     else cap.style.removeProperty(`--${name}-tracking`);
   }
-  cap.style.fontFamily = `"${fontName(font)}", Georgia, serif`;
-  cap.dataset.font = font;
+  // База блока — шрифт подписи: им наследуются произвольные строки без своего.
+  cap.style.fontFamily = `"${fontName(captionFont)}", Georgia, serif`;
+  cap.dataset.font = captionFont;
+  for (const [selector, id] of [[".cap-title", titleFont], [".cap-sub", captionFont], [".cap-date", captionFont]]) {
+    const line = cap.querySelector(selector);
+    if (!line) continue;
+    line.style.fontFamily = `"${fontName(id)}", Georgia, serif`;
+    line.dataset.font = id;
+  }
   const fitted = applyCaptionFit(cap, cfg.caption, cfg.textLayers);
-  const signature = `${font}:${sizes.join(":")}:${tracking.join(":")}:${fitted.join(":")}`;
+  const signature = `${titleFont}:${captionFont}:${sizes.join(":")}:${tracking.join(":")}:${fitted.join(":")}`;
   const changed = cap.dataset.fontSignature !== signature;
   cap.dataset.fontSignature = signature;
   const needed = activeFontIds(cfg);
   if (needed.some(id => !isContourFontLoaded(id))) {
     ensureContourFont(needed).then(loaded => {
       if (loaded) {
-        refreshContours(cfg.typography?.font || "cormorant-garamond");
+        refreshContours(cfg.typography?.captionFont || cfg.typography?.font || "cormorant-garamond");
         if (!recording) runtime.renderAt(runtime.time, 1 / OUTPUT.fps);
       }
     }).catch(() => {});
   }
-  if (textChanged || changed || force || !cap.classList.contains("contours-ready")) refreshContours(font);
+  if (textChanged || changed || force || !cap.classList.contains("contours-ready")) refreshContours(captionFont);
 }
 applyTypography();
 

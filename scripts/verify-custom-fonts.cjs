@@ -22,7 +22,7 @@ const {launchBrowser} = require('./browser.cjs');
     await page.click('.editor-toggle');
     assert.equal(await page.$eval('[data-field=font]',e=>e.hidden),true);
     await page.$eval('[data-add-text]',e=>e.click());
-    assert.equal(await page.$eval('[data-custom-font]',e=>e.options.length),7);
+    assert.equal(await page.$eval('[data-custom-font]',e=>e.options.length),8);
     await page.$eval('[data-appearance=text]',e=>{e.focus();e.value='Ж';e.dispatchEvent(new Event('input',{bubbles:true}));e.dispatchEvent(new Event('change',{bubbles:true}));});
     await page.select('[data-custom-font]','manrope');
     assert.equal(await page.evaluate(()=>window.editorFixture.state.config.textLayers.text1Font),'manrope');

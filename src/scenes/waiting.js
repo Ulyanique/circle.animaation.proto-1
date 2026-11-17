@@ -18,7 +18,7 @@ export const WAITING_DEFAULTS = {
   effectOrder: effectOrderDefaults(),
   // Подзаголовок: 0,32em разрывал слово на буквы; 0,22em держит группы и
   // оставляет воздух. Дата чуть плотнее, чтобы длинная строка не «расползалась».
-  typography: { font: "cormorant-garamond", titleTracking: 0, subtitleTracking: 0.22, dateTracking: 0.24 },
+  typography: { font: "cormorant-garamond", titleFont: "prata", captionFont: "forum", titleTracking: 0, subtitleTracking: 0.22, dateTracking: 0.24 },
   caption: {
     titleText: "Янтарный циркуль", subtitleText: "Вечер ретроспектива", dateText: "20 ноября 2026 года",
     titleColor: null, subtitleColor: null, dateColor: null,

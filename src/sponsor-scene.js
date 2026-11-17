@@ -159,7 +159,8 @@ export class SponsorScene {
       { x: 320, y: MARK_CENTER_Y - 190, w: 1280, h: 370 },
     ]);
 
-    const displayFont = fontName(cfg.typography?.font || "cormorant-garamond");
+    const displayFont = fontName(cfg.typography?.titleFont || cfg.typography?.font || "cormorant-garamond");
+    const captionFont = fontName(cfg.typography?.captionFont || cfg.typography?.font || "cormorant-garamond");
     const gold = "#e9ca91", warm = "#d2ac70";
 
     // ── Заголовок, подзаголовок, разделитель: та же вертикаль, что у «Спонсоров».
@@ -207,11 +208,11 @@ export class SponsorScene {
       const font = fitFontSize({
         size: 44, min: 28,
         measure: (size) => {
-          ctx.font = `400 ${size}px "${displayFont}", serif`;
+          ctx.font = `400 ${size}px "${captionFont}", serif`;
           return ctx.measureText(text).width;
         },
       }, textSafeLeft(data, { atY: 258 - 22 }));
-      ctx.font = `400 ${font.size}px "${displayFont}", serif`;
+      ctx.font = `400 ${font.size}px "${captionFont}", serif`;
       ctx.fillStyle = gold;
       ctx.shadowColor = "rgba(0,0,0,.5)"; ctx.shadowBlur = 9; ctx.shadowOffsetY = 3;
       ctx.fillText(text, w / 2, 258 + 18 * (1 - cue.subtitle));

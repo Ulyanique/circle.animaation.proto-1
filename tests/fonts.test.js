@@ -5,9 +5,18 @@ import { mergeConfig, configToJSON, parseConfigJSON, projectToJSON, parseProject
 import { WAITING_DEFAULTS } from '../src/scenes/waiting.js';
 import { BRAND_DEFAULTS } from '../src/scenes/brand.js';
 
-test('шесть шрифтов имеют стабильные идентификаторы и безопасный запасной вариант', () => {
-  assert.deepEqual(FONTS.map(f => f.id), ['cormorant-garamond','playfair-display','prata','pt-serif','manrope','unbounded']);
+test('семь шрифтов имеют стабильные идентификаторы и безопасный запасной вариант', () => {
+  assert.deepEqual(FONTS.map(f => f.id), ['cormorant-garamond','playfair-display','prata','forum','pt-serif','manrope','unbounded']);
   assert.equal(fontName('unknown'), 'Cormorant Garamond');
+});
+test('название и подпись имеют свои шрифты: Prata и Forum по умолчанию', () => {
+  assert.equal(WAITING_DEFAULTS.typography.titleFont, 'prata');
+  assert.equal(WAITING_DEFAULTS.typography.captionFont, 'forum');
+  assert.equal(fontName('forum'), 'Forum');
+  // Явно сохранённые роли старый одиночный шрифт не перебивает.
+  const own = mergeConfig(WAITING_DEFAULTS, {typography: {font: 'manrope', titleFont: 'unbounded'}});
+  assert.equal(own.typography.titleFont, 'unbounded');
+  assert.equal(own.typography.captionFont, 'manrope');
 });
 test('типографика независима у сцен, старый JSON получает шрифт по умолчанию', () => {
   const intro = mergeConfig(WAITING_DEFAULTS, {logo: {scale: 0.5}});

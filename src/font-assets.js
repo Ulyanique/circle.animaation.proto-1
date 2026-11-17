@@ -7,6 +7,8 @@ import "@fontsource/playfair-display/cyrillic-400.css";
 import "@fontsource/playfair-display/cyrillic-600.css";
 import "@fontsource/playfair-display/latin-400.css";
 import "@fontsource/playfair-display/latin-600.css";
+import "@fontsource/forum/cyrillic-400.css";
+import "@fontsource/forum/latin-400.css";
 import "@fontsource/prata/cyrillic-400.css";
 import "@fontsource/prata/latin-400.css";
 import "@fontsource/pt-serif/cyrillic-400.css";

@@ -17,7 +17,7 @@ export function inspectorProperties(id, sceneId, config) {
     add('colors', k => ['goldHighlight','goldDeep'].includes(k), true);
   } else if (['title','subtitle','date'].includes(id)) {
     add('caption', k => k === `${id}AutoFit`);
-    add('typography', k => k === 'font' || k === `${id}Tracking`, true);
+    add('typography', k => k === (id === 'title' ? 'titleFont' : 'captionFont') || k === `${id}Tracking`, true);
     if (id === 'subtitle' && sceneId === 'finale') add('finale', k => k.startsWith('subtitle'), true);
   } else if (id === 'ringLeft' || id === 'ringRight') {
     add('rings', k => !/^(left|right)/.test(k), true);

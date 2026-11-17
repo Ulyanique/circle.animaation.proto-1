@@ -23,7 +23,7 @@ export class CircularLabel {
   }
   refreshTextTexture() { this.textSig = ''; }
   updateText(config) {
-    const p = config.photo, family = fontName(config.typography?.font);
+    const p = config.photo, family = fontName(config.typography?.captionFont || config.typography?.font);
     const sig = [p.text, p.repeats, p.radius, p.fontSize, p.color, p.textColor, family].join('|');
     if (sig === this.textSig) return;
     this.textSig = sig;

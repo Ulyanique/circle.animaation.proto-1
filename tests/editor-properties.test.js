@@ -11,7 +11,7 @@ test('инспектор показывает параметры выбранн�
   assert.ok(!logo.includes('logo.offsetX')); assert.ok(!logo.includes('logo.swaySpeed'));
   const title = inspectorProperties('title', 'waiting', WAITING_DEFAULTS);
   assert.ok(title.some(p => p.field.key === 'titleAutoFit'));
-  assert.ok(title.some(p => p.field.key === 'font' && p.shared));
+  assert.ok(title.some(p => p.field.key === 'titleFont' && p.shared));
   assert.ok(!title.some(p => p.field.key === 'subtitleTracking'));
   assert.ok(names('subtitle', 'finale', FINALE_DEFAULTS).includes('finale.subtitleMoveDuration'));
   assert.ok(inspectorProperties('ringLeft', 'waiting', WAITING_DEFAULTS).some(p => p.section === 'rings' && p.shared));

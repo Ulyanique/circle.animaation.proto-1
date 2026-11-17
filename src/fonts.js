@@ -2,6 +2,7 @@ export const FONTS = [
   { id: "cormorant-garamond", name: "Cormorant Garamond" },
   { id: "playfair-display", name: "Playfair Display" },
   { id: "prata", name: "Prata" },
+  { id: "forum", name: "Forum" },
   { id: "pt-serif", name: "PT Serif" },
   { id: "manrope", name: "Manrope" },
   { id: "unbounded", name: "Unbounded" },

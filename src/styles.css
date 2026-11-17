@@ -481,6 +481,7 @@ body.editor-on #caption { opacity: 1; }
   left: calc(50% + var(--title-offset-x, 0%)); top: calc(55% + var(--title-offset-y, 0%)); font-weight: 600;
   font-size: calc(var(--u) * 7.2 * var(--title-scale, 1) * var(--title-fit, 1));
   letter-spacing: var(--title-tracking, 0em); padding-left: var(--title-tracking, 0em);
+  text-transform: uppercase;
   -webkit-text-stroke: calc(var(--u) * 0.055) var(--title-color, #e0b25a);
   filter: drop-shadow(0 calc(var(--u) * 0.10) calc(var(--u) * 0.26) rgba(0, 0, 0, 0.5));
 }
@@ -781,7 +782,7 @@ body.editor-on.operator-idle:not(.ui-on) .operator-panel { opacity: 1; pointer-e
 .editor-visibility[aria-pressed="false"] .eye-slash { display: block; }
 .editor-hidden-note { margin: 0 7px 8px; padding: 8px; border-radius: 4px; background: #30281b; color: #d7c39b; font-size: 11px; }
 .editor-hidden-note[hidden] { display: none; }
-#caption .cap-custom { opacity: calc(var(--custom-opacity, 1) * var(--custom-reveal, 1)); letter-spacing: var(--custom-tracking, 0em); padding-left: var(--custom-tracking, 0em); font-weight: 600; font-size: calc(var(--u) * 3.5 * var(--custom-scale, 1) * var(--custom-fit, 1));
+#caption .cap-custom { opacity: calc(var(--custom-opacity, 1) * var(--custom-reveal, 1)); letter-spacing: var(--custom-tracking, 0em); padding-left: var(--custom-tracking, 0em); font-weight: 600; font-size: calc(var(--u) * 3.5 * var(--custom-scale, 1) * var(--custom-fit, 1)); text-transform: uppercase;
   -webkit-text-stroke: calc(var(--u) * .04) var(--custom-color, #ecd08c); }
 #caption .cap-custom .cap-glyph::after { color: var(--custom-color, #ecd08c); }
 #caption .cap-custom .glyph-contour path { stroke: var(--custom-color, #ecd08c); }

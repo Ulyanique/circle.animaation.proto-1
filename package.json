@@ -54,9 +54,11 @@
     "verify:custom-timing:video": "node scripts/verify-custom-timing-video.cjs",
     "verify:archive": "node scripts/verify-archive.cjs",
     "verify:stale-editor": "node scripts/verify-stale-editor-module.cjs",
-    "verify:export:viewer": "node scripts/verify-export-viewer.cjs"
+    "verify:export:viewer": "node scripts/verify-export-viewer.cjs",
+    "verify:typography:roles": "node scripts/verify-typography-roles.cjs"
   },
   "dependencies": {
+    "@fontsource/forum": "^5.3.0",
     "mediabunny": "^1.65.2",
     "opentype.js": "^2.0.0",
     "postprocessing": "^6.39.5",

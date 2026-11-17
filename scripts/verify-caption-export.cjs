@@ -66,7 +66,7 @@ const glyphs = (text) => [...segmenter.segment(text)].map(({ segment }) => segme
           backgroundPixels: changedPixels(0, 0, 1920, 100),
         };
       }, sceneId);
-      const title = glyphs("Янтарный циркуль");
+      const title = glyphs("Янтарный циркуль").map((g) => g.toLocaleUpperCase("ru"));
       const subtitle = glyphs(sceneId === "waiting" ? "Вечер ретроспектива" : "История продолжается")
         .map((g) => g.toLocaleUpperCase("ru"));
       const date = sceneId === "waiting" ? glyphs("20 ноября 2026 года").map((g) => g.toLocaleUpperCase("ru")) : [];

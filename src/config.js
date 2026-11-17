@@ -157,7 +157,9 @@ export const SCHEMA = [
     { key: "dateY", label: "Дата: вертикаль", type: "range", min: -0.45, max: 0.45, step: 0.005 },
   ] },
   { id: "typography", title: "Типографика", fields: [
-    { key: "font", label: "Шрифт", type: "select", options: FONTS.map(({ id, name }) => ({ value: id, label: name })) },
+    { key: "titleFont", label: "Шрифт названия", type: "select", options: FONTS.map(({ id, name }) => ({ value: id, label: name })) },
+    { key: "captionFont", label: "Шрифт подписи", type: "select", options: FONTS.map(({ id, name }) => ({ value: id, label: name })) },
+    { key: "font", label: "Шрифт сцен партнёров", type: "select", options: FONTS.map(({ id, name }) => ({ value: id, label: name })) },
     { key: "titleTracking", label: "Название: интервал букв (em)", type: "range", min: 0, max: 0.3, step: 0.01 },
     { key: "subtitleTracking", label: "Подзаголовок: интервал букв (em)", type: "range", min: 0, max: 0.6, step: 0.01 },
     { key: "dateTracking", label: "Дата: интервал букв (em)", type: "range", min: 0, max: 0.6, step: 0.01 },
@@ -439,10 +441,20 @@ export function replaceConfig(target, source) {
   return target;
 }
 
+// До ролей шрифт был один: сохранённые настройки без titleFont/captionFont
+    // держат выбранный шрифт в обеих ролях, а новые начинают с Prata/Forum.
+function migrateFontRoles(cfg, patch) {
+  const own = cfg?.typography, saved = patch?.typography;
+  if (!own || !saved || typeof saved.font !== "string") return;
+  if (!("titleFont" in saved)) own.titleFont = saved.font;
+  if (!("captionFont" in saved)) own.captionFont = saved.font;
+}
+
 /** Умолчания сцены + присланный фрагмент: недостающие ключи остаются дефолтными. */
 export function mergeConfig(defaults, patch) {
   const cfg = cloneDefaults(defaults);
   if (patch && typeof patch === "object") deepMerge(cfg, patch);
+  migrateFontRoles(cfg, patch);
   return cfg;
 }
 
@@ -562,6 +574,7 @@ export function loadSceneConfig(sceneId, defaults, onReadError) {
       try { localStorage.setItem(FINALE_GUIDES_MIGRATION, "1"); } catch (e) { /* noop */ }
     }
     deepMerge(cfg, saved);
+    migrateFontRoles(cfg, saved);
   } catch (e) {
     console.warn("Сохранённые настройки повреждены, взяты умолчания", e);
     onReadError?.(sceneId, e);
@@ -604,6 +617,7 @@ export function parseConfigJSON(text, defaults = DEFAULTS) {
   }
   const cfg = cloneDefaults(defaults);
   deepMerge(cfg, data);
+  migrateFontRoles(cfg, data);
   return cfg;
 }
 

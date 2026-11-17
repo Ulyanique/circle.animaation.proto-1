@@ -184,7 +184,7 @@ export function createSettingsUI({
       for (const f of section.fields) {
         if (!(f.key in current[section.id])) continue;
         if (section.id === "typography" && ((editing === "brand" && /^(subtitle|date)/.test(f.key)) ||
-            ((editing === "photo-pause" || editing === "partners") && f.key !== "font") || (editing === "finale" && f.key.startsWith("date")))) continue;
+            ((editing === "photo-pause" || editing === "partners") && !["font", "titleFont", "captionFont"].includes(f.key)) || (editing === "finale" && f.key.startsWith("date")))) continue;
         if (section.id === "logo" && (editing === "waiting" || editing === "photo-pause" || editing === "finale") && (f.key === "swayAmount" || f.key === "swaySpeed")) continue;
         if (section.id === "caption" && ((editing === "brand" && /^(subtitle|date)/.test(f.key)) ||
             (editing === "finale" && f.key.startsWith("date")))) continue;

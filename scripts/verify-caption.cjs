@@ -12,7 +12,7 @@ const linesFor = (scene) => scene === "waiting" ? ["title", "subtitle", "date"]
 const ranges = {
   waiting: { title: [480, 700], subtitle: [725, 830], date: [865, 960], custom: [220, 330] },
   finale: { title: [480, 700], subtitle: [720, 830] },
-  brand: { title: [480, 700] },
+  brand: { title: [770, 875] },
   "photo-pause": { title: [480, 700] },
 };
 
@@ -148,7 +148,8 @@ function overlap(dom, canvas, [top, bottom]) {
           const selector = { title: ".cap-title", subtitle: ".cap-sub", date: ".cap-date", custom: '[data-custom="text1"]' };
           for (const [name, text] of Object.entries(copy)) {
             const el = cap.querySelector(selector[name]);
-            el.style.textTransform = name === "subtitle" ? (c.subTransform || "") : name === "custom" ? (c.customTransform || "") : "";
+            // Класс титра теперь капителью; «без регистра» моделируем явным none.
+            el.style.textTransform = name === "subtitle" ? (c.subTransform === "none" ? "none" : c.subTransform || "") : name === "custom" ? (c.customTransform || "") : "";
             el.style.setProperty("--p", c.outline.toFixed(4));
             el.style.setProperty("--f", c.fill.toFixed(4));
             el.style.setProperty("--lift", `${c.lift || 0}px`);
@@ -221,8 +222,9 @@ function overlap(dom, canvas, [top, bottom]) {
         let partialGlyphs = 0, partialExpandedGlyphs = 0;
         for (const name of [...linesFor(c.scene), ...(c.custom ? ["custom"] : [])]) {
           const glyphs = segment(copy[name]).map(g => {
-            if (name === 'custom') return c.customTransform === 'uppercase' ? g.toLocaleUpperCase('ru') : c.customTransform === 'lowercase' ? g.toLocaleLowerCase('ru') : g;
-            return name === 'title' || (name === 'subtitle' && c.subTransform === 'none') ? g : g.toLocaleUpperCase('ru');
+            if (name === 'custom') return c.customTransform === 'lowercase' ? g.toLocaleLowerCase('ru') : g.toLocaleUpperCase('ru');
+            if (name === 'subtitle' && c.subTransform === 'none') return g;
+            return g.toLocaleUpperCase('ru');
           });
           assert.equal(actual.counts[name], glyphs.length, `${c.name}: число графем ${name}`);
           glyphs.forEach((glyph, i) => {
