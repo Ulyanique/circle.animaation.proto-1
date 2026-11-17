@@ -63,11 +63,11 @@ const { launchBrowser } = require("./browser.cjs");
       // Первый drawImage в headless SwiftShader может лишь инициализировать
       // видео-текстуру и вернуть пустой canvas, несмотря на loadeddata/seeked.
       // Прогрев отдельно, затем каждый проверяемый кадр читаем на чистый canvas.
-      await waitEvent('seeked', () => {video.currentTime = 6.25 / 60;});
+      await waitEvent('seeked', () => {video.currentTime = 3.25 / 30;});
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
       ctx.getImageData(0, 0, canvas.width, canvas.height);
-      for (const index of [0, 6, 12, 18, 23]) {
-        const time = (index + .25) / 60;
+      for (const index of [0, 3, 6, 9, 11]) {
+        const time = (index + .25) / 30;
         await waitEvent('seeked', () => {video.currentTime = time;});
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
@@ -89,10 +89,10 @@ const { launchBrowser } = require("./browser.cjs");
     if (errors.length || !requested.accepted || !requested.button || duplicate ||
         result.scenes.join() !== "waiting,brand,photo-pause,finale" ||
         result.transitions.length !== 3 ||
-        result.transitions.some((transition) => transition.blendedFrames !== 6) || result.frames !== 24 ||
+        result.transitions.some((transition) => transition.blendedFrames !== 3) || result.frames !== 12 ||
         result.blendedFrames < 1 || result.bytes < 1000 ||
         !result.type.startsWith("video/mp4") || result.final !== "finale" ||
-        result.decoded.width !== 1920 || result.decoded.height !== 1080 || Math.abs(result.decoded.duration - 24 / 60) > .002 ||
+        result.decoded.width !== 1920 || result.decoded.height !== 1080 || Math.abs(result.decoded.duration - 12 / 30) > .002 ||
         !result.recordingFinished || result.samples?.length !== 5 ||
         result.samples.some(sample => sample.opaque !== 320 * 180) ||
         new Set(result.samples.map(sample => sample.hash)).size < 2) process.exitCode = 1;

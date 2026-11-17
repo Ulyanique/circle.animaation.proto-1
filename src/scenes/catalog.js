@@ -11,7 +11,11 @@ export const BASE_FRAME = Object.freeze({ width: 1920, height: 1080 });
 /** Площадь базового кадра в пикселях — база для битрейта и масштабов. */
 export const BASE_PIXELS = BASE_FRAME.width * BASE_FRAME.height;
 // Единственный технический формат цикла. Других разрешений и пресетов нет.
-export const OUTPUT = Object.freeze({ ...BASE_FRAME, fps: 60 });
+// 30 fps — целевая частота программы: вдвое меньше кадров на тот же битрейт
+// в секунду, то есть вдвое больше бюджета на кадр, и вдвое быстрее покадровый
+// экспорт. Движение сцен построено на абсолютном времени, поэтому ритм не
+// меняется; стробирование вращения компенсирует затвор (photo-shutter).
+export const OUTPUT = Object.freeze({ ...BASE_FRAME, fps: 30 });
 // Порядок одной полной программы для предпросмотра и записи единым MP4.
 export const RECORDING_CHAIN = Object.freeze(["waiting", "brand", "photo-pause", "finale"]);
 

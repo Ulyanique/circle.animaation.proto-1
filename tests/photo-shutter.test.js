@@ -6,12 +6,18 @@ const photoConfig = overrides => ({
   photo: { textEnabled: true, rotationSpeed: 0.035, ...overrides },
 });
 
-test('на обычной скорости 60 fps затвор не включается', () => {
+test('на 60 fps шага почти нет и затвор не включается', () => {
   // 0,035 об/с при 60 fps — 0,21° за кадр: меньше пикселя, размазывать нечего.
   const perFrame = 0.035 * 360 / 60;
   assert.ok(perFrame < SHUTTER_THRESHOLD_DEG);
   assert.equal(shutterSamples(perFrame), 1);
   assert.equal(photoShutterSamples(photoConfig(), { id: 'photo-pause', fps: 60 }), 1);
+});
+
+test('на штатных 30 fps затвор усредняет две выборки', () => {
+  // 0,035 об/с при 30 fps — 0,42° за кадр: больше порога 0,35°, поэтому
+  // включается усреднение двух выборок по выдержке — стробирование гасится.
+  assert.equal(photoShutterSamples(photoConfig(), { id: 'photo-pause', fps: 30 }), 2);
 });
 
 test('на медленном обороте и высоком fps выборок больше', () => {

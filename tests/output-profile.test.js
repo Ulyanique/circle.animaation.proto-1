@@ -17,7 +17,7 @@ function fakeStorage(initial = {}) {
 test('base master stays 1920×1080 at the project frame rate', () => {
   resetMasterPreset();
   assert.equal(masterId(), DEFAULT_MASTER);
-  assert.deepEqual(masterSize(), { width: 1920, height: 1080, fps: 60 });
+  assert.deepEqual(masterSize(), { width: 1920, height: 1080, fps: 30 });
   assert.equal(masterScale(), 1);
   assert.deepEqual(Object.keys(MASTER_PRESETS).sort(), ['1080p', '2160p']);
 });
@@ -25,7 +25,7 @@ test('base master stays 1920×1080 at the project frame rate', () => {
 test('4K master changes only the pixel grid, not the frame rate', () => {
   resetMasterPreset();
   assert.equal(setMasterPreset('2160p'), true);
-  assert.deepEqual(masterSize(), { width: 3840, height: 2160, fps: 60 });
+  assert.deepEqual(masterSize(), { width: 3840, height: 2160, fps: 30 });
   assert.equal(masterScale(), 2);
   assert.equal(masterId(), '2160p');
 });

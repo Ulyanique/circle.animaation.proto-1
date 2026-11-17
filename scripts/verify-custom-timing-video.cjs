@@ -21,7 +21,7 @@ const {launchBrowser} = require('./browser.cjs');
       return {accepted:L.startRecording({download:false}),cycle:L.runtime.cycle};
     });
     assert.equal(start.accepted,true); assert.equal(start.cycle,4);
-    console.log('Записываем 12 кадров с реальными сценой и кодировщиком…');
+    console.log('Записываем 6 кадров с реальными сценой и кодировщиком…');
     await page.waitForFunction(()=>window.__lastVideoBlob?.size>0 || !!window.__recStats?.error,{timeout:600000,polling:500});
     const error=await page.evaluate(()=>window.__recStats.error);
     if(error) throw new Error(`Экспорт: ${error}`);
@@ -45,30 +45,30 @@ const {launchBrowser} = require('./browser.cjs');
       const diff=(a,b)=>{let total=0;for(let i=0;i<a.length;i+=4) for(let c=0;c<3;c++)total+=Math.abs(a[i+c]-b[i+c]);return total/(320*180*3)};
       const snap=(canvas,ctx,source)=>{ctx.clearRect(0,0,320,180);ctx.drawImage(source,0,0,320,180);return pixels(ctx)};
       // В SwiftShader первый доступ к видеотекстуре может инициализировать её лениво.
-      await wait('seeked',()=>{video.currentTime=6.25/60});snap(decoded,dc,video);
-      await wait('seeked',()=>{video.currentTime=4.25/60});snap(decoded,dc,video);
+      await wait('seeked',()=>{video.currentTime=3.25/30});snap(decoded,dc,video);
+      await wait('seeked',()=>{video.currentTime=2.25/30});snap(decoded,dc,video);
       const samples=[];
       let priming = true;
-      for(const index of [4,10,6,4]) {
-        await wait('seeked',()=>{video.currentTime=(index+.25)/60});
+      for(const index of [2,5,3,2]) {
+        await wait('seeked',()=>{video.currentTime=(index+.25)/30});
         let actual=snap(decoded,dc,video);
         const opaqueCount = data => {let n=0;for(let i=3;i<data.length;i+=4) if(data[i]===255)n++;return n;};
         // На некоторых headless GPU первый seeked приходит раньше готовой текстуры.
         // Повторяем выбор кадра после другого seek; отсутствие декодирования всё равно ошибка ниже.
         if (opaqueCount(actual) === 0) {
-          await wait('seeked',()=>{video.currentTime=((index===6 ? 3 : 6)+.25)/60});
+          await wait('seeked',()=>{video.currentTime=((index===3 ? 1 : 3)+.25)/30});
           snap(decoded,dc,video);
-          await wait('seeked',()=>{video.currentTime=(index+.25)/60});
+          await wait('seeked',()=>{video.currentTime=(index+.25)/30});
           actual=snap(decoded,dc,video);
         }
-        const time=index*20/60;
+        const time=index*20/30;
         L.scene.logo.body.visible=true;
-        const source=L.compositeFrameAt(time,1/60);
+        const source=L.compositeFrameAt(time,1/30);
         const expected=snap(reference,rc,source);
         let hiddenDifference=null,hiddenMatch=null;
-        if(index===6) {
+        if(index===3) {
           L.scene.logo.body.visible=false;
-          const hidden=L.compositeFrameAt(time,1/60);
+          const hidden=L.compositeFrameAt(time,1/30);
           const noLogo=snap(reference,rc,hidden);
           hiddenDifference=diff(expected,noLogo);hiddenMatch=diff(actual,noLogo);
           L.scene.logo.body.visible=true;
@@ -82,14 +82,14 @@ const {launchBrowser} = require('./browser.cjs');
       return {metadata,samples,frames:stats.frames,expected:stats.expectedFrames,codec:stats.codec,bytes:blob.size};
     });
     console.log(result);
-    assert.deepEqual(errors,[]);assert.equal(result.frames,12);assert.equal(result.expected,12);
+    assert.deepEqual(errors,[]);assert.equal(result.frames,6);assert.equal(result.expected,6);
     assert.equal(result.metadata.width,1920);assert.equal(result.metadata.height,1080);
     assert.ok(Math.abs(result.metadata.duration-.2)<.002);
     for(const sample of result.samples) {
       assert.equal(sample.opacity,320*180,JSON.stringify(sample));
       assert.ok(sample.error<6,`Декодированный кадр отличается от canvas: ${JSON.stringify(sample)}`);
     }
-    const mid=result.samples.find(s=>s.index===6);
+    const mid=result.samples.find(s=>s.index===3);
     assert.ok(mid.hiddenDifference>.1 && mid.hiddenMatch>mid.error+.05,`В середине не удалось подтвердить вклад логотипа: ${JSON.stringify(mid)}`);
     console.log('MP4 с собственным временем знака и титра: выбранные кадры соответствуют canvas — OK');
   } finally { await browser.close(); }

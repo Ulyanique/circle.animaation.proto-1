@@ -11,7 +11,7 @@ test('базовый кадр — единственный источник 1920
   // OUTPUT наследует размер у базового кадра, а частоту задаёт сам.
   assert.equal(OUTPUT.width, BASE_FRAME.width);
   assert.equal(OUTPUT.height, BASE_FRAME.height);
-  assert.equal(OUTPUT.fps, 60);
+  assert.equal(OUTPUT.fps, 30);
   assert.equal(masterSize().width, BASE_FRAME.width);
   assert.equal(masterPreset('1080p').label, `${BASE_FRAME.width}×${BASE_FRAME.height}`);
   // 4K ровно вчетверо больше по площади: это база для битрейта.
