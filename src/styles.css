@@ -48,10 +48,10 @@ body.scene-brand #caption .cap-title {
   letter-spacing: var(--title-tracking, .16em); padding-left: var(--title-tracking, .16em);
 }
 body.scene-photo #caption .cap-title {
-  left: calc(50% + var(--title-offset-x, 0%)); top: calc(65% + var(--title-offset-y, 0%)); font-size: calc(var(--u) * 6.7 * var(--title-scale, 1) * var(--title-fit, 1));
+  left: calc(50% + var(--title-offset-x, 0%)); top: calc(65% + var(--title-offset-y, 0%)); font-size: calc(var(--u) * 6.0 * var(--title-scale, 1) * var(--title-fit, 1));
 }
 body.scene-finale #caption .cap-title {
-  left: calc(50% + var(--title-offset-x, 0%)); top: calc(65% + var(--title-offset-y, 0%)); font-size: calc(var(--u) * 6.6 * var(--title-scale, 1) * var(--title-fit, 1));
+  left: calc(50% + var(--title-offset-x, 0%)); top: calc(65% + var(--title-offset-y, 0%)); font-size: calc(var(--u) * 5.8 * var(--title-scale, 1) * var(--title-fit, 1));
 }
 body.scene-finale #caption .cap-sub {
   left: calc(50% + var(--subtitle-offset-x, 0%)); top: calc(var(--finale-subtitle-y, 79%) + var(--subtitle-offset-y, 0%)); font-size: calc(var(--u) * 2.55 * var(--subtitle-scale, 1) * var(--subtitle-fit, 1));
@@ -479,7 +479,7 @@ body.editor-on #caption { opacity: 1; }
 }
 #caption .cap-title {
   left: calc(50% + var(--title-offset-x, 0%)); top: calc(55% + var(--title-offset-y, 0%)); font-weight: 600;
-  font-size: calc(var(--u) * 7.2 * var(--title-scale, 1) * var(--title-fit, 1));
+  font-size: calc(var(--u) * 5.9 * var(--title-scale, 1) * var(--title-fit, 1));
   letter-spacing: var(--title-tracking, 0em); padding-left: var(--title-tracking, 0em);
   text-transform: uppercase;
   -webkit-text-stroke: calc(var(--u) * 0.055) var(--title-color, #e0b25a);

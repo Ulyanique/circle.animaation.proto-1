@@ -8,10 +8,10 @@ test('интервалы независимы по строкам и сцена�
   const configs = Object.fromEntries(scenes.map(s=>[s.id, parseConfigJSON('{"typography":{"font":"prata"}}',s.defaults)]));
   // 0,32em разрывал подзаголовок на буквы — для зала он слишком широкий.
   assert.deepEqual(ids.map(id => configs[id].typography.subtitleTracking), [.22,.22,.22,.18]);
-  for (const id of ids) { assert.equal(configs[id].typography.titleTracking, 0); }
+  for (const id of ids) { assert.equal(configs[id].typography.titleTracking, .02); }
   assert.deepEqual(ids.map(id => configs[id].typography.dateTracking), [.24,.24,.24,.24]);
   Object.assign(configs.waiting.typography, {titleTracking:.08, subtitleTracking:.12, dateTracking:.2});
-  assert.equal(configs.finale.typography.titleTracking, 0);
+  assert.equal(configs.finale.typography.titleTracking, .02);
   assert.deepEqual(parseConfigJSON(configToJSON(configs.waiting), scenes[0].defaults).typography, configs.waiting.typography);
   assert.deepEqual(parseProjectJSON(projectToJSON(configs,ids),ids).scenes.waiting.typography, configs.waiting.typography);
   assert.equal(mergeConfig(scenes[0].defaults, {}).typography.subtitleTracking, .22);
