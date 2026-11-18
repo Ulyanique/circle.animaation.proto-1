@@ -8,7 +8,7 @@ import { configToJSON, parseConfigJSON, SCHEMA } from '../src/config.js';
 
 test('титр для зала: интервалы букв, размер даты и настройка камеры', () => {
   // Подзаголовок больше не распадается на буквы; дата идёт плотнее.
-  assert.equal(WAITING_DEFAULTS.typography.subtitleTracking, .22);
+  assert.equal(WAITING_DEFAULTS.typography.subtitleTracking, .18);
   assert.equal(WAITING_DEFAULTS.typography.dateTracking, .24);
   // Финальная фраза остаётся со своим, более узким интервалом.
   assert.equal(FINALE_DEFAULTS.typography.subtitleTracking, .18);

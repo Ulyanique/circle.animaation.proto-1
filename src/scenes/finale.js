@@ -5,7 +5,6 @@ import { createSharedSceneConfig } from "./shared-visuals.js";
 // Финальная реплика: достаточно времени на поэтапный уход, цикл остаётся 18 с.
 export const FINALE_DEFAULTS = createSharedSceneConfig(createSceneTimeline(18));
 
-FINALE_DEFAULTS.typography.subtitleTracking = 0.18;
 FINALE_DEFAULTS.logo.facetPolish = WAITING_DEFAULTS.logo.facetPolish;
 FINALE_DEFAULTS.intro = { ...WAITING_DEFAULTS.intro };
 FINALE_DEFAULTS.constructionGuides.enabled = true;
