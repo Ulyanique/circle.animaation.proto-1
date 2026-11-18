@@ -1,0 +1,175 @@
+<!doctype html><html lang="ru"><head><link rel="stylesheet" href="/src/styles.css"></head>
+<body class="scene-waiting"><input id="typing" type="text" style="position:fixed;left:5px;bottom:5px"><canvas id="stage" style="width:960px;height:540px"></canvas>
+<div id="caption" style="width:960px;height:540px;--u:9.6px">
+<div class="cap-title" data-text="Циркуль" style="--p:1;--f:1"><span class="cap-glyph" data-glyph="р" style="--f:1;--o:1">р</span>Циркуль</div>
+<div class="cap-sub" data-text="Подзаголовок">Подзаголовок</div>
+<div class="cap-date" data-text="Дата">Дата</div></div>
+<script type="module">
+import * as THREE from 'three';
+import { DECOR_SLOTS, brandDecorDefaults } from '/src/brand-decor-config.js';
+import { BrandDecor } from '/src/brand-decor.js';
+import { ConstructionGuides } from '/src/construction-guides.js';
+import { PhotoAperture } from '/src/photo-aperture.js';
+import { PHOTO_PAUSE_DEFAULTS } from '/src/scenes/photo-pause.js';
+import { FINALE_DEFAULTS } from '/src/scenes/finale.js';
+import { BRAND_DEFAULTS } from '/src/scenes/brand.js';
+import { createSettingsUI } from '/src/ui.js';
+import { computePhase } from '/src/timeline.js';
+import { WAITING_DEFAULTS } from '/src/scenes/waiting.js';
+import { updateTopIllumination } from '/src/top-illumination.js';
+import { PARTICLE_CLOUD_IDS, particleCloudDefaults } from '/src/particle-cloud-config.js';
+import { ParticleCloud } from '/src/particle-cloud.js';
+import { BackgroundGlow } from '/src/background-glow.js';
+import { BACKGROUND_GLOW_IDS, backgroundGlowDefaults } from '/src/background-glow-config.js';
+import { createFrameEditor } from '/src/editor.js';
+import { editorLockDefaults } from '/src/editor-locks.js';
+import { effectOrderDefaults, applyEffectOrder } from '/src/effect-order.js';
+import { drawCaption } from '/src/caption-compositor.js';
+import { syncCaptionContent } from '/src/caption-content.js';
+import { applyCaptionFit } from '/src/caption-fit.js';
+import { editorViewport } from '/src/editor-layers.js';
+import { applyEditorWorkspace } from '/src/editor-workspace.js';
+import { applyPreviewLayout } from '/src/editor-preview.js';
+import { customTextDefaults, customTextAnimation, customTextVisual } from '/src/custom-text.js';
+import { glyphReveal } from '/src/caption.js';
+import { ringSidePosition } from '/src/scenes/ring-sides.js';
+const root = new THREE.Group();
+const mesh = new THREE.Mesh(new THREE.BoxGeometry(2, 2, 0.1), new THREE.MeshBasicMaterial());
+root.add(mesh); root.position.y = 1.1;
+const camera = new THREE.PerspectiveCamera(30, 960 / 540, 0.1, 100);
+camera.position.set(0, 0, 9); camera.lookAt(0, 0, 0); camera.updateProjectionMatrix(); camera.updateMatrixWorld();
+const config = { effectOrder: effectOrderDefaults(), editorLocks: editorLockDefaults(), rings: { enabled: true, cornerX: 0.44, cornerY: 0.42, leftVisible: true, rightVisible: true, leftOffsetX: 0, leftOffsetY: 0, rightOffsetX: 0, rightOffsetY: 0, leftScale: 1, rightScale: 1 }, timeline: {startDelay: 0, drawDuration: 5, emergeDuration: 5, holdDuration: 5, fadeDuration: 3, restDuration: 2}, textLayers: customTextDefaults(), logo: { visible: true, offsetX: 0, offsetY: 1.1, scale: 1 }, colors: {gold: '#c8962e', lightLeft: '#ffb55c', lightRight: '#ffcf7a'}, caption: { titleVisible: true, subtitleVisible: true, dateVisible: true, titleText: 'рЦиркуль', subtitleText: 'Подзаголовок', dateText: 'Дата', titleColor: null, subtitleColor: null, dateColor: null, titleX: 0, titleY: 0, titleScale: 1, subtitleX: 0, subtitleY: 0, subtitleScale: 1, dateX: 0, dateY: 0, dateScale: 1 } };
+const circularLabel = new THREE.Object3D(); circularLabel.position.z = 0.1;
+const brandDecors = Object.fromEntries(DECOR_SLOTS.map(({id, section}) => [id, new BrandDecor(section)]));
+for (const decor of Object.values(brandDecors)) { decor.group.position.z = -0.25; decor.group.visible = false; }
+const brandGroup = brandDecors.brandDecor.group;
+const particleClouds = Object.fromEntries(PARTICLE_CLOUD_IDS.map(id => [id, new ParticleCloud(id)]));
+for (const cloud of Object.values(particleClouds)) { cloud.group.position.z = -0.25; cloud.group.visible = false; }
+const cloudGroup = particleClouds.particleCloud.group;
+const ringLeft = new THREE.Group(), ringRight = new THREE.Group();
+const sides = {left: {group: ringLeft}, right: {group: ringRight}};
+function updateRings() { const halfH = Math.tan(Math.PI / 12) * 9, halfW = halfH * 16 / 9; for (const side of ['left', 'right']) { const p = ringSidePosition(side, config.rings, halfW, halfH); sides[side].group.position.set(p.x, p.y, 0); sides[side].group.visible = config.rings.enabled && config.rings[`${side}Visible`]; sides[side].group.scale.setScalar(config.rings[`${side}Scale`]); } }
+config.constructionGuides = structuredClone(WAITING_DEFAULTS.constructionGuides);
+config.constructionGuides.enabled = false;
+const constructionGuides = new ConstructionGuides();
+config.topIllumination = structuredClone(WAITING_DEFAULTS.topIllumination);
+config.lights = structuredClone(WAITING_DEFAULTS.lights);
+const topLight = new THREE.PointLight(), topGlow = new THREE.Sprite(new THREE.SpriteMaterial());
+config.photo = structuredClone(PHOTO_PAUSE_DEFAULTS.photo);
+const aperture = new PhotoAperture();
+config.intro = structuredClone(WAITING_DEFAULTS.intro);
+config.captionTiming = structuredClone(WAITING_DEFAULTS.captionTiming);
+config.logoTiming = structuredClone(WAITING_DEFAULTS.logoTiming);
+Object.assign(config, backgroundGlowDefaults());
+Object.assign(config, particleCloudDefaults());
+Object.assign(config, brandDecorDefaults());
+updateRings();
+updateTopIllumination(topLight, topGlow, config, 1, 1);
+const backgroundGlows = Object.fromEntries(BACKGROUND_GLOW_IDS.map(id => [id, new BackgroundGlow(new THREE.Texture(), id)]));
+for (const glow of Object.values(backgroundGlows)) glow.group.visible = false;
+const backgroundGlow = backgroundGlows.backgroundGlow;
+const state = { scene: { aperture, constructionGuides, topLight, topGlow, logo: { root, mesh }, camera, circularLabel, corners: {sides}, backgroundGlows, backgroundGlow, particleClouds, particleCloud: particleClouds.particleCloud, brandDecors, brandDecor: brandDecors.brandDecor }, canvas: document.querySelector('#stage'),
+  config, defaults: structuredClone(config), id: 'waiting', time: 10 };
+const cap = document.querySelector('#caption');
+function updateEffects() {
+  const phase = {beforeStart: false, reveal: 1, rings: 1};
+  applyEffectOrder(config, state.scene);
+  updateTopIllumination(topLight, topGlow, config, phase.reveal, 1);
+  aperture.update(computePhase(state.time, config.timeline), config, root);
+  constructionGuides.update(state.time, phase, config, root, {left: ringLeft.position, right: ringRight.position});
+  for (const glow of Object.values(backgroundGlows)) glow.update(state.time, phase, config);
+  for (const cloud of Object.values(particleClouds)) cloud.update(state.time, phase, config);
+  for (const decor of Object.values(brandDecors)) decor.update(state.time, phase, config, root);
+}
+
+function layout() {
+  const view = editorViewport(innerWidth, innerHeight, document.body.classList.contains('editor-on'), document.body.classList.contains('editor-focus'));
+  applyEditorWorkspace(innerWidth, innerHeight, document.body.classList.contains('editor-on'), view);
+  applyPreviewLayout(view, document.body.classList.contains('editor-on'), state.canvas, cap);
+  applyCaptionFit(cap, config.caption, config.textLayers);
+}
+window.addEventListener('resize', () => { layout(); editor.refresh(); });
+function renderCustom() {
+  for (const line of cap.querySelectorAll('.cap-custom')) {
+    const id = line.dataset.custom;
+    const reveal = config.textLayers[`${id}TimingMode`] === 'custom'
+      ? customTextAnimation(state.time, config.timeline, config.textLayers, id) : {outline: 1, fill: 1};
+    const visual = customTextVisual(reveal, line.dataset.revealStyle);
+    line.style.setProperty('--custom-reveal', visual.opacity);
+    line.style.setProperty('--lift', `${(visual.rise ?? 0) * (parseFloat(cap.style.getPropertyValue('--u')) || 19.2)}px`);
+    line.style.setProperty('--p', visual.line.outline); line.style.setProperty('--f', visual.line.fill);
+    [...line.children].forEach((glyph, i, all) => {
+      const progress = glyphReveal(visual.line, i, all.length);
+      glyph.style.setProperty('--o', progress.outline); glyph.style.setProperty('--f', progress.fill);
+    });
+  }
+}
+const editor = createFrameEditor({ onLayoutChange: layout, getState: () => state, onEnable: () => true,
+  onSeek: time => { state.time = time; renderCustom(); updateEffects(); }, onChange: () => {
+  updateRings();
+  root.visible = config.logo.visible; circularLabel.visible = config.photo.textEnabled;
+  root.position.set(config.logo.offsetX, config.logo.offsetY, 0); root.scale.setScalar(config.logo.scale);
+  circularLabel.position.set(root.position.x + config.photo.offsetX, root.position.y + config.photo.offsetY, 0.1);
+  updateEffects();
+  syncCaptionContent(cap, config.caption, config.textLayers);
+  applyCaptionFit(cap, config.caption, config.textLayers);
+  renderCustom();
+  for (const name of ['title', 'subtitle', 'date']) {
+    cap.style.setProperty(`--${name}-offset-x`, `${config.caption[`${name}X`] * 100}%`);
+    cap.style.setProperty(`--${name}-offset-y`, `${config.caption[`${name}Y`] * 100}%`);
+    cap.style.setProperty(`--${name}-scale`, config.caption[`${name}Scale`]);
+  }
+  editor.refresh();
+}, onSettings: (section) => { state.settingsSection = section; } });
+// drawCaption берёт размер кадра у целевого canvas: экспортная проверка должна
+// рисовать в canvas мастер-формата, а не в пустой 300×150 по умолчанию.
+const exportContext = () => { const c = document.createElement('canvas'); c.width = 1920; c.height = 1080; return c.getContext('2d'); };
+window.editorFixture = { editor, state, createFinaleSettings() {
+  const configs = { finale: structuredClone(FINALE_DEFAULTS), brand: structuredClone(BRAND_DEFAULTS) };
+  const defaults = { finale: FINALE_DEFAULTS, brand: BRAND_DEFAULTS }; let active = 'finale';
+  const changes = [];
+  const ui = createSettingsUI({scenes:[{id:'finale',label:'09',title:'Финал'},{id:'brand',label:'02',title:'Фон'}],
+    getSceneId:()=>active, getConfig:id=>configs[id], getDefaults:id=>defaults[id],
+    setScene:id=>{active=id;}, onConfigChange:(id,section,key)=>changes.push([id,section,key])});
+  ui.openSection('finale'); window.finaleSettings = {configs, changes, ui};
+}, finalePlacement() {
+  const sub = cap.querySelector('.cap-sub');
+  cap.style.setProperty('--finale-subtitle-y', '50%');
+  cap.style.setProperty('--subtitle-offset-x', '0%'); cap.style.setProperty('--subtitle-offset-y', '0%');
+  cap.style.setProperty('--drift', '0px'); sub.style.visibility = 'visible';
+  sub.style.setProperty('--p', '1'); sub.style.setProperty('--f', '1'); sub.style.setProperty('--lift', '0px');
+  sub.innerHTML = '<span class="cap-glyph" data-glyph="А">А</span>';
+  const marker = document.createElement('span'); marker.style.cssText = 'display:inline-block;width:0;height:0;padding:0;margin:0;border:0;vertical-align:baseline;letter-spacing:0'; sub.append(marker);
+  const rect = sub.getBoundingClientRect(), capRect = cap.getBoundingClientRect();
+  const baseline = marker.getBoundingClientRect().top; marker.remove();
+  const ctx = exportContext(), paints = [], fill = ctx.fillText.bind(ctx);
+  ctx.fillText = (text,x,y) => { paints.push({text,x,y}); fill(text,x,y); };
+  drawCaption(ctx, 1, 'finale');
+  return {x:(rect.left + rect.width / 2 - capRect.left) / capRect.width,
+    y:(rect.top + rect.height / 2 - capRect.top) / capRect.height,
+    exportY:paints.find(p => p.text === 'А')?.y, expectedY:(baseline-capRect.top) * 1920 / capRect.width};
+}, setTime(time) { state.time = time; renderCustom(); updateEffects(); editor.refresh(); }, exportedTitle() {
+  const ctx = exportContext();
+  const result = []; const original = ctx.fillText.bind(ctx);
+  ctx.fillText = (text, x, y) => { result.push({text, color: ctx.fillStyle, font:ctx.font, transformY: ctx.getTransform().f}); original(text, x, y); };
+  drawCaption(ctx, 1, state.id); return result;
+}, measureTitleFont() {
+  const ctx = exportContext();
+  let fontSize = null;
+  const original = ctx.fillText.bind(ctx);
+  ctx.fillText = (text, x, y) => { fontSize = parseFloat(ctx.font.match(/([\d.]+)px/)[1]); original(text, x, y); };
+  drawCaption(ctx, 1, 'waiting');
+  return fontSize;
+}, activate(id) {
+  state.id = id; document.body.className = `scene-${id === 'photo-pause' ? 'photo' : id} editor-on`;
+  for (const {id: decorId, section} of DECOR_SLOTS) { config[section].present = false; brandDecors[decorId].group.visible = false; }
+  config.decor.present = id === 'brand'; config.decor.followLogo = id === 'brand';
+  for (const id of PARTICLE_CLOUD_IDS) { config[id].present = false; particleClouds[id].group.visible = false; }
+  for (const id of BACKGROUND_GLOW_IDS) { config[id].present = false; backgroundGlows[id].group.visible = false; }
+  config.logo.offsetX = 0; config.logo.offsetY = id === 'photo-pause' ? 0 : 0.6;
+  root.position.set(config.logo.offsetX, config.logo.offsetY, 0);
+  circularLabel.position.set(root.position.x + config.photo.offsetX, root.position.y + config.photo.offsetY, 0.1);
+  updateEffects();
+  editor.refresh();
+} };
+</script></body></html>
